@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8"><title>spike</title>
+<script type="importmap">{"imports":{"wawa-lipsync":"/node_modules/wawa-lipsync/dist/wawa-lipsync.es.js","wlipsync":"/node_modules/wlipsync/dist/wlipsync-single.js"}}</script>
+<script type="module">
+const frame = () => new Promise(r => requestAnimationFrame(r));
+window.runWawa = async (url) => {
+  const { Lipsync } = await import("wawa-lipsync");
+  const l = new Lipsync();
+  const a = new Audio(); a.src = url; l.connectAudio(a);
+  const t0 = performance.now(); const out = [];
+  await a.play();
+  while (!a.ended && performance.now() - t0 < 40000) {
+    l.processAudio();
+    out.push({ t: a.currentTime, v: String(l.viseme).replace("viseme_", ""), vol: l.features?.volume ?? 0 });
+    await frame();
+  }
+  return out;
+};
+window.runWl = async (url) => {
+  const { createWLipSyncNode } = await import("wlipsync");
+  const ctx = new AudioContext(); await ctx.resume();
+  const profile = await fetch("/profile.json").then(r => r.json());
+  const node = await createWLipSyncNode(ctx, profile);
+  const buf = await ctx.decodeAudioData(await (await fetch(url)).arrayBuffer());
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(node);
+  const out = []; let ended = false; src.onended = () => (ended = true);
+  const start = ctx.currentTime; src.start();
+  const t0 = performance.now();
+  while (!ended && performance.now() - t0 < 40000) {
+    out.push({ t: ctx.currentTime - start, w: { ...node.weights }, vol: node.volume });
+    await frame();
+  }
+  await ctx.close();
+  return out;
+};
+window.spikeReady = true;
+</script>

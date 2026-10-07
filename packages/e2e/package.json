@@ -1,0 +1,13 @@
+{
+  "name": "@vikaki/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": { "@vikaki/server": "workspace:*" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'e2e runs with: pnpm test:e2e (needs a build and Chromium)'",
+    "test:e2e": "vitest run"
+  }
+}
