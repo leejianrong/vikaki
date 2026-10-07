@@ -1,7 +1,7 @@
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { Vector3, type Object3D } from "three";
-import { VISEMES, type AvatarRenderer, type VisemeWeights } from "./renderer.ts";
+import { VISEMES, type AvatarRenderer, type HeadPose, type VisemeWeights } from "./renderer.ts";
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
@@ -38,6 +38,10 @@ export class VrmAvatar implements AvatarRenderer {
 
   setBlink(amount: number): void {
     this.vrm.expressionManager?.setValue("blink", clamp01(amount));
+  }
+
+  setHeadPose(pose: HeadPose): void {
+    this.vrm.humanoid.getNormalizedBoneNode("head")?.rotation.set(pose.pitch, pose.yaw, pose.roll);
   }
 
   update(dt: number): void {

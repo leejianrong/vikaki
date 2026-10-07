@@ -77,6 +77,29 @@ describe("avatar page", () => {
     await page.close();
   });
 
+  it("blinks at least twice in 10 seconds of silence", async () => {
+    const page = await open("?hud=0&seed=7");
+    await page.waitForTimeout(10_000);
+    expect(await page.evaluate(() => window.__vikaki!.blinks)).toBeGreaterThanOrEqual(2);
+    await page.close();
+  });
+
+  it("closes the eyes during a blink", async () => {
+    const page = await open("?hud=0&seed=7");
+    const peak = await page.evaluate(async () => {
+      let max = 0;
+      const end = performance.now() + 4000;
+      while (performance.now() < end) {
+        max = Math.max(max, window.__vikaki!.blink);
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+      return max;
+    });
+    expect(peak).toBeGreaterThan(0.9);
+    expect(await expressionValue(page, "blink")).toBeLessThanOrEqual(1);
+    await page.close();
+  });
+
   it("hides the status line with ?hud=0", async () => {
     const page = await open("?hud=0");
     expect(await page.locator("#hud").isHidden()).toBe(true);

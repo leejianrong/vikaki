@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install build serve check hooks
+.PHONY: help install build serve demo check hooks
 
 help: ## List available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -12,6 +12,9 @@ build: ## Build the avatar page
 
 serve: build ## Build, then serve the avatar page on localhost
 	pnpm serve
+
+demo: build ## Build, serve and open the demo page to judge the avatar by eye
+	pnpm --filter @vikaki/cli dev serve --demo --open
 
 check: ## Fast gate: typecheck + tests (what the pre-push hook runs)
 	pnpm typecheck

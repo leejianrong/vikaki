@@ -10,9 +10,10 @@ An open-source engine that gives you a live avatar from a microphone or from tex
 
 ```bash
 pnpm install
-pnpm build
-pnpm serve   # http://127.0.0.1:8787/avatar (placeholder page for now)
+make demo    # builds, serves on a free port and opens the demo page
 ```
+
+The demo page shows the avatar with controls for each mouth shape, blinking, your microphone, and any audio file you pick, plus live meters of what lip sync reports. Microphone audio stays in the page. `?mode=mic` on `/avatar` turns the mic on directly.
 
 ## Docs
 
