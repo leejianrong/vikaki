@@ -1,0 +1,13 @@
+{
+  "name": "@vikaki/engine",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no engine tests yet'"
+  }
+}
