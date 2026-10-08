@@ -59,6 +59,10 @@ export class HubClient {
     return client;
   }
 
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
   send(message: Message): void {
     this.ws.send(JSON.stringify(message));
   }
