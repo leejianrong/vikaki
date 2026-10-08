@@ -2,7 +2,7 @@ import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { startServer, type RunningServer } from "../src/server.ts";
+import { findFreePort, startServer, type RunningServer } from "../src/server.ts";
 
 let dir: string;
 let running: RunningServer | undefined;
@@ -46,5 +46,25 @@ describe("avatar server", () => {
     await running.close();
     running = undefined;
     await expect(fetch(`http://127.0.0.1:${port}/avatar`)).rejects.toThrow();
+  });
+});
+
+describe("findFreePort", () => {
+  it("returns the start port when it is free", async () => {
+    const probe = await startServer({ staticDir: dir });
+    const busy = probe.port;
+    await probe.close();
+    expect(await findFreePort(busy)).toBe(busy);
+  });
+
+  it("skips a port that is in use", async () => {
+    running = await startServer({ staticDir: dir });
+    const next = await findFreePort(running.port);
+    expect(next).toBeGreaterThan(running.port);
+  });
+
+  it("throws when nothing is free in range", async () => {
+    running = await startServer({ staticDir: dir });
+    await expect(findFreePort(running.port, "127.0.0.1", 1)).rejects.toThrow(/no free port/);
   });
 });

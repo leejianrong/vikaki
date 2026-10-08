@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
-import type { AddressInfo } from "node:net";
+import { createServer as createNetServer, type AddressInfo } from "node:net";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -72,4 +72,17 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
         server.closeAllConnections();
       }),
   };
+}
+
+/** First port at or above `start` that can be bound on `host`. Pure stdlib, no lsof or nc. */
+export async function findFreePort(start: number, host = "127.0.0.1", attempts = 50): Promise<number> {
+  for (let port = start; port < start + attempts; port++) {
+    const free = await new Promise<boolean>((ok) => {
+      const probe = createNetServer();
+      probe.once("error", () => ok(false));
+      probe.listen(port, host, () => probe.close(() => ok(true)));
+    });
+    if (free) return port;
+  }
+  throw new Error(`no free port in ${start}..${start + attempts - 1}`);
 }

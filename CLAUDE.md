@@ -8,7 +8,7 @@ Trust the code over the docs where they disagree, then fix the docs.
 
 | Slice | State |
 |-------|-------|
-| V1 Mic to avatar to a real call | In progress. Done: V1.1 scaffold, V1.2 VRM avatar renders (Teddy, CC0), V1.3 lip-sync spike (wLipSync chosen, ADR-0007). Next: V1.4 mic to lip sync |
+| V1 Mic to avatar to a real call | In progress. Done: V1.1 scaffold, V1.2 VRM avatar, V1.3 lip-sync spike (wLipSync, ADR-0007), V1.4 mic to lip sync, V1.5 blink and sway, plus a demo page. Next: V1.6 meeting extension |
 | V2 LLM text driver and MCP | Not started |
 | V3 Emotions and personas | Not started |
 | V4 Headless, container, MJPEG feed | Not started |
@@ -24,6 +24,7 @@ pnpm serve --port 8787           # serves http://127.0.0.1:8787/avatar (needs a 
 pnpm typecheck                   # tsc --noEmit in every package
 pnpm test                        # vitest unit and integration, no network or GPU needed
 pnpm test:e2e                    # builds, then runs Playwright against the page (needs: pnpm exec playwright install chromium)
+make demo                        # build, serve on a free port and open the demo page to judge the avatar by eye
 make check                       # typecheck + test: the fast gate, same as the pre-push hook
 ```
 
