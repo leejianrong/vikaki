@@ -131,6 +131,7 @@ export class SpeechPlayer {
         break;
       }
       case "cancel":
+        if (m.utterance_id === undefined) break; // the hub turns "cancel everything" into one cancel per utterance
         this.sentences.cancel(m.utterance_id);
         this.playback.cancel(m.utterance_id);
         break;

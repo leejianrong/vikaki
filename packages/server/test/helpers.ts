@@ -27,7 +27,7 @@ export class Client {
     });
   }
 
-  static async join(url: string, role: "driver" | "viewer", extra: Record<string, unknown> = {}): Promise<Client> {
+  static async join(url: string, role: "driver" | "viewer" | "controller", extra: Record<string, unknown> = {}): Promise<Client> {
     const c = await Client.open(url);
     c.send({ protocol_version: PROTOCOL_VERSION, type: "hello", role, ...extra });
     return c;

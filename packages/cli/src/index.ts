@@ -3,7 +3,9 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { DebugRecorder, findFreePort, startServer } from "@vikaki/server";
+import { DebugRecorder, EventLog, findFreePort, startServer } from "@vikaki/server";
+import { cancel, replay, say, type Io } from "./commands.ts";
+import { hubUrl } from "./hub-client.ts";
 import { resolve } from "node:path";
 import { formatChecks, realDoctorEnv, runDoctor } from "./doctor.ts";
 import { findVoice, INSTALL_COMMAND } from "./voice.ts";
@@ -12,6 +14,12 @@ import { FakeTts, KokoroTts, type Tts } from "@vikaki/tts";
 const USAGE = `usage: vikaki doctor            check that everything the demos need is in place
        vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
                     [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>] [--debug-dir <dir|off>]
+                    [--event-log <file.jsonl>]
+       vikaki say <text...> [--persona <name>] [--emotion <name>]   speak one line and wait until it is over
+       vikaki cancel [<utterance_id>]    stop what the avatar is saying (everything, or one line)
+       vikaki replay <file.jsonl> [--speed N]   send a recorded session's driver messages again
+
+  say, cancel and replay talk to a running \`vikaki serve\`: add [--port N | --url ws://host:port/ws] [--token <secret>].
 
   --port N   exact port, fails if busy. Without it, starts at 8787 and takes the next free port.
   --demo     the demo page: avatar plus mic, audio-file and mouth-shape controls
@@ -21,7 +29,8 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
   --voice    default Kokoro voice, such as af_heart
   --debug-dir  save each spoken utterance (wav, spectrogram, metrics, text, timings) under <dir>.
              On by default for --speech-demo, into .vikaki/debug. "off" turns it off.
-  --token    require this token from the driver (or set VIKAKI_TOKEN)`;
+  --token    require this token from the driver (or set VIKAKI_TOKEN)
+  --event-log  write every message the hub sees, one JSON object per line (audio as its size only). Feed it to \`vikaki replay\`.`;
 
 // Default to the engine's built page (run \`pnpm build\` first).
 const defaultStatic = fileURLToPath(new URL("../../engine/dist", import.meta.url));
@@ -78,6 +87,7 @@ async function serve(argv: string[]): Promise<void> {
       voice: { type: "string" },
       token: { type: "string" },
       "debug-dir": { type: "string" },
+      "event-log": { type: "string" },
     },
   });
   if (!["auto", "kokoro", "fake", "none"].includes(values.tts!)) {
@@ -105,11 +115,12 @@ async function serve(argv: string[]): Promise<void> {
         onError: (err) => console.error(`  debug: could not save a recording: ${err instanceof Error ? err.message : err}`),
       })
     : undefined;
+  const eventLog = values["event-log"] ? new EventLog(resolve(values["event-log"])) : undefined;
   const server = await startServer({
     staticDir: values.static!,
     port,
     host,
-    hub: token ? { token } : undefined,
+    hub: { ...(token ? { token } : {}), onEvent: eventLog?.record },
     speech: tts ? { tts, defaultVoice: chosen?.voice, observer: recorder } : undefined,
   });
   const url = values["speech-demo"] ? `${server.url}?demo=speech&live=1` : values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
@@ -117,6 +128,7 @@ async function serve(argv: string[]): Promise<void> {
   console.log(`  drivers connect to ${server.wsUrl}${token ? " (token required)" : ""}; speech: ${tts ? tts.name : "off"}`);
   if (values.port === undefined && port !== 8787) console.log(`(8787 was busy, using ${port})`);
   if (debugDir) console.log(`  debug recordings: ${debugDir}`);
+  if (eventLog) console.log(`  event log: ${resolve(values["event-log"]!)}`);
   console.log("press Ctrl+C to stop");
   if (values.open) openBrowser(url);
 
@@ -127,6 +139,7 @@ async function serve(argv: string[]): Promise<void> {
     stopping = true;
     console.log("\nStopping...");
     await recorder?.flush();
+    await eventLog?.close();
     // the engine's worker is stopped too, after it has finished what it is in the middle of (stopping it mid-run can crash the process)
     const closed = Promise.all([server.close(), tts?.close?.()]).then(() => true, () => false);
     const timeout = new Promise<false>((ok) => setTimeout(() => ok(false), 12_000));
@@ -138,9 +151,43 @@ async function serve(argv: string[]): Promise<void> {
   process.on("SIGTERM", stop);
 }
 
+const consoleIo: Io = { out: (l) => console.log(l), err: (l) => console.error(l) };
+
+/** Options shared by say, cancel and replay: where the hub is. */
+const TARGET_OPTIONS = { port: { type: "string" }, url: { type: "string" }, token: { type: "string" } } as const;
+const targetOf = (v: { port?: string; url?: string; token?: string }) => ({ url: hubUrl(v), token: v.token ?? process.env.VIKAKI_TOKEN });
+
+async function clientCommand(command: string, argv: string[]): Promise<number> {
+  if (command === "say") {
+    const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: { ...TARGET_OPTIONS, persona: { type: "string" }, emotion: { type: "string" }, seat: { type: "string" } } });
+    const text = positionals.join(" ").trim();
+    if (!text) {
+      console.error("say what? usage: vikaki say <text...>");
+      return 1;
+    }
+    // Ctrl+C asks the avatar to stop; a second one leaves at once.
+    const ac = new AbortController();
+    process.on("SIGINT", () => (ac.signal.aborted ? process.exit(130) : ac.abort()));
+    return say({ ...targetOf(values), text, persona: values.persona, emotion: values.emotion, seat: values.seat, signal: ac.signal }, consoleIo);
+  }
+  if (command === "cancel") {
+    const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: TARGET_OPTIONS });
+    return cancel({ ...targetOf(values), utteranceId: positionals[0] }, consoleIo);
+  }
+  const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: { ...TARGET_OPTIONS, speed: { type: "string", default: "1" } } });
+  const speed = Number(values.speed);
+  if (!positionals[0] || !(speed > 0)) {
+    console.error("usage: vikaki replay <file.jsonl> [--speed N]   (N above 0)");
+    return 1;
+  }
+  return (await replay({ ...targetOf(values), file: positionals[0], speed }, consoleIo)).code;
+}
+
 const [command, ...rest] = process.argv.slice(2);
 if (command === "serve") {
   await serve(rest);
+} else if (command === "say" || command === "cancel" || command === "replay") {
+  process.exit(await clientCommand(command, rest));
 } else if (command === "doctor") {
   const checks = await runDoctor(await realDoctorEnv());
   console.log(formatChecks(checks));

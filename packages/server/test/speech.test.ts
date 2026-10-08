@@ -381,3 +381,58 @@ describe("who may send audio", () => {
     expect(await viewer.next()).toMatchObject({ type: "error", code: "not_allowed" });
   });
 });
+
+describe("a controller (vikaki cancel)", () => {
+  it("can stop an utterance while a driver holds the slot, and is not a driver itself", async () => {
+    const { viewer, driver } = await setup({ tts: { msPerChar: 100 } });
+    const ctl = await Client.join(server!.wsUrl, "controller");
+    clients.push(ctl);
+    expect(await ctl.next()).toMatchObject({ type: "welcome", role: "controller" });
+    driver.send(utterance({ utterance_id: "a", text: x(40) }));
+    await readUntil(viewer, (m) => m.type === "audio");
+    ctl.send(make("cancel", { utterance_id: "a" }));
+    const seen = await readUntil(viewer, (m) => m.type === "cancel");
+    expect(seen.at(-1)).toMatchObject({ type: "cancel", utterance_id: "a" });
+  });
+
+  it("with no id, stops everything that is speaking or queued", async () => {
+    const { viewer, driver } = await setup({ tts: { msPerChar: 100 } });
+    const ctl = await Client.join(server!.wsUrl, "controller");
+    clients.push(ctl);
+    await ctl.next();
+    driver.send(utterance({ utterance_id: "a", text: x(40) }));
+    driver.send(utterance({ utterance_id: "b", text: x(40) }));
+    await readUntil(viewer, (m) => m.type === "audio");
+    ctl.send(make("cancel", {}));
+    const seen = await readUntil(viewer, (m) => m.type === "cancel" && m.utterance_id === "b");
+    expect(seen.filter((m) => m.type === "cancel").map((m) => m.utterance_id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("may send nothing but cancel", async () => {
+    await setup();
+    const ctl = await Client.join(server!.wsUrl, "controller");
+    clients.push(ctl);
+    await ctl.next();
+    ctl.send(utterance({ utterance_id: "z", text: "hi" }));
+    expect(await ctl.next()).toMatchObject({ type: "error", code: "not_allowed" });
+  });
+
+  it("needs the token when the hub has one", async () => {
+    server = await startServer({ staticDir: dir, hub: { token: "s3" } });
+    const bad = await Client.join(server.wsUrl, "controller");
+    clients.push(bad);
+    expect(await bad.next()).toMatchObject({ type: "error", code: "unauthorized" });
+    const ok = await Client.join(server.wsUrl, "controller", { token: "s3" });
+    clients.push(ok);
+    expect(await ok.next()).toMatchObject({ type: "welcome", role: "controller" });
+  });
+
+  it("a driver can also cancel with no id", async () => {
+    const { viewer, driver } = await setup({ tts: { msPerChar: 100 } });
+    driver.send(utterance({ utterance_id: "a", text: x(40) }));
+    await readUntil(viewer, (m) => m.type === "audio");
+    driver.send(make("cancel", {}));
+    const seen = await readUntil(viewer, (m) => m.type === "cancel");
+    expect(seen.at(-1)).toMatchObject({ type: "cancel", utterance_id: "a" });
+  });
+});
