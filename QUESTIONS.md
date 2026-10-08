@@ -37,7 +37,7 @@ None. Round 1 closed 2026-10-07.
 | Q19 | Emotion vocabulary | ASSUMED | Seven: neutral, happy, smug, worried, surprised, sad, angry. Unknown falls back to neutral | PLAN, V3 |
 | Q20 | Persona ownership | ASSUMED | This project owns `personas.yaml`, games refer to a name only | PLAN, V3 |
 | Q21 | Rendered seats per machine | ASSUMED | One page per seat, one seat in M1, audio-only for unwatched seats | V4 |
-| Q22 | TTS engine | ASSUMED | Pluggable interface, fake for tests, one local engine whose licence is checked in V2 | V2 |
+| Q22 | TTS engine | DECIDED | Kokoro (Apache-2.0) as an optional on-demand engine; FakeTts for tests; Piper rejected (GPL-3.0). Measured about 1.6 s to a first short sentence on CPU | ADR-0010, docs/tts.md |
 | Q23 | Does the game wait for speech | DEFERRED | Game-side per-game setting. We only emit events | PLAN §Deferred |
 | Q24 | Do humans see their own avatar | DEFERRED | In mic mode the page is the preview. Multi-viewer decision belongs to the game side | PLAN §Deferred |
 | Q25 | STT and `human_utterance` | DEFERRED | After M1 | PLAN §Deferred |

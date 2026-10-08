@@ -34,6 +34,7 @@ make check                       # typecheck + test: the fast gate, same as the 
 ## Layout
 
 - `packages/engine` Vite page: Three.js scene, lip sync, behaviour (browser code).
+- `packages/tts` the `Tts` interface, `FakeTts`, `SentenceChunker` and the optional `KokoroTts` (docs/tts.md).
 - `packages/server` Node HTTP and (later) WebSocket hub.
 - `packages/cli` the `vikaki` command.
 - `packages/extension` the Meet extension (main-world script, isolated-world bridge, build script).
@@ -46,6 +47,7 @@ make check                       # typecheck + test: the fast gate, same as the 
 - Branch per slice off fresh `main`, PR-only, CI green before merge. Do not push to `main`.
 - Run `make check` before every push. Install the hook once: `make hooks`.
 - Direction is cartoon-first, cute, friendly and approachable. Do not add realistic or human-mimicking avatar options (ADR-0005). Look at screenshots of any avatar or visual change yourself before calling it done (`node scripts/screenshot.mjs`, see also `make demo`).
+- Never add `kokoro-js` to the workspace (410 MB); it is an optional runtime install (ADR-0010).
 - Tests never call a paid or non-deterministic service. Use fakes (`FakeTts`, fake mic WAV).
 - Every bug gets a failing test first.
 - Extension code runs as a classic script: no `import.meta`, no top-level `await` (the build checks). Anything that may be blocked by a page's CSP needs a fallback.
