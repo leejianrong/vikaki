@@ -1,0 +1,395 @@
+[
+ {
+  "clip": "ElevenLabs_Emma_a.mp3",
+  "onset": 0.14,
+  "wawa": {
+   "frames": 78,
+   "activeFrac": 0.86,
+   "share": {
+    "oh": 0.15,
+    "cons": 0.28,
+    "aa": 0.57
+   },
+   "switchesPerSec": 5.6,
+   "firstActive": 0.16,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 74,
+   "activeFrac": 0.88,
+   "share": {
+    "aa": 1
+   },
+   "switchesPerSec": 0.8,
+   "firstActive": 0.16,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Emma_consonants.mp3",
+  "onset": 0.06,
+  "wawa": {
+   "frames": 221,
+   "activeFrac": 0.9,
+   "share": {
+    "cons": 0.56,
+    "ee": 0.39,
+    "aa": 0.03,
+    "ih": 0.02,
+    "ou": 0.01
+   },
+   "switchesPerSec": 6,
+   "firstActive": 0.12,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 222,
+   "activeFrac": 0.86,
+   "share": {
+    "oh": 0.07,
+    "ih": 0.34,
+    "aa": 0.33,
+    "ou": 0.21,
+    "ee": 0.05
+   },
+   "switchesPerSec": 7.1,
+   "firstActive": 0.09,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Emma_e.mp3",
+  "onset": 0.02,
+  "wawa": {
+   "frames": 65,
+   "activeFrac": 0.94,
+   "share": {
+    "cons": 0.16,
+    "ee": 0.79,
+    "ih": 0.03,
+    "oh": 0.02
+   },
+   "switchesPerSec": 7.6,
+   "firstActive": 0.06,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 67,
+   "activeFrac": 0.87,
+   "share": {
+    "ee": 0.05,
+    "ih": 0.95
+   },
+   "switchesPerSec": 2.8,
+   "firstActive": 0.05,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Emma_o.mp3",
+  "onset": 0.02,
+  "wawa": {
+   "frames": 62,
+   "activeFrac": 0.94,
+   "share": {
+    "oh": 0.55,
+    "cons": 0.14,
+    "aa": 0.31
+   },
+   "switchesPerSec": 8,
+   "firstActive": 0.05,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 62,
+   "activeFrac": 0.95,
+   "share": {
+    "aa": 0.31,
+    "oh": 0.69
+   },
+   "switchesPerSec": 3,
+   "firstActive": 0.05,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Emma_vowels.mp3",
+  "onset": 0.07,
+  "wawa": {
+   "frames": 148,
+   "activeFrac": 0.93,
+   "share": {
+    "ih": 0.01,
+    "cons": 0.36,
+    "ee": 0.58,
+    "oh": 0.04
+   },
+   "switchesPerSec": 6.6,
+   "firstActive": 0.11,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 149,
+   "activeFrac": 0.9,
+   "share": {
+    "aa": 0.19,
+    "ee": 0.03,
+    "ih": 0.42,
+    "oh": 0.29,
+    "ou": 0.07
+   },
+   "switchesPerSec": 8.6,
+   "firstActive": 0.09,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Emma_you.mp3",
+  "onset": 0.05,
+  "wawa": {
+   "frames": 57,
+   "activeFrac": 0.88,
+   "share": {
+    "cons": 0.38,
+    "ee": 0.38,
+    "aa": 0.24
+   },
+   "switchesPerSec": 5.5,
+   "firstActive": 0.09,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 57,
+   "activeFrac": 0.91,
+   "share": {
+    "ih": 0.27,
+    "ou": 0.42,
+    "aa": 0.31
+   },
+   "switchesPerSec": 4.4,
+   "firstActive": 0.07,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Liam_a.mp3",
+  "onset": 0.02,
+  "wawa": {
+   "frames": 72,
+   "activeFrac": 0.93,
+   "share": {
+    "ih": 0.1,
+    "oh": 0.04,
+    "aa": 0.85
+   },
+   "switchesPerSec": 6.2,
+   "firstActive": 0.05,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 71,
+   "activeFrac": 0.9,
+   "share": {
+    "aa": 1
+   },
+   "switchesPerSec": 1.8,
+   "firstActive": 0.05,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Liam_e.mp3",
+  "onset": 0.1,
+  "wawa": {
+   "frames": 102,
+   "activeFrac": 0.91,
+   "share": {
+    "ee": 0.77,
+    "cons": 0.22,
+    "oh": 0.01
+   },
+   "switchesPerSec": 6,
+   "firstActive": 0.11,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 101,
+   "activeFrac": 0.87,
+   "share": {
+    "ee": 0.95,
+    "aa": 0.05
+   },
+   "switchesPerSec": 1.8,
+   "firstActive": 0.12,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Liam_o.mp3",
+  "onset": 0.1,
+  "wawa": {
+   "frames": 73,
+   "activeFrac": 0.88,
+   "share": {
+    "oh": 0.53,
+    "ih": 0.41,
+    "ee": 0.06
+   },
+   "switchesPerSec": 8.4,
+   "firstActive": 0.14,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 74,
+   "activeFrac": 0.86,
+   "share": {
+    "aa": 0.17,
+    "oh": 0.2,
+    "ee": 0.63
+   },
+   "switchesPerSec": 5.1,
+   "firstActive": 0.12,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Liam_vowels.mp3",
+  "onset": 0.09,
+  "wawa": {
+   "frames": 180,
+   "activeFrac": 0.92,
+   "share": {
+    "ih": 0.1,
+    "ee": 0.59,
+    "cons": 0.27,
+    "ou": 0.04
+   },
+   "switchesPerSec": 7.2,
+   "firstActive": 0.12,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 180,
+   "activeFrac": 0.9,
+   "share": {
+    "ee": 0.19,
+    "aa": 0.14,
+    "ou": 0.3,
+    "ih": 0.1,
+    "oh": 0.26
+   },
+   "switchesPerSec": 11.2,
+   "firstActive": 0.09,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "ElevenLabs_Text_to_Speech_audio.mp3",
+  "onset": 0.12,
+  "wawa": {
+   "frames": 1564,
+   "activeFrac": 0.88,
+   "share": {
+    "cons": 0.65,
+    "ee": 0.26,
+    "ih": 0.05,
+    "aa": 0.03,
+    "oh": 0.01
+   },
+   "switchesPerSec": 6.3,
+   "firstActive": 0.14,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 2402,
+   "activeFrac": 0.74,
+   "share": {
+    "ih": 0.14,
+    "oh": 0.04,
+    "ee": 0.04,
+    "aa": 0.36,
+    "ou": 0.43
+   },
+   "switchesPerSec": 8.7,
+   "firstActive": 0.14,
+   "maxOpen": 1
+  }
+ },
+ {
+  "clip": "room-noise.wav",
+  "onset": 0,
+  "wawa": {
+   "frames": 122,
+   "activeFrac": 0.93,
+   "share": {
+    "cons": 1
+   },
+   "switchesPerSec": 1.5,
+   "firstActive": 0.09,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 122,
+   "activeFrac": 0.61,
+   "share": {
+    "aa": 1
+   },
+   "switchesPerSec": 6.5,
+   "firstActive": 0.21,
+   "maxOpen": 0.12
+  }
+ },
+ {
+  "clip": "silence.wav",
+  "onset": null,
+  "wawa": {
+   "frames": 123,
+   "activeFrac": 0,
+   "share": {},
+   "switchesPerSec": 0,
+   "firstActive": null,
+   "maxOpen": 0
+  },
+  "wl": {
+   "frames": 122,
+   "activeFrac": 0,
+   "share": {},
+   "switchesPerSec": 0,
+   "firstActive": null,
+   "maxOpen": 0
+  }
+ },
+ {
+  "clip": "welcome-message.mp3",
+  "onset": 0.11,
+  "wawa": {
+   "frames": 342,
+   "activeFrac": 0.73,
+   "share": {
+    "cons": 0.34,
+    "ih": 0.04,
+    "oh": 0.11,
+    "ee": 0.48,
+    "ou": 0,
+    "aa": 0.02
+   },
+   "switchesPerSec": 6.4,
+   "firstActive": 0.16,
+   "maxOpen": 1
+  },
+  "wl": {
+   "frames": 343,
+   "activeFrac": 0.62,
+   "share": {
+    "aa": 0.41,
+    "oh": 0.26,
+    "ee": 0.13,
+    "ih": 0.11,
+    "ou": 0.09
+   },
+   "switchesPerSec": 5.1,
+   "firstActive": 0.14,
+   "maxOpen": 1
+  }
+ }
+]

@@ -41,7 +41,7 @@ Separately, Jian is building LLM-driven games and agent teams whose AI seats nee
 - Hosted SaaS, SFU, billing, accounts.
 - Use case 2 (agent software-demo presenter) and use case 3 (game table avatars).
 - Speech-to-text and `human_utterance`.
-- Neural/photoreal renderers, hosted avatar vendors.
+- Photoreal or human-mimicking avatars: a non-goal, not a deferral (ADR-0005). The project is cartoon-first.
 - A custom virtual-camera driver or Electron app.
 - A multi-avatar spectator table (the poker view). This is the first follow-up after M1, since it is the stated end goal for the LLM use case.
 - Hand and full-body gestures beyond a few baked clips.
@@ -109,8 +109,9 @@ Separately, Jian is building LLM-driven games and agent teams whose AI seats nee
 - **Single driver rule.** A second driver connection receives an `error` with reason `driver_busy` and is closed. Viewer pages can be many.
 - **Failure.** If TTS fails, the page returns to idle and emits `error` (never a frozen frame). If the mic is lost, the avatar plays the idle loop and shows a visible HUD error unless `hud=0`.
 - **Storage.** Plain files only: VRM assets, `personas.yaml`, a JSONL event log for replay. No database.
-- **Stack.** TypeScript monorepo (`packages/engine`, `packages/server`, `packages/cli`), Node LTS, Vite for the page. No Electron.
-- **External dependencies and licences.** Three.js (MIT), three-vrm (MIT), OBS Studio (GPL-2.0, user-installed, not bundled). To verify in slices, not assumed: a lip-sync library (wawa-lipsync or wLipSync, V1), a local TTS engine (V2, check Kokoro and Piper licences, since Piper's current repo is GPL), and the default VRM avatar asset (V1, must be redistributable). Ready Player Me was rejected (ADR-0002).
+- **Stack.** TypeScript monorepo (`packages/engine`, `packages/server`, `packages/cli`), Node LTS, Vite for the page. No Electron. See ADR-0006.
+- **Renderer seam.** The avatar renderer sits behind an interface (set viseme weights, set expression, set pose), so VRM is the first implementation and sprite or doodle avatars can follow without touching lip sync or behaviour (ADR-0005).
+- **External dependencies and licences.** Three.js (MIT), three-vrm (MIT), OBS Studio (GPL-2.0, user-installed, not bundled). Lip sync is wLipSync (MIT, ADR-0007). To verify in slices, not assumed: a local TTS engine (V2, check Kokoro and Piper licences, since Piper's current repo is GPL). The default avatar asset is Teddy, CC0, recorded in `packages/engine/ASSETS.md`. Ready Player Me was rejected (ADR-0002).
 
 ## Testing approach
 
@@ -120,7 +121,6 @@ Test at three seams, highest first: the browser page driven by Playwright with a
 
 | ID | Assumed | Cost if wrong |
 |----|---------|---------------|
-| Q8 | A pure-TypeScript lip-sync library is good enough in V1 | Days: write a small MFCC/formant mapper ourselves, or adopt wLipSync with a calibrated profile |
 | Q9 | Mic-only body language = prosody (amplitude, pitch, pauses), no STT | Low: STT-driven gestures are additive later |
 | Q15 | No Electron and no custom driver: the extension does web meetings, OBS covers desktop apps | Medium: if extensions are blocked on the call machine, V1 falls back to OBS, then to window share, and a custom virtual camera becomes its own milestone |
 | Q29 | Protocol carries optional `session_id` and a driver auth token from the start, hub is stateless and env-configured, assets are URLs, usage counters exist | Low now, expensive to retrofit if hosting is ever wanted |
@@ -137,7 +137,9 @@ These are real goals. They are out of M1 only.
 
 **Commercial layer.** Cheapest hosted shape: host the hub, TTS, personas, auth and billing, while viewers' browsers render. Hosted video rendering (headless Chromium into a WebRTC SFU such as LiveKit) is the costlier second shape, needed for remote viewers and meeting bots. Open-core: free self-hosted engine, paid hosted platform (managed WebRTC SFU, multi-agent orchestration, voice cloning, compliance tiers). Pricing sketch from the market analysis: Pro $29-99/mo, enterprise custom. Starting audience: developers building agent teams and AI games. Positioning: "LiveKit for avatars". Market gaps worth targeting: near-zero-cost client-side rendering, plug-and-play meeting integration, a gesture/sentiment layer, and regulated-industry personas.
 
-**Other.** Native speech-to-speech models (protocol must still emit text alongside audio), hosted avatar vendors (HeyGen, Tavus, Anam) as a swappable renderer, self-hosted neural renderers (LivePortrait, MuseTalk), hand and body gestures, a custom virtual-camera driver.
+**Doodle avatars (idea, post-M1).** Let users draw their own avatar: one doodle for the face and one doodle of the mouth for each vowel (plus a closed mouth), then animate it. A 2D sprite renderer swaps mouth sprites by viseme, with blink and sway applied to the face layer. It fits the cartoon-first direction (ADR-0005), is cheap to render, and the 5 VRM vowel shapes (aa, ih, ou, ee, oh) map directly to the mouth set. It needs the renderer to sit behind an interface so VRM and sprite avatars share the same lip-sync and behaviour layers. Open questions: a drawing UI in the page versus importing image files, how eyes and brows are drawn, and the persona format for sprite sets.
+
+**Other.** Native speech-to-speech models (protocol must still emit text alongside audio), hand and body gestures, a custom virtual-camera driver. Photoreal renderers and hosted photoreal avatar vendors are excluded by ADR-0005.
 
 ## Open risks
 

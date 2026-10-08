@@ -1,0 +1,8 @@
+{
+  "name": "vikaki-lipsync-spike",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "V1.3 spike harness comparing wawa-lipsync and wLipSync. Not part of the workspace.",
+  "dependencies": { "playwright": "*", "wawa-lipsync": "0.0.2", "wlipsync": "*" }
+}

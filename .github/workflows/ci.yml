@@ -62,3 +62,17 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --prod
+
+  e2e:
+    # Reported, not required: boots Chromium with software WebGL, slower and the likeliest to flake.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e

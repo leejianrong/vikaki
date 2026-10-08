@@ -19,9 +19,9 @@ Render avatars as VRM 1.0 models in a browser page using Three.js and three-vrm.
 | Ready Player Me glTF + ARKit | Service is gone |
 | Realistic glTF with 52 ARKit targets | Asset sourcing and licensing burden, uncanny valley |
 | Live2D (2D) | Licensing and tooling friction; less body/hand headroom later |
-| Neural talking heads (LivePortrait, SadTalker) | Per-stream GPU cost and latency; deferred to a cloud tier |
-| Hosted avatar APIs | Per-minute cost, vendor latency and control limits; kept as a swappable renderer later |
+| Neural talking heads (LivePortrait, SadTalker) | Per-stream GPU cost, and photoreal output is a non-goal (ADR-0005) |
+| Hosted avatar APIs | Per-minute cost, vendor latency and control limits, and photoreal output is a non-goal (ADR-0005) |
 
 ## Consequences
 
-Buys free, open tooling, near-zero render cost, a distinct look per seat, and a path to run in any browser. Costs expressiveness: VRM's built-in mouth shapes are five vowels, so lip sync will be coarser than ARKit's. Forecloses photoreal output in M1. A redistributable default VRM avatar must be found or made (verified in V1).
+Buys free, open tooling, near-zero render cost, a distinct look per seat, and a path to run in any browser. Costs expressiveness: VRM's built-in mouth shapes are five vowels, so lip sync will be coarser than ARKit's. Forecloses photoreal output, by design (ADR-0005). A redistributable default VRM avatar must be found or made (verified in V1).

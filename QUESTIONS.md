@@ -19,14 +19,16 @@ None. Round 1 closed 2026-10-07.
 | Q5 | Licence | DECIDED | Apache-2.0 | ADR-0004 |
 | Q6 | M1 scope | DECIDED | SaaS, use cases 2 and 3 out of M1, but documented | PLAN §Deferred and recorded |
 | Q7 | Control protocol | ASSUMED | Versioned WebSocket JSON matching the games brief | ADR-0001 |
-| Q8 | Lip-sync library | ASSUMED | Spike wawa-lipsync, fall back to wLipSync | PLAN §Assumed defaults, V1 |
+| Q8 | Lip-sync library | DECIDED | wLipSync, with wawa-lipsync as fallback, after the V1.3 spike | ADR-0007, docs/spikes/lipsync.md |
 | Q9 | Body language from a mic only | ASSUMED | Prosody-driven only in M1 | PLAN §Assumed defaults |
 | Q10 | Privacy of human mode | ASSUMED | Fully local, no network call, mic audio never leaves the page | PLAN R6 |
 | Q11 | State and storage | ASSUMED | Plain files and a JSONL event log, no database | PLAN §Implementation decisions |
 | Q12 | Concurrency | ASSUMED | One driver at a time, second gets `driver_busy` | PLAN §Implementation decisions, V2 |
 | Q13 | Failure behaviour | ASSUMED | Fall back to idle and emit `error`, never a frozen frame | PLAN §Implementation decisions |
 | Q14 | Interfaces | ASSUMED | Page, WebSocket and CLI share one hub and one write path | PLAN §Shape |
-| Q15 | Stack and delivery | ASSUMED | TypeScript monorepo, Node, Vite, no Electron. Browser extension for web meetings, OBS then window share as fallbacks | ADR-0003 |
+| Q15 | Stack and delivery | ASSUMED | TypeScript monorepo, Node, Vite, no Electron. Browser extension for web meetings, OBS then window share as fallbacks. Language rationale recorded after Jian asked why not Python or Go | ADR-0003, ADR-0006 |
+| Q32 | Visual direction | DECIDED | Cartoon-first, cute. No realism or human mimicry. Photoreal renderers are non-goals | ADR-0005 |
+| Q33 | Doodle avatars | DEFERRED | User-drawn face plus a mouth doodle per vowel, animated by a 2D sprite renderer. Post-M1 idea, needs the renderer interface seam | PLAN §Deferred and recorded |
 | Q16 | Measurable targets | ASSUMED | Mouth-to-audio offset under 100 ms, 30 fps on a mid laptop, time to first audio and first frame reported with 1.5 s as a local target | SLICES V1, V2 |
 | Q17 | Versioning | ASSUMED | `protocol_version` on every message, migrations deferred | ADR-0001 |
 | Q18 | Ready Player Me | DECIDED | Rejected, service ended 2026-01-31 | ADR-0002 |

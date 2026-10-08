@@ -7,11 +7,13 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "serve": "pnpm --filter @vikaki/cli dev serve"
+    "serve": "pnpm --filter @vikaki/cli dev serve",
+    "test:e2e": "pnpm build && pnpm --filter @vikaki/e2e test:e2e"
   },
   "packageManager": "pnpm@11.13.0",
   "devDependencies": {
     "@types/node": "^26.6.4",
+    "playwright": "^1.63.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.3",
