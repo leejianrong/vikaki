@@ -99,7 +99,7 @@ try {
     manual = w;
   };
 
-  const puppet = new Puppet(avatar, seed);
+  const puppet = new Puppet(avatar, seed, params.get("still") !== "1");
   const box = new Box3().setFromObject(avatar.scene);
   const head = avatar.headPosition();
   const symbols = new EmotionSymbols(new Vector3(head.x, (head.y + box.max.y) / 2, head.z + 0.05), (box.max.y - head.y) * 1.2);

@@ -69,6 +69,22 @@ The plan in `docs/SLICES.md` (V2) maps onto these tests. Tests marked smoke run 
 | Sentence chunker splits deltas and flushes the tail | `packages/tts` chunker tests, including property tests |
 | Unknown `protocol_version` is rejected clearly | `protocol.test` and `hub.test` |
 
+## V3 test plan: where each item is covered
+
+| Plan item | Test |
+| --- | --- |
+| For each of the seven emotions, the pose one second after the event matches the preset within 0.05 | e2e `speech.e2e`: "shows each of the seven emotions a line asks for, scaled by its intensity, and relaxes after it" (alternating full and 0.6 intensity; the page's own model is the reference). Unit: `emotion.test` ("within 0.05 of it one second later" for every emotion) |
+| ...and it is visible on screen | e2e `emotions-visual`: every emotion changes the picture against neutral, more at full strength than at a third; a made-up emotion draws what neutral draws. Uses `?still=1` (holds the head at rest) so pictures from different moments can be compared |
+| Two pages with personas `ada` and `ben` load different VRMs and request different voice ids | e2e `personas.e2e`: each page loads its own avatar and the two look different; each line plays only on its persona's page with that persona's voice |
+| An unknown `emotion` falls back to neutral with a logged warning, not an error | `hub.test` ("passes an unknown emotion through with a logged warning, not an error") and e2e "treats an unknown emotion as neutral, without an error" |
+| An unknown persona returns an `error` event and keeps the previous persona | `personas-hub.test` (`unknown_persona`, hub carries on) and `cli/mcp.test` (`set_persona` refuses, says "still ada", does not take the driver slot) |
+| Intensity scaling is linear and clamped to [0, 1] | `emotion.test` ("scales linearly", "clamps intensity") |
+| The personas parser rejects a persona with a missing VRM path | `personas.test` ("rejects a persona with no VRM path, naming the persona", and a missing file) |
+| Thinking pose on `turn_started` / `turn_ended` (V3.2) | `emotion.test` (six thinking tests), e2e "looks thoughtful between turn_started and turn_ended", per-persona thinking in `personas.e2e` |
+| Mic prosody gestures (V3.4) | `audio/prosody.test` (pitch and each cue), `engine/gestures.test`, e2e `mic-prosody` (a synthesised phrase through Chromium's fake mic) |
+
+The look of the emotions is judged by eye as well (`scripts/probe-emotions.ts`, `scripts/screenshot-personas.ts`); the tests above only prove that something is drawn, and that it scales.
+
 ## Not done yet
 
 - **Mutation testing at scale.** StrykerJS was tried (core and the Vitest runner, version 10). With Vitest 5 and TypeScript 7 it ran but activated almost none of its mutants (3.6% score on code whose hand-made mutations are all caught), so it was not adopted. Retry when its Vitest runner supports these versions. Until then, mutation checks are done by hand and recorded in the PR.

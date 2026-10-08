@@ -69,6 +69,8 @@ export class Puppet {
   constructor(
     private readonly avatar: AvatarRenderer,
     seed: number,
+    /** False holds the head still instead of swaying (`?still=1`), so pictures taken at different moments can be compared. */
+    private readonly sway = true,
   ) {
     this.blinker = new Blinker(mulberry32(seed));
   }
@@ -90,7 +92,7 @@ export class Puppet {
     if (this.gestures.takeBlink()) this.blinker.trigger();
     this.blink = Math.max(this.blinker.update(dt), pose.squint);
     this.avatar.setBlink(this.blink);
-    const idle = idlePose(this.elapsed);
+    const idle = this.sway ? idlePose(this.elapsed) : { pitch: 0, yaw: 0, roll: 0 };
     const tau = Math.PI * 2;
     this.head = {
       pitch: idle.pitch + pose.pitch + gesture.pitch + pose.bob * 0.05 * Math.sin(tau * 1.8 * this.elapsed),
