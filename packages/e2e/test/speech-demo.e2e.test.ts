@@ -364,7 +364,8 @@ describe("the timeline dock", () => {
       expect(r.size).toEqual([1600, 420]);
       expect(r.ink, `the ${lane} lane has something drawn in it`).toBeGreaterThan(least);
     }
-    expect(await laneRolePixels(page, png, "words", "on-secondary-container"), "the sentences' text is drawn").toBeGreaterThan(40);
+    // about 100 pixels here, 39 on GitHub's runner (fonts render thinner there); with no text it is 0
+    expect(await laneRolePixels(page, png, "words", "on-secondary-container"), "the sentences' text is drawn").toBeGreaterThan(15);
   });
 
   it("an empty review has nothing in the speech lanes, so the picture really depends on the data", async () => {
