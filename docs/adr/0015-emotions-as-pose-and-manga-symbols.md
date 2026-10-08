@@ -22,3 +22,7 @@ An emotion is a small **pose** (`EmotionPose`, `packages/engine/src/emotion.ts`)
 - Sad, worried and angry have similar faces; the symbol and head motion carry the difference. That is a limit of the avatar, not of the model.
 - Presets were tuned by eye on Cookieman (`scripts/probe-emotions.ts`). Another avatar may need its own numbers.
 - A resting smile counts as "mouth open" in the displayed mouth, so the first-video-frame timing reads what lip sync asked for instead.
+
+## Thinking (V3.2)
+
+`turn_started` shows a thinking pose that is not one of the seven emotions: head tipped up and to one side, lids a little low, dots pulsing beside the head. The face cannot look up, so the head does it. A line starting replaces it with that line's own feeling, `turn_ended` relaxes it, and a 30 s guard clears it if a driver never says the turn ended. Seats are not told apart yet: any turn shows on every page (V3.5 adds the seat and persona to pages).

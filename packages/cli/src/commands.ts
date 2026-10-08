@@ -26,6 +26,8 @@ export interface SayOptions extends Target {
   persona?: string;
   emotion?: string;
   seat?: string;
+  /** Show the avatar thinking for this many seconds (a turn with no line yet) before the line is sent. */
+  thinkSeconds?: number;
   /** Aborting sends a cancel and waits for the hub to confirm. */
   signal?: AbortSignal;
 }
@@ -44,9 +46,16 @@ export async function say(o: SayOptions, io: Io): Promise<number> {
       return 1;
     }
     const id = `cli-${Date.now().toString(36)}`;
+    const seat = o.seat ?? "cli";
+    if (o.thinkSeconds && o.thinkSeconds > 0) {
+      client.send(make("turn_started", { seat_id: seat }));
+      io.out("thinking...");
+      await new Promise((ok) => setTimeout(ok, o.thinkSeconds! * 1000));
+      client.send(make("turn_ended", { seat_id: seat }));
+    }
     client.send(
       make("utterance", {
-        seat_id: o.seat ?? "cli",
+        seat_id: seat,
         utterance_id: id,
         text: o.text,
         ...(o.persona ? { persona: o.persona } : {}),

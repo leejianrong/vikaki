@@ -75,6 +75,28 @@ describe("vikaki say", () => {
     expect(out.join("\n")).toContain(`time to first video frame: ${first + 40} ms`);
   });
 
+  it("with --think shows a thinking turn first: turn_started, a pause, turn_ended, then the line", async () => {
+    const { url } = await hub();
+    const viewer = new WebSocket(url);
+    await new Promise((ok) => viewer.once("open", ok));
+    viewer.send(JSON.stringify({ protocol_version: 1, type: "hello", role: "viewer" }));
+    const seen: { type: string; at: number }[] = [];
+    viewer.on("message", (d) => {
+      const m = JSON.parse(d.toString());
+      if (["turn_started", "turn_ended", "utterance"].includes(m.type)) seen.push({ type: m.type, at: Date.now() });
+      if (m.type === "utterance") {
+        const send = (o: object) => viewer.send(JSON.stringify({ protocol_version: 1, utterance_id: m.utterance_id, ...o }));
+        send({ type: "speech_started" });
+        setTimeout(() => send({ type: "speech_finished" }), 30);
+      }
+    });
+    const { io } = quiet();
+    expect(await say({ url, text: "Hi.", thinkSeconds: 0.4 }, io)).toBe(0);
+    viewer.close();
+    expect(seen.map((s) => s.type)).toEqual(["turn_started", "turn_ended", "utterance"]);
+    expect(seen[1]!.at - seen[0]!.at).toBeGreaterThanOrEqual(350); // it really waited
+  });
+
   it("says plainly that another driver holds the slot", async () => {
     const { url } = await hub();
     const other = await HubClient.connect({ url, role: "driver" });

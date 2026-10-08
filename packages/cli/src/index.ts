@@ -16,7 +16,8 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
        vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
                     [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>] [--debug-dir <dir|off>]
                     [--event-log <file.jsonl>]
-       vikaki say <text...> [--persona <name>] [--emotion <name>]   speak one line and wait until it is over
+       vikaki say <text...> [--persona <name>] [--emotion <name>] [--think <seconds>]
+                                     speak one line and wait until it is over; --think shows the avatar thinking first
        vikaki cancel [<utterance_id>]    stop what the avatar is saying (everything, or one line)
        vikaki mcp                        MCP server on stdio so an LLM can drive the avatar (tools: say, set_emotion, set_persona, cancel)
        vikaki replay <file.jsonl> [--speed N]   send a recorded session's driver messages again
@@ -163,7 +164,7 @@ const targetOf = (v: { port?: string; url?: string; token?: string }) => ({ url:
 
 async function clientCommand(command: string, argv: string[]): Promise<number> {
   if (command === "say") {
-    const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: { ...TARGET_OPTIONS, persona: { type: "string" }, emotion: { type: "string" }, seat: { type: "string" } } });
+    const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: { ...TARGET_OPTIONS, persona: { type: "string" }, emotion: { type: "string" }, seat: { type: "string" }, think: { type: "string" } } });
     const text = positionals.join(" ").trim();
     if (!text) {
       console.error("say what? usage: vikaki say <text...>");
@@ -172,7 +173,7 @@ async function clientCommand(command: string, argv: string[]): Promise<number> {
     // Ctrl+C asks the avatar to stop; a second one leaves at once.
     const ac = new AbortController();
     process.on("SIGINT", () => (ac.signal.aborted ? process.exit(130) : ac.abort()));
-    return say({ ...targetOf(values), text, persona: values.persona, emotion: values.emotion, seat: values.seat, signal: ac.signal }, consoleIo);
+    return say({ ...targetOf(values), text, persona: values.persona, emotion: values.emotion, seat: values.seat, thinkSeconds: values.think ? Number(values.think) : undefined, signal: ac.signal }, consoleIo);
   }
   if (command === "mcp") {
     const { values } = parseArgs({ args: argv, options: TARGET_OPTIONS });

@@ -52,6 +52,14 @@ export function poseFor(emotion: string | undefined, intensity = 1): EmotionPose
   return { squint: p.squint * k, pitch: p.pitch * k, roll: p.roll * k, yaw: p.yaw * k, shake: p.shake * k, bob: p.bob * k, rest, symbol: p.symbol, symbolAmount: k };
 }
 
+/**
+ * "Thinking" while a turn is on (`turn_started`): head tipped up and to one side, lids a little low, and a bubble of dots.
+ * The face cannot look up, so the head does it. It is not one of the seven emotions: it comes from the turn, not from a line.
+ */
+export const THINKING_POSE: EmotionPose = { squint: 0.15, pitch: -0.05, roll: -0.1, yaw: 0.1, shake: 0, bob: 0, rest: {}, symbol: "dots", symbolAmount: 1 };
+/** A driver that never says the turn ended must not leave the avatar thinking for ever. */
+export const THINKING_TIMEOUT_SECONDS = 30;
+
 /** Time constant of the easing between poses. */
 const TAU = 0.18;
 /** Symbols fade faster than the face moves, so a new mark is up within a second even when an old one has to go first. */
@@ -71,6 +79,12 @@ export class EmotionState {
   private target: EmotionPose = { ...NEUTRAL_POSE };
   private current: EmotionPose = { ...NEUTRAL_POSE, rest: {} };
   private releaseIn: number | null = null;
+  private thinkingLeft: number | null = null;
+
+  /** True while a turn is on and no line has begun. */
+  get thinking(): boolean {
+    return this.thinkingLeft !== null;
+  }
 
   get pose(): EmotionPose {
     return this.current;
@@ -81,6 +95,20 @@ export class EmotionState {
     this.intensity = this.emotion === "neutral" ? 0 : Number.isFinite(intensity) ? clamp01(intensity) : 1;
     this.target = poseFor(emotion, intensity);
     this.releaseIn = null;
+    this.thinkingLeft = null; // a line has begun: the thinking is over
+  }
+
+  /** A turn began (`on`) or ended. Thinking wins over the last line's feeling, and a line starting ends it. */
+  think(on: boolean): void {
+    if (!on) {
+      if (this.thinkingLeft !== null) this.set("neutral");
+      return;
+    }
+    this.emotion = "neutral";
+    this.intensity = 0;
+    this.target = { ...THINKING_POSE };
+    this.releaseIn = null;
+    this.thinkingLeft = THINKING_TIMEOUT_SECONDS;
   }
 
   /** Go back to neutral after `seconds`. A later `set` cancels it. */
@@ -89,6 +117,10 @@ export class EmotionState {
   }
 
   update(dt: number): EmotionPose {
+    if (this.thinkingLeft !== null) {
+      this.thinkingLeft -= dt;
+      if (this.thinkingLeft <= 0) this.set("neutral");
+    }
     if (this.releaseIn !== null) {
       this.releaseIn -= dt;
       if (this.releaseIn <= 0) {

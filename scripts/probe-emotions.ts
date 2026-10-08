@@ -19,5 +19,8 @@ for (const e of EMOTIONS) {
   await page.waitForTimeout(1300);
   await page.screenshot({ path: `${out}/${e}.png` });
 }
+await page.evaluate(() => window.__vikaki!.setThinking(true));
+await page.waitForTimeout(1300);
+await page.screenshot({ path: `${out}/thinking.png` });
 await browser.close();
 await server.close();

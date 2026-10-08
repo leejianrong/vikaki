@@ -12,6 +12,7 @@ interface Window {
     blinks: number;
     setVisemes(w: Record<string, number>): void;
     setEmotion(emotion: string | undefined, intensity?: number): void;
+    setThinking(on: boolean): void;
     /** The emotion pose on show after the last frame, and what the preset for an emotion at an intensity says. */
     emotionPose?: EmotionPose;
     presetPose?: (emotion: string, intensity: number) => EmotionPose;

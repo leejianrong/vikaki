@@ -156,6 +156,26 @@ describe("speech, from driver to avatar and back", () => {
     await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === null && window.__vikaki!.emotionPose!.squint < 0.02, null, { timeout: 8000 });
   });
 
+  it("looks thoughtful between turn_started and turn_ended, and a line that starts ends it", { timeout: 60_000 }, async () => {
+    const { driver, page } = await setup();
+    const pose = () => page.evaluate(() => window.__vikaki!.emotionPose!);
+    driver.send(make("turn_started", { seat_id: "seat-1" }));
+    await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === "dots" && window.__vikaki!.emotionPose!.symbolAmount > 0.95 && Math.abs(window.__vikaki!.emotionPose!.roll) > 0.09, null, { timeout: 15_000 }); // dots up and the head tipped
+    driver.send(make("turn_ended", { seat_id: "seat-1" }));
+    await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === null && Math.abs(window.__vikaki!.emotionPose!.roll) < 0.02, null, { timeout: 15_000 });
+
+    // A line that begins during the turn replaces the thinking with its own feeling.
+    driver.send(make("turn_started", { seat_id: "seat-1" }));
+    await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === "dots", null, { timeout: 15_000 });
+    driver.say("x".repeat(30), "u1", { emotion: "happy" });
+    await driver.waitFor(started(), 40_000);
+    await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === "sparkle", null, { timeout: 15_000 });
+    driver.send(make("turn_ended", { seat_id: "seat-1" })); // arrives late, mid-line: must not take the sparkles away
+    await page.waitForTimeout(500);
+    expect((await pose()).symbol).toBe("sparkle");
+    await driver.waitFor(finished(), 40_000);
+  });
+
   it("treats an unknown emotion as neutral, without an error", async () => {
     const { driver, page } = await setup();
     driver.say("x".repeat(30), "u1", { emotion: "blorp" });
