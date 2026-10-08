@@ -1,21 +1,21 @@
 {
-  "name": "@vikaki/server",
+  "name": "@vikaki/protocol",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
-    ".": "./src/server.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
+    "schema": "node --experimental-strip-types scripts/write-schema.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@vikaki/protocol": "workspace:*",
-    "ws": "^8.22.0"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/ws": "^8.18.2"
+    "vitest": "^5.0.3"
   }
 }

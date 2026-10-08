@@ -2,6 +2,9 @@ import { createServer, type Server } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer as createNetServer, type AddressInfo } from "node:net";
+import { Hub, type HubOptions } from "./hub.ts";
+
+export { Hub, type HubEvent, type HubOptions } from "./hub.ts";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -20,11 +23,16 @@ export interface VikakiServerOptions {
   /** 0 picks a free port. */
   port?: number;
   host?: string;
+  /** Options for the WebSocket hub at /ws. */
+  hub?: HubOptions;
 }
 
 export interface RunningServer {
   url: string;
+  /** WebSocket address of the hub. */
+  wsUrl: string;
   port: number;
+  hub: Hub;
   close(): Promise<void>;
 }
 
@@ -62,15 +70,20 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
     server.listen(opts.port ?? 0, host, ok);
   });
   const port = (server.address() as AddressInfo).port;
+  const hub = new Hub(server, opts.hub);
 
   return {
     url: `http://${host}:${port}/avatar`,
+    wsUrl: `ws://${host}:${port}/ws`,
     port,
-    close: () =>
-      new Promise<void>((ok, fail) => {
+    hub,
+    close: async () => {
+      await hub.close();
+      await new Promise<void>((ok, fail) => {
         server.close((err) => (err ? fail(err) : ok()));
         server.closeAllConnections();
-      }),
+      });
+    },
   };
 }
 
