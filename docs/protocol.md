@@ -15,7 +15,7 @@ The first message on a connection must be `hello`; the hub answers `welcome`.
 { "protocol_version": 1, "type": "welcome", "role": "driver" }
 ```
 
-`role` is `driver`, `viewer` or `controller`.
+`role` is `driver`, `viewer` or `controller`. When the hub was started with a personas file, `welcome` also carries `personas`, the names it knows ([personas.md](personas.md)).
 
 ## Driver sends
 
@@ -43,7 +43,7 @@ When several viewers report the same event, the driver hears it once.
 
 ## Errors
 
-`bad_message` (invalid JSON or fields; the connection stays open after `hello`), `unsupported_protocol_version`, `unauthorized` (wrong driver token), `driver_busy`, `not_allowed` (a role sent something it may not), `unknown_persona`, `tts_failed`, `internal`.
+`bad_message` (invalid JSON or fields; the connection stays open after `hello`), `unsupported_protocol_version`, `unauthorized` (wrong driver token), `driver_busy`, `not_allowed` (a role sent something it may not), `unknown_persona` (a line named a persona the hub's personas file lacks; the line is dropped), `tts_failed`, `internal`.
 
 ## Security
 

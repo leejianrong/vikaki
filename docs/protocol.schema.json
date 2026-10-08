@@ -72,6 +72,15 @@
         "voice": {
           "type": "string",
           "maxLength": 64
+        },
+        "personas": {
+          "maxItems": 256,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
         }
       },
       "required": [

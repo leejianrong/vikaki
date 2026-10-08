@@ -118,8 +118,35 @@ export class DriverSession {
     return (this.emotion = normaliseEmotion(name));
   }
 
-  setPersona(name: string): string {
-    return (this.persona = name);
+  /**
+   * Set the default persona, after checking the name against the hub's personas file (over HTTP, so it does not take the
+   * driver slot). A name the hub does not know is refused and the previous persona is kept. If the hub cannot be asked, or has
+   * no personas file, the name is accepted and the hub has the last word on each line.
+   */
+  async setPersona(name: string): Promise<{ persona: string; style?: string; emotion?: string }> {
+    const known = await this.personas();
+    if (known && known.length > 0) {
+      const found = known.find((p) => p.name === name);
+      if (!found) {
+        throw new Error(`no persona "${name}" on this hub (known: ${known.map((p) => p.name).join(", ")}). ${this.persona ? `The persona is still "${this.persona}".` : "No persona is set."}`);
+      }
+      this.persona = name;
+      return { persona: name, ...(found.style ? { style: found.style } : {}), ...(found.emotion ? { emotion: found.emotion } : {}) };
+    }
+    return { persona: (this.persona = name) };
+  }
+
+  /** The hub's personas, or undefined if it cannot be asked. */
+  private async personas(): Promise<{ name: string; style?: string; emotion?: string }[] | undefined> {
+    try {
+      const http = new URL(this.target.url);
+      http.protocol = http.protocol === "wss:" ? "https:" : "http:";
+      http.pathname = "/avatar/personas.json";
+      const res = await fetch(http, { signal: AbortSignal.timeout(2000) });
+      return res.ok ? ((await res.json()) as { name: string; style?: string; emotion?: string }[]) : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   async close(): Promise<void> {

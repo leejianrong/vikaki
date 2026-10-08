@@ -49,6 +49,8 @@ export const Welcome = z.object({
   speech: z.string().max(64).optional(),
   /** The default voice of that engine, such as "af_heart". For display. */
   voice: z.string().max(64).optional(),
+  /** The personas the hub knows, when it was started with a personas file. A driver can check a name against it before sending. */
+  personas: z.array(z.string().min(1).max(64)).max(256).optional(),
 });
 
 // ---- from the driver (a game, an LLM, a script) ----
