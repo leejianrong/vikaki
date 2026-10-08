@@ -58,7 +58,7 @@ const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", viseme
 window.__vikaki = api;
 
 const baseUrl = import.meta.env.BASE_URL;
-const avatarUrl = params.get("avatar") ?? `${baseUrl}avatars/teddy.vrm`;
+const avatarUrl = params.get("avatar") ?? `${baseUrl}avatars/cookieman.vrm`;
 const demo = params.get("demo") === "1";
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
