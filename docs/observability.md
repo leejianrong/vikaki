@@ -1,6 +1,8 @@
 # Observability
 
-How to see what the avatar is doing and saying, without a person listening. Phases are in CLAUDE.md.
+How to see what the avatar is doing and saying, without a person listening. The phases below were agreed with Jian; where each stands is in [STATUS.md](STATUS.md).
+
+**Plan.** Phase 1: a debug recorder (`--debug-dir`: per-utterance wav, spectrogram PNG, metrics JSON, text, timings) and a speech-versus-buzz gate as a test. Phase 2: live and per-utterance spectrograms, a karaoke highlight on the current word (estimated word timings, because Kokoro's ONNX model outputs only a waveform), and a timeline view. Phase 3: phoneme-driven lip sync scored by a lip-sync scorecard (deferred). The testing strategy is in [testing.md](testing.md).
 
 ## Phase 1: the debug recorder
 

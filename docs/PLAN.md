@@ -2,7 +2,7 @@
 
 Status: agreed · Milestone: M1 (human mic-only avatar, then LLM text driver)
 
-Companion files: [SLICES.md](SLICES.md) (build handoff), [QUESTIONS.md](QUESTIONS.md) (decision register), `docs/adr/` (0001 protocol, 0002 VRM and Three.js, 0003 delivery, 0004 licence). Board: Pandan board 35, "Vikaki", one epic per slice.
+Companion files: [SLICES.md](SLICES.md) (build handoff), [QUESTIONS.md](QUESTIONS.md) (decision register), `adr/` (0001 protocol, 0002 VRM and Three.js, 0003 delivery, 0004 licence). Board: Pandan board 35, "Vikaki", one epic per slice.
 
 Sources: [initial-chat.md](initial-chat.md), and the consumer brief at `/home/jian/projects/games/agent-game-framework/docs/AVATAR-PROJECT-BRIEF.md` (the "games brief").
 
