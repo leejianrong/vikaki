@@ -98,6 +98,18 @@ async function setup(tts: FakeTtsOptions = {}, pageCount = 1) {
     pages.push(page);
     await page.goto(`${server.url}?live=1&timeline=1&hud=0&seed=3`);
     await page.waitForFunction(() => window.__vikaki?.live?.state === "connected" && window.__vikaki.live.soundBlocked === false, null, { timeout: 30_000 });
+    // Note every time the page goes without running a timer for a while, on the timeline's clock: software WebGL can freeze it for
+    // most of a second at the first speech, and audio scheduled during a freeze lands late. Tests use it to tell that from a bug.
+    await page.evaluate(() => {
+      const g = window as unknown as { __freezes: [number, number][] };
+      g.__freezes = [];
+      let last = performance.now();
+      window.setInterval(() => {
+        const n = performance.now();
+        if (n - last > 60) g.__freezes.push([(window.__vikaki!.timeline as { now(): number }).now(), n - last]);
+        last = n;
+      }, 20);
+    });
     viewers.push(page);
   }
   const driver = await Driver.connect(server.wsUrl);
@@ -154,6 +166,26 @@ describe("speech, from driver to avatar and back", () => {
     }
     // After the last line the face relaxes to neutral.
     await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === null && window.__vikaki!.emotionPose!.squint < 0.02, null, { timeout: 8000 });
+  });
+
+  it("looks thoughtful between turn_started and turn_ended, and a line that starts ends it", { timeout: 60_000 }, async () => {
+    const { driver, page } = await setup();
+    const pose = () => page.evaluate(() => window.__vikaki!.emotionPose!);
+    driver.send(make("turn_started", { seat_id: "seat-1" }));
+    await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === "dots" && window.__vikaki!.emotionPose!.symbolAmount > 0.95 && Math.abs(window.__vikaki!.emotionPose!.roll) > 0.09, null, { timeout: 15_000 }); // dots up and the head tipped
+    driver.send(make("turn_ended", { seat_id: "seat-1" }));
+    await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === null && Math.abs(window.__vikaki!.emotionPose!.roll) < 0.02, null, { timeout: 15_000 });
+
+    // A line that begins during the turn replaces the thinking with its own feeling.
+    driver.send(make("turn_started", { seat_id: "seat-1" }));
+    await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === "dots", null, { timeout: 15_000 });
+    driver.say("x".repeat(30), "u1", { emotion: "happy" });
+    await driver.waitFor(started(), 40_000);
+    await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === "sparkle", null, { timeout: 15_000 });
+    driver.send(make("turn_ended", { seat_id: "seat-1" })); // arrives late, mid-line: must not take the sparkles away
+    await page.waitForTimeout(500);
+    expect((await pose()).symbol).toBe("sparkle");
+    await driver.waitFor(finished(), 40_000);
   });
 
   it("treats an unknown emotion as neutral, without an error", async () => {
@@ -266,6 +298,11 @@ type Recorded = {
   events: { t: number; kind: string; utteranceId?: string }[];
   utterances: { id: string; startMs: number; endMs: number; interruptedAtMs?: number; pieces: { index: number; text: string; startMs: number; endMs: number }[] }[];
 };
+/** How long the page was frozen (ms) during `[fromMs, toMs]` on the timeline's clock. */
+const frozenDuring = async (page: Page, fromMs: number, toMs: number) => {
+  const freezes = await page.evaluate(() => (window as unknown as { __freezes: [number, number][] }).__freezes);
+  return freezes.filter(([end, length]) => end - length < toMs && end > fromMs).reduce((sum, [, length]) => sum + length, 0);
+};
 const recorded = (page: Page) => page.evaluate(() => (window.__vikaki!.timeline as { toJSON(): unknown }).toJSON()) as Promise<Recorded>;
 
 describe("the page's timeline of what happened", () => {
@@ -279,7 +316,9 @@ describe("the page's timeline of what happened", () => {
     expect(u.pieces.map((p) => p.text)).toEqual(["Hello there.", "How are you?"]);
     const [a, b] = u.pieces as [typeof u.pieces[0], typeof u.pieces[0]];
     expect(a.endMs - a.startMs).toBeGreaterThan(400); // 12 characters at 50 ms each
-    expect(Math.abs(b.startMs - a.endMs)).toBeLessThan(60); // the second sentence follows the first with no gap
+    // The second sentence follows the first with no gap, unless the page was frozen while it should have been scheduled.
+    const frozen = await frozenDuring(page, a.endMs - 1000, b.startMs);
+    expect(Math.abs(b.startMs - a.endMs), `a gap of ${Math.round(b.startMs - a.endMs)} ms with the page frozen for ${Math.round(frozen)} ms around it`).toBeLessThan(60 + frozen);
 
     // the page's own events, in order, and the first one lands where the audio was scheduled to begin
     const kinds = t.events.filter((e) => e.utteranceId === "u1").map((e) => e.kind);

@@ -18,6 +18,8 @@ export interface SpeechPlayerOptions {
   onScheduled?: (slice: ScheduledSlice) => void;
   /** A line with this emotion has begun to be heard (`phase: "start"`), or has ended or been cut off (`"end"`). */
   onEmotion?: (emotion: string | undefined, intensity: number | undefined, phase: "start" | "end") => void;
+  /** The driver says a turn began (`true`) or ended (`false`): time for the avatar to look thoughtful. */
+  onTurn?: (thinking: boolean, seatId: string) => void;
   /** Times lines for the `timing` of `speech_finished`. The page's render loop feeds it frames. */
   timer?: FirstFrameTimer;
   /** Called when all the audio of a spoken sentence has arrived, which is before it is heard. */
@@ -118,6 +120,7 @@ export class SpeechPlayer {
     ws.onclose = () => {
       this.state("disconnected");
       this.playback.cancelAll("cancelled"); // the driver's side is gone; do not keep talking
+      this.o.onTurn?.(false, ""); // nor keep thinking
       if (!this.stopped) setTimeout(() => this.connect(), (this.retry = Math.min(this.retry * 2, 5000)));
     };
     ws.onerror = () => ws.close();
@@ -134,6 +137,12 @@ export class SpeechPlayer {
       case "utterance":
         this.o.timer?.received(m.utterance_id, performance.now());
         if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity }); // the first message of a streamed line carries it
+        break;
+      case "turn_started":
+        this.o.onTurn?.(true, m.seat_id);
+        break;
+      case "turn_ended":
+        this.o.onTurn?.(false, m.seat_id);
         break;
       case "audio": {
         const samples = decodePcm16(m.pcm);

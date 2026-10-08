@@ -42,6 +42,8 @@ declare global {
       timelineUi?: TimelineUi;
       /** Show an emotion now (what the driver's `emotion` and `intensity` do). Unknown names are neutral. */
       setEmotion(emotion: string | undefined, intensity?: number): void;
+      /** Start or end the thinking pose, as `turn_started` and `turn_ended` do. */
+      setThinking(on: boolean): void;
       /** What the preset for `emotion` at `intensity` says. For tests to compare against `emotionPose`. */
       presetPose?: (emotion: string, intensity: number) => EmotionPose;
       /** The emotion on show after the last frame, and the symbol drawn for it. */
@@ -57,7 +59,7 @@ declare global {
     };
   }
 }
-const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", visemes: {}, applied: {}, blink: 0, blinks: 0, setVisemes: () => {}, setEmotion: () => {} };
+const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", visemes: {}, applied: {}, blink: 0, blinks: 0, setVisemes: () => {}, setEmotion: () => {}, setThinking: () => {} };
 window.__vikaki = api;
 
 const baseUrl = import.meta.env.BASE_URL;
@@ -83,6 +85,7 @@ try {
   const symbols = new EmotionSymbols(new Vector3(head.x, (head.y + box.max.y) / 2, head.z + 0.05), (box.max.y - head.y) * 1.2);
   scene.add(symbols.group);
   api.setEmotion = (e, i) => puppet.emotion.set(e, i);
+  api.setThinking = (on) => puppet.emotion.think(on);
   api.presetPose = poseFor;
   if (params.has("emotion")) puppet.emotion.set(params.get("emotion")!, params.has("intensity") ? Number(params.get("intensity")) : 1);
 
@@ -140,6 +143,7 @@ try {
       url: url.href,
       timer: firstFrame,
       // The face follows the line: its emotion while it is heard, then a moment's lingering before relaxing.
+      onTurn: (thinking) => puppet.emotion.think(thinking),
       onEmotion: (e, i, phase) => (phase === "start" ? puppet.emotion.set(e, i) : puppet.emotion.release(0.7)),
       session,
       sessionId: params.get("session") ?? undefined,

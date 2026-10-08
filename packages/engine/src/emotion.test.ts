@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EMOTIONS } from "@vikaki/protocol";
-import { EMOTION_PRESETS, EmotionState, NEUTRAL_POSE, poseFor, SETTLE_SECONDS, type EmotionPose } from "./emotion.ts";
+import { EMOTION_PRESETS, EmotionState, NEUTRAL_POSE, poseFor, SETTLE_SECONDS, THINKING_TIMEOUT_SECONDS, type EmotionPose } from "./emotion.ts";
 
 const numeric = (p: EmotionPose) => [p.squint, p.pitch, p.roll, p.yaw, p.shake, p.bob, p.symbolAmount, ...Object.values(p.rest)];
 
@@ -124,5 +124,69 @@ describe("EmotionState", () => {
 
   it("settles within the documented time", () => {
     expect(SETTLE_SECONDS).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("the thinking pose", () => {
+  const settle = (s: EmotionState, seconds: number, step = 1 / 60) => {
+    let pose = s.pose;
+    for (let t = 0; t < seconds; t += step) pose = s.update(step);
+    return pose;
+  };
+
+  it("tilts the head and shows thinking dots while a turn is on, and relaxes when it ends", () => {
+    const s = new EmotionState();
+    s.think(true);
+    const on = settle(s, 1);
+    expect(on.symbol).toBe("dots");
+    expect(Math.abs(on.roll)).toBeGreaterThan(0.05);
+    expect(on.symbolAmount).toBeGreaterThan(0.9);
+    s.think(false);
+    const off = settle(s, 1.5);
+    expect(off.symbol).toBeNull();
+    expect(Math.abs(off.roll)).toBeLessThan(0.01);
+  });
+
+  it("gives way to a line's emotion: speech starting ends the thinking", () => {
+    const s = new EmotionState();
+    s.think(true);
+    settle(s, 1);
+    s.set("happy", 1);
+    expect(s.thinking).toBe(false);
+    expect(settle(s, 1).symbol).toBe("sparkle");
+  });
+
+  it("a neutral line ends thinking too, and the face goes plain", () => {
+    const s = new EmotionState();
+    s.think(true);
+    settle(s, 1);
+    s.set(undefined);
+    expect(settle(s, 1.5).symbol).toBeNull();
+  });
+
+  it("does not interrupt a line that is already showing an emotion", () => {
+    const s = new EmotionState();
+    s.set("sad", 1);
+    settle(s, 1);
+    s.think(true); // the next turn begins while the last line's feeling is still on show
+    expect(settle(s, 1).symbol).toBe("dots"); // thinking is about the next line, so it wins over a finished one
+    s.think(false);
+    expect(settle(s, 1.5).symbol).toBeNull();
+  });
+
+  it("clears itself if the driver never says the turn ended", () => {
+    const s = new EmotionState();
+    s.think(true);
+    expect(settle(s, THINKING_TIMEOUT_SECONDS - 1).symbol).toBe("dots");
+    expect(settle(s, 3 + SETTLE_SECONDS).symbol).toBeNull();
+    expect(s.thinking).toBe(false);
+  });
+
+  it("thinking again restarts the clock", () => {
+    const s = new EmotionState();
+    s.think(true);
+    settle(s, THINKING_TIMEOUT_SECONDS - 1);
+    s.think(true);
+    expect(settle(s, THINKING_TIMEOUT_SECONDS - 1).symbol).toBe("dots");
   });
 });
