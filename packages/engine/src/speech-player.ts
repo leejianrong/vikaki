@@ -1,3 +1,4 @@
+import type { FirstFrameTimer } from "./first-frame.ts";
 import { decodePcm16, make, parseMessage, type Message } from "@vikaki/protocol";
 import type { AudioSession } from "./audio-session.ts";
 import { Playback, type Output, type ScheduledSlice } from "./playback.ts";
@@ -15,6 +16,8 @@ export interface SpeechPlayerOptions {
   onReport?: (what: string) => void;
   /** Called for every slice of audio as it is handed to the speakers, with when it will be heard. */
   onScheduled?: (slice: ScheduledSlice) => void;
+  /** Times lines for the `timing` of `speech_finished`. The page's render loop feeds it frames. */
+  timer?: FirstFrameTimer;
   /** Called when all the audio of a spoken sentence has arrived, which is before it is heard. */
   onSentence?: (sentence: CompleteSentence) => void;
 }
@@ -47,9 +50,13 @@ export class SpeechPlayer {
       {
         started: (id, seat) => {
           o.session.lipsync?.unmute();
+          o.timer?.heard(id, performance.now());
           this.report(make("speech_started", { utterance_id: id, ...(seat ? { seat_id: seat } : {}) }), `started:${id}`);
         },
-        finished: (id) => this.report(make("speech_finished", { utterance_id: id }), `finished:${id}`),
+        finished: (id) => {
+          const timing = o.timer?.take(id);
+          this.report(make("speech_finished", { utterance_id: id, ...(timing ? { timing } : {}) }), `finished:${id}`);
+        },
         interrupted: (id, reason) => {
           o.session.lipsync?.mute(); // the node's own smoothing takes ~200 ms to close the mouth; a cut-off should look instant
           this.report(make("speech_interrupted", { utterance_id: id, reason }), `interrupted:${id}`);
@@ -115,6 +122,9 @@ export class SpeechPlayer {
     switch (m.type) {
       case "welcome":
         this.state("connected");
+        break;
+      case "utterance":
+        this.o.timer?.received(m.utterance_id, performance.now());
         break;
       case "audio": {
         const samples = decodePcm16(m.pcm);

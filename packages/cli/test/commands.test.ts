@@ -1,6 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import WebSocket from "ws";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventLog, readEventLog, startServer, type RunningServer } from "@vikaki/server";
 import { FakeTts } from "@vikaki/tts";
@@ -48,7 +49,30 @@ describe("vikaki say", () => {
     const { url } = await hub();
     const { io, out } = quiet();
     expect(await say({ url, text: "Good morning." }, io)).toBe(0);
-    expect(out).toEqual(["speaking...", "done"]);
+    expect(out[0]).toBe("speaking...");
+    expect(out.at(-1)).toBe("done");
+    expect(out.filter((l) => /time to first audio: \d+ ms/.test(l))).toHaveLength(1); // measured by the CLI itself, so it works with no page
+    expect(out.join(" ")).not.toMatch(/video frame/); // only a page can see a frame
+  });
+
+  it("prints time to first video frame when the page reports it", async () => {
+    const { url } = await hub();
+    const viewer = new WebSocket(url);
+    await new Promise((ok) => viewer.once("open", ok));
+    viewer.send(JSON.stringify({ protocol_version: 1, type: "hello", role: "viewer" }));
+    viewer.on("message", (d) => {
+      const m = JSON.parse(d.toString());
+      if (m.type !== "utterance") return;
+      const send = (o: object) => viewer.send(JSON.stringify({ protocol_version: 1, utterance_id: m.utterance_id, ...o }));
+      send({ type: "speech_started" });
+      setTimeout(() => send({ type: "speech_finished", timing: { audio_ms: 100, frame_ms: 140 } }), 50);
+    });
+    const { io, out } = quiet();
+    expect(await say({ url, text: "Hi." }, io)).toBe(0);
+    viewer.close();
+    const first = Number(/time to first audio: (\d+) ms/.exec(out.join("\n"))![1]);
+    // the frame comes 40 ms after the sound, as the page measured it
+    expect(out.join("\n")).toContain(`time to first video frame: ${first + 40} ms`);
   });
 
   it("says plainly that another driver holds the slot", async () => {

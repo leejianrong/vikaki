@@ -6,6 +6,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { DriverConsole } from "./driver-console.ts";
 import { mountSpeechDemo } from "./speech-demo.ts";
 import { createStage, frameAvatar, Puppet } from "./stage.ts";
+import { FirstFrameTimer } from "./first-frame.ts";
 import { TimelineRecorder } from "./timeline.ts";
 import type { TimelineUi } from "./timeline-ui.ts";
 import type { VisemeWeights } from "./renderer.ts";
@@ -113,6 +114,7 @@ try {
     : undefined;
 
   const speechDemo = params.get("demo") === "speech";
+  const firstFrame = new FirstFrameTimer();
   const timeline = speechDemo || params.get("timeline") === "1" ? (api.timeline = new TimelineRecorder()) : undefined;
   if (params.get("live") === "1" || speechDemo) {
     const live = { state: "connecting" as LiveState, soundBlocked: true, events: [] as string[] };
@@ -121,6 +123,7 @@ try {
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     const player = new SpeechPlayer({
       url: url.href,
+      timer: firstFrame,
       session,
       sessionId: params.get("session") ?? undefined,
       onReport: (what) => {
@@ -168,6 +171,7 @@ try {
     puppet.update(clock.getDelta(), mouth);
     api.visemes = puppet.visemes;
     api.applied = puppet.applied;
+    firstFrame.frame(performance.now(), Object.values(puppet.applied).reduce((a, w) => a + (w ?? 0), 0));
     if (timeline) {
       timeline.frame(mouth, puppet.applied, session.lipsync?.volume ?? 0, puppet.blink);
       if (puppet.blinks !== lastBlinks) timeline.event("blink");
