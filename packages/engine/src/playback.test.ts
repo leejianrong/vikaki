@@ -191,3 +191,76 @@ describe("Playback", () => {
     expect(second.played[0]!.at).toBeCloseTo(1000.03, 6);
   });
 });
+
+describe("Playback when sound is allowed part-way through a line (the output's clock changes)", () => {
+  /**
+   * The page before sound is allowed counts on the page clock; Web Audio counts from when its context was made. In a real page the
+   * two differ by that start offset (about a second); the test makes the gap huge (4000 s against 12 s) so a mix-up cannot hide.
+   */
+  function twoClocks() {
+    const silent = new FakeOutput();
+    silent.time = 4000;
+    silent.perfMs = (t) => t * 1000;
+    const web = new FakeOutput();
+    web.time = 12;
+    web.perfMs = (t) => 9_000_000 + (t - 12) * 1000; // where this output's times land on the page clock (a distinct base, so the two are told apart)
+    let current: Output = silent;
+    const log: string[] = [];
+    const seen: ScheduledSlice[] = [];
+    const pb = new Playback(() => current, { started: (id) => log.push(`started:${id}`), finished: (id) => log.push(`finished:${id}`), interrupted: (id, r) => log.push(`interrupted:${id}:${r}`) }, { lookahead: 0.4, lead: 0.03, scheduled: (s) => seen.push(s) });
+    const slice = (seconds: number, final = false, id = "a"): AudioSlice => ({ utteranceId: id, samples: new Float32Array(Math.round(seconds * 1000)), sampleRate: 1000, final });
+    return { silent, web, pb, log, seen, slice, switchToWeb: () => (current = web) };
+  }
+
+  it("still reports the line started and finished when the switch comes before its first audio was heard", () => {
+    const { silent, web, pb, log, slice, switchToWeb } = twoClocks();
+    pb.push(slice(0.2)); // scheduled on the page clock at 4000.03: not yet heard
+    pb.push(slice(0.2, true));
+    expect(log).toEqual([]);
+    switchToWeb(); // sound is allowed now
+    pb.tick();
+    for (let t = 12; t <= 14; t += 0.05) {
+      web.time = t;
+      pb.tick();
+    }
+    expect(log, "started once, then finished").toEqual(["started:a", "finished:a"]);
+    void silent;
+  });
+
+  it("schedules what is left on the new clock right away, with no wait for the old clock's time to come round", () => {
+    const { web, pb, slice, switchToWeb } = twoClocks();
+    pb.push(slice(1));
+    pb.push(slice(1)); // the second slice waits: only 0.4 s is scheduled ahead
+    switchToWeb();
+    pb.tick();
+    expect(web.played.length).toBeGreaterThan(0);
+    expect(web.played[0]!.at).toBeCloseTo(12.03, 5); // now + lead on the new clock, not 4000-something
+  });
+
+  it("tells the timeline where slices heard after the switch are, on the page clock", () => {
+    const { web, pb, seen, slice, switchToWeb } = twoClocks();
+    pb.push(slice(0.3));
+    switchToWeb();
+    pb.push(slice(0.3, true));
+    for (let t = 12; t <= 13; t += 0.05) {
+      web.time = t;
+      pb.tick();
+    }
+    const after = seen.filter((s) => s.startPerfMs > 8_000_000); // the new output's page-clock range
+    expect(after.length).toBeGreaterThan(0);
+    for (const s of after) expect(s.startPerfMs).toBeCloseTo(9_000_000 + 30, -1); // now + lead on the new clock, converted by the new output
+  });
+
+  it("a line whose first slice was scheduled on the old clock and whose last arrives after the switch still starts and finishes", () => {
+    const { web, pb, log, slice, switchToWeb } = twoClocks();
+    pb.push(slice(0.1));
+    pb.tick();
+    switchToWeb();
+    pb.push(slice(0.1, true));
+    for (let t = 12; t <= 13; t += 0.05) {
+      web.time = t;
+      pb.tick();
+    }
+    expect(log).toEqual(["started:a", "finished:a"]);
+  });
+});
