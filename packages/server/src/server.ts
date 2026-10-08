@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer as createNetServer, type AddressInfo } from "node:net";
@@ -34,6 +34,8 @@ export interface VikakiServerOptions {
   hub?: HubOptions;
   /** Named characters from a personas file: validates `persona` on lines, picks their voice and default emotion, and serves their avatars. */
   personas?: PersonaBook;
+  /** Extra exact-path routes served before the avatar page, such as the MJPEG feed. Each does its own access checks. */
+  routes?: Record<string, (req: IncomingMessage, res: ServerResponse) => void | Promise<void>>;
   /** Turn on speech: utterances from the driver are spoken with this engine. */
   speech?: SpeechOptions;
 }
@@ -57,6 +59,11 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
       const path = new URL(req.url ?? "/", "http://localhost").pathname;
       if (path === "/") {
         res.writeHead(302, { location: "/avatar" }).end();
+        return;
+      }
+      const route = opts.routes?.[path];
+      if (route) {
+        await route(req, res);
         return;
       }
       if (path === "/avatar/personas.json") {

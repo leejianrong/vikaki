@@ -19,4 +19,4 @@ With no GPU (CI, most containers) Chromium draws with software WebGL (SwiftShade
 
 - It opens pages with `?live=1&hud=0` (and `&persona=<name>`, `&render=off` for audio-only). Sound plays into nothing (`--mute-audio`); the page's audio clock still runs, so timings are real.
 - Ctrl+C stops the browser first, then the server, and exits 0. Playwright's own Ctrl+C handler is turned off so it cannot exit 130 first.
-- It does not capture video. `vikaki stream` (V4.4) turns the same pages into an MJPEG feed.
+- It does not capture video by itself. `vikaki stream` ([stream.md](stream.md)) turns the same pages into an MJPEG feed.
