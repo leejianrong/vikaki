@@ -30,6 +30,18 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(tsx@4.23.15))
 
+  packages/audio:
+    devDependencies:
+      '@vikaki/tts':
+        specifier: workspace:*
+        version: link:../tts
+      fast-check:
+        specifier: ^4.10.2
+        version: 4.10.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(tsx@4.23.15))
+
   packages/cli:
     dependencies:
       '@vikaki/server':
@@ -115,6 +127,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@vikaki/audio':
+        specifier: workspace:*
+        version: link:../audio
       '@vikaki/protocol':
         specifier: workspace:*
         version: link:../protocol

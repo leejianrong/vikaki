@@ -7,7 +7,8 @@ import { SpeechEngine, type SpeechOptions } from "./speech.ts";
 
 export { Hub, type HubEvent, type HubOptions } from "./hub.ts";
 export { SpeechEngine, type SpeechObserver, type SpeechOptions, type SpeechTiming } from "./speech.ts";
-export { DebugRecorder, analyse, classify, decodeWav, encodeWav, spectrogramPng, type SpeechMetrics, type Verdict } from "./debug/index.ts";
+export { DebugRecorder, spectrogramPng } from "./debug/index.ts";
+export { analyse, classify, decodeWav, encodeWav, type SpeechMetrics, type Verdict } from "@vikaki/audio";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

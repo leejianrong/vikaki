@@ -1,0 +1,19 @@
+{
+  "name": "@vikaki/audio",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@vikaki/tts": "workspace:*",
+    "fast-check": "^4.10.2",
+    "vitest": "^5.0.3"
+  }
+}

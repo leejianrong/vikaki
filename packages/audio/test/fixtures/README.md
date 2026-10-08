@@ -7,7 +7,7 @@ Licence: Kokoro-82M and `kokoro-js` are Apache-2.0 (ADR-0010), so audio they gen
 Regenerate (needs `make install-voice`):
 
 ```bash
-pnpm exec tsx scripts/make-speech-fixture.ts "Good morning, everyone." packages/server/test/fixtures/kokoro-good-morning.wav
+pnpm exec tsx scripts/make-speech-fixture.ts "Good morning, everyone." packages/audio/test/fixtures/kokoro-good-morning.wav
 ```
 
 A regenerated clip may differ slightly with the model version; the gate tests check ranges, not exact values.

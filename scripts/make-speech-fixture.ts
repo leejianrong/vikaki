@@ -3,7 +3,7 @@
 // Needs the real voice: `make install-voice`.
 import { writeFileSync } from "node:fs";
 import { KokoroTts } from "../packages/tts/src/index.ts";
-import { encodeWav } from "../packages/server/src/debug/wav.ts";
+import { encodeWav } from "../packages/audio/src/index.ts";
 import { findVoice } from "../packages/cli/src/voice.ts";
 
 const [text, out, voice] = process.argv.slice(2);

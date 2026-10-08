@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { analyse, classify, decodeWav, encodeWav } from "../src/server.ts";
+import { analyse, classify, decodeWav, encodeWav } from "../src/index.ts";
 
 const rate = fc.constantFrom(8000, 16000, 24000, 44100);
 const audio = fc.float32Array({ maxLength: 6000, noNaN: true, min: -1, max: 1, noDefaultInfinity: true });
