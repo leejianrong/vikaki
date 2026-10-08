@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+.git
+.github
+.vikaki
+.vitest
+**/.vitest
+packages/e2e/artifacts
+docs
+spikes
+scripts
+*.log
+.DS_Store
+.env
+.env.*
+.claude

@@ -1,0 +1,46 @@
+name: Docker
+
+# The image tests build both images and start containers, which takes several minutes, so they run when the image or the code
+# it runs changes, and nightly. Reported, not required.
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - pnpm-lock.yaml
+      - "packages/*/package.json"
+      - packages/cli/**
+      - packages/render/**
+      - packages/server/**
+      - packages/protocol/**
+      - packages/audio/**
+      - packages/tts/**
+      - packages/engine/**
+      - packages/e2e/test/docker.e2e.test.ts
+      - .github/workflows/docker.yml
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: make docker-test

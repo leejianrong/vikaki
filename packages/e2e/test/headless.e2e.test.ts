@@ -144,6 +144,23 @@ describe("vikaki serve --headless", () => {
     expect(await proc.exit).toBe(0);
   });
 
+  it("renders when the server listens on every interface, as it does in a container", { timeout: 180_000 }, async () => {
+    // The hub only answers local Host names, so the hidden browser must be sent to 127.0.0.1, not to 0.0.0.0.
+    const proc = run(["--headless", "--host", "0.0.0.0"], /headless: rendering/);
+    try {
+      const out = await proc.up;
+      const port = /serving http:\/\/0\.0\.0\.0:(\d+)/.exec(out)![1]!;
+      const driver = await Driver.connect(`ws://127.0.0.1:${port}/ws`);
+      drivers.push(driver);
+      driver.say("x".repeat(40), "u1");
+      const finished = await driver.waitFor((m) => m.type === "speech_finished");
+      expect((finished.timing as { frame_ms?: number }).frame_ms).toEqual(expect.any(Number));
+    } finally {
+      proc.stop();
+    }
+    expect(await proc.exit).toBe(0);
+  });
+
   it("explains how to fix it, and exits 1, when there is no browser to render with", { timeout: 60_000 }, async () => {
     const proc = run(["--headless", "--chrome", "/definitely/not/a/browser"], /never-printed/);
     await proc.up.catch(() => {}); // it exits early, which is the point
