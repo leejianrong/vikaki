@@ -10,6 +10,7 @@ import { ProsodyTracker } from "@vikaki/audio";
 import { EmotionSymbols } from "./symbols.ts";
 import { poseFor, type EmotionPose } from "./emotion.ts";
 import { FirstFrameTimer } from "./first-frame.ts";
+import { MicTimeline } from "./mic-timeline.ts";
 import { TimelineRecorder } from "./timeline.ts";
 import type { TimelineUi } from "./timeline-ui.ts";
 import type { VisemeWeights } from "./renderer.ts";
@@ -161,6 +162,12 @@ try {
   const speechDemo = params.get("demo") === "speech";
   const firstFrame = new FirstFrameTimer();
   const timeline = speechDemo || params.get("timeline") === "1" ? (api.timeline = new TimelineRecorder()) : undefined;
+  const micTimeline = timeline ? new MicTimeline(timeline) : undefined; // in mic mode, the microphone's phrases go on the timeline too
+  if (timeline && !speechDemo && params.get("dock") === "1") {
+    // The dock outside the speech demo (the demo mounts its own): `?mode=mic&timeline=1&dock=1` shows the microphone's phrases.
+    await (await import("./ui/material.ts")).loadMaterial();
+    api.timelineUi = (await import("./timeline-ui.ts")).mountTimeline(timeline);
+  }
   if (params.get("live") === "1" || speechDemo) {
     const live = { state: "connecting" as LiveState, soundBlocked: true, events: [] as string[] };
     api.live = live;
@@ -226,6 +233,7 @@ try {
     if (session.listening && ++frame % 2 === 0) {
       const w = session.micWindow();
       if (w) {
+        micTimeline?.push(w.samples, w.sampleRate, performance.now());
         for (const e of prosody.push(w.samples, w.sampleRate, performance.now() / 1000)) {
           puppet.gestures.cue(e.cue);
           api.prosody!.cues.push({ cue: e.cue, t: e.t });

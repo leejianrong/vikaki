@@ -68,7 +68,7 @@ export function mountTimeline(rec: TimelineRecorder): TimelineUi {
     setTimeout(() => (select.value = mode), 0);
   };
   const label = (u: UtteranceTimeline) => {
-    const text = u.pieces[0]?.text || "speech";
+    const text = u.source === "mic" ? "microphone" : u.pieces[0]?.text || "speech";
     return `${u.id} · ${text.length > 20 ? `${text.slice(0, 19)}…` : text} · ${(u.endMs - u.startMs) / 1000 < 10 ? seconds(u.endMs - u.startMs) : ((u.endMs - u.startMs) / 1000).toFixed(1)} s`;
   };
   const headlines = new Map<string, HTMLElement>();
@@ -108,7 +108,10 @@ export function mountTimeline(rec: TimelineRecorder): TimelineUi {
     const fr = rec.frames(u.startMs, u.endMs);
     let peak = 0;
     for (let i = 0; i < fr.count; i++) for (let k = 0; k < MOUTH_SHAPES.length; k++) peak = Math.max(peak, fr.data[i * FRAME_FIELDS + k]!);
-    summary.textContent = `Utterance ${u.id}: ${u.pieces.length} sentence${u.pieces.length === 1 ? "" : "s"}, ${seconds(u.endMs - u.startMs)} seconds${u.interruptedAtMs !== undefined ? ", cut off" : ""}. The mouth opened to at most ${peak.toFixed(2)}.`;
+    summary.textContent =
+      u.source === "mic"
+        ? `Phrase ${u.id} from the microphone: ${seconds(u.endMs - u.startMs)} seconds, with no words (the microphone has no text). The mouth opened to at most ${peak.toFixed(2)}.`
+        : `Utterance ${u.id}: ${u.pieces.length} sentence${u.pieces.length === 1 ? "" : "s"}, ${seconds(u.endMs - u.startMs)} seconds${u.interruptedAtMs !== undefined ? ", cut off" : ""}. The mouth opened to at most ${peak.toFixed(2)}.`;
     table.replaceChildren(
       ...u.pieces.map((p) =>
         el("tr", {}, el("td", { textContent: u.id }), el("td", { textContent: String(p.index + 1) }), el("td", { textContent: p.text }), el("td", { textContent: `${seconds(p.startMs - v.originMs)} s` }), el("td", { textContent: `${seconds(p.endMs - v.originMs)} s` })),
