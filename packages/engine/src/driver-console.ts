@@ -3,7 +3,7 @@ import { make, parseMessage, PROTOCOL_VERSION, type Message } from "@vikaki/prot
 export type DriverState = "connecting" | "ready" | "busy" | "disconnected";
 
 export interface DriverHandlers {
-  state(state: DriverState, info: { speech?: string }): void;
+  state(state: DriverState, info: { speech?: string; voice?: string }): void;
   message(message: Message): void;
 }
 
@@ -25,7 +25,9 @@ export class DriverConsole {
   private ws?: WebSocket;
   private n = 0;
   private closed = false;
-  private info: { speech?: string } = {};
+  private busyTries = 0;
+  private expectClose = false;
+  private info: { speech?: string; voice?: string } = {};
   private readonly streams = new Map<string, ReturnType<typeof setTimeout>[]>();
 
   constructor(
@@ -44,16 +46,28 @@ export class DriverConsole {
       if (!parsed.ok) return;
       const m = parsed.message;
       if (m.type === "welcome") {
-        this.info = { speech: m.speech };
+        this.busyTries = 0;
+        this.info = { speech: m.speech, voice: m.voice };
         this.handlers.state("ready", this.info);
       } else if (m.type === "error" && m.code === "driver_busy") {
-        this.closed = true; // do not keep knocking
-        this.handlers.state("busy", this.info);
+        // After a quick reload the hub may not have noticed the old connection close yet, so try a few
+        // times before deciding that another program really is driving.
+        if (++this.busyTries <= 5) {
+          this.expectClose = true;
+          setTimeout(() => this.connect(), 700);
+        } else {
+          this.closed = true;
+          this.handlers.state("busy", this.info);
+        }
       }
       this.handlers.message(m);
     };
     ws.onclose = () => {
       if (this.closed) return;
+      if (this.expectClose) {
+        this.expectClose = false; // a retry is already scheduled
+        return;
+      }
       this.handlers.state("disconnected", this.info);
       setTimeout(() => this.connect(), 1500);
     };

@@ -19,3 +19,11 @@ It was calibrated on someone else's voice. It held up across two TTS voices in t
 ## Choosing avatars
 
 Judge avatars by screenshot, not by name. "Teddy" (#011) was the first default and read as fierce: its angry brows are baked into the mesh and texture, and none of its 16 morph targets removes them, so no expression fix is possible. Cookieman, Snowy (#097), Milk (#084) and the mushroom kid Muscary (#076) all looked friendly in the same comparison. All are CC0 with the five vowel shapes and blink. Eye level is estimated for avatars without eye bones, so framing may need a per-avatar tweak for non-humanoid shapes (Coffee #080 and Good Tomato #082 fill the frame).
+
+## Interface font
+
+| File | What | Source | Licence |
+| --- | --- | --- | --- |
+| `public/fonts/Fredoka.ttf` | Fredoka variable font (weight and width axes), used for headings and numbers in the demo pages | [google/fonts](https://github.com/google/fonts/tree/main/ofl/fredoka) | SIL Open Font License 1.1 (`public/fonts/Fredoka-OFL.txt`) |
+
+`@material/web` (Apache-2.0) and `@material/material-color-utilities` (Apache-2.0, dev only, used to generate `src/ui/theme.css`) are ordinary dependencies.

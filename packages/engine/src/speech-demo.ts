@@ -1,5 +1,8 @@
 import type { Message } from "@vikaki/protocol";
+import type { MdOutlinedTextField } from "@material/web/textfield/outlined-text-field.js";
 import { DriverConsole, formatMs, type DriverState } from "./driver-console.ts";
+import { el } from "./ui/dom.ts";
+import { loadMaterial } from "./ui/material.ts";
 
 export interface SpeechDemoOptions {
   driver: DriverConsole;
@@ -8,65 +11,51 @@ export interface SpeechDemoOptions {
   soundBlocked(): boolean;
 }
 
+export interface SpeechDemo {
+  onState(state: DriverState, info: { speech?: string; voice?: string }): void;
+  onMessage(m: Message): void;
+  refreshSound(): void;
+}
+
 const PRESETS = [
   ["Greeting", "Hello! I'm Vikaki, your new friend. Shall we begin?"],
   ["Poker", "Hmm, let me think about that. Actually, I think you're bluffing, and I'll call your raise."],
   ["Long story", "Once upon a time there was a small gingerbread who loved to talk. He talked in the morning, he talked in the afternoon, and he even talked while the other cookies were trying to sleep. Press cancel whenever you like."],
 ] as const;
 
-const CSS = `
-body.demo-wide canvas { width: calc(100% - 400px); }
-#speech { position: fixed; top: 0; right: 0; bottom: 0; width: 400px; box-sizing: border-box; padding: 16px; display: flex; flex-direction: column; gap: 10px;
-  background: #171d24; color: #cfd8e0; font: 14px/1.4 system-ui, sans-serif; border-left: 1px solid #263039; }
-#speech h1 { font-size: 16px; margin: 0; color: #fff; }
-#speech p { margin: 0; color: #8fa1b0; font-size: 12px; }
-#speech .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-#speech .chip { font-size: 12px; padding: 3px 9px; border-radius: 10px; background: #243240; color: #cfd8e0; }
-#speech .chip.ok { background: #14532d; color: #bbf7d0; } #speech .chip.warn { background: #713f12; color: #fde68a; } #speech .chip.bad { background: #7f1d1d; color: #fecaca; }
-#speech textarea { width: 100%; box-sizing: border-box; min-height: 84px; resize: vertical; background: #0e1318; color: #e6edf3; border: 1px solid #34475a; border-radius: 6px; padding: 8px; font: inherit; }
-#speech .row { display: flex; flex-wrap: wrap; gap: 6px; }
-#speech button { background: #243240; color: #e6edf3; border: 1px solid #34475a; border-radius: 6px; padding: 8px 12px; font: inherit; cursor: pointer; }
-#speech button:hover:not(:disabled) { background: #2d4054; }
-#speech button.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
-#speech button.danger { background: #7f1d1d; border-color: #b91c1c; }
-#speech button:disabled { opacity: .45; cursor: not-allowed; }
-#speech button:focus-visible, #speech textarea:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
-#speech h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #7f93a3; margin: 4px 0 0; }
-#speech .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-#speech .stat { background: #0e1318; border-radius: 6px; padding: 6px 8px; }
-#speech .stat b { display: block; font-size: 16px; color: #fff; font-variant-numeric: tabular-nums; } #speech .stat span { font-size: 11px; color: #7f93a3; }
-#speech #log { flex: 1; min-height: 80px; overflow-y: auto; background: #0e1318; border-radius: 6px; padding: 8px; font: 12px/1.5 ui-monospace, monospace; }
-#speech #log div { white-space: pre-wrap; } #speech #log .t { color: #7f93a3; } #speech #log .err { color: #fbbf24; } #speech #log .go { color: #4ade80; } #speech #log .stop { color: #f87171; }
-`;
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string, unknown> = {}, ...kids: (Node | string)[]): HTMLElementTagNameMap[K] {
-  const e = document.createElement(tag);
-  Object.assign(e, props);
-  e.append(...kids);
-  return e;
-}
-
 /** A driver console beside the avatar: type text, press Speak, watch and hear it, see what the hub reports. */
-export function mountSpeechDemo(o: SpeechDemoOptions): { onState(state: DriverState, info: { speech?: string }): void; onMessage(m: Message): void; refreshSound(): void } {
-  document.body.classList.add("demo-wide");
-  document.head.append(el("style", { textContent: CSS }));
+export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo> {
+  await loadMaterial();
+  document.body.classList.add("has-panel");
 
   const sentAt = new Map<string, number>(); // utterance id -> when we sent its first text
+  const started = new Map<string, number>();
   let lastId: string | undefined;
   let cancelAt: { id: string; at: number } | undefined;
 
+  // ---- the voice banner: the one thing that must never be missed ----
+  const banner = el("div", { className: "voice-banner", role: "status" });
+  const setBanner = (kind: "ok" | "warn" | "bad" | "", title: string, ...body: (Node | string)[]) => {
+    banner.className = `voice-banner ${kind}`;
+    banner.replaceChildren(el("div", { className: "title-medium", textContent: title }), el("p", { className: "body-medium" }, ...body));
+  };
+  setBanner("", "Checking the voice…", "Waiting for the hub to say which voice it uses.");
+
   const chipDriver = el("span", { className: "chip", textContent: "driver: connecting" });
-  const chipVoice = el("span", { className: "chip", textContent: "voice: ?" });
-  const chipSound = el("span", { className: "chip", textContent: "sound: ?" });
-  const text = el("textarea", { id: "say-text", value: PRESETS[0][1], ariaLabel: "What the avatar should say" });
-  const speak = el("button", { type: "button", className: "primary", textContent: "Speak" });
-  const streamBtn = el("button", { type: "button", textContent: "Speak, streamed word by word" });
-  const cancel = el("button", { type: "button", className: "danger", textContent: "Cancel", disabled: true });
-  const queue = el("button", { type: "button", textContent: "Queue two lines" });
-  const log = el("div", { id: "log", role: "log", ariaLive: "polite" });
-  const statFirst = el("b", { textContent: "-" });
-  const statSpeech = el("b", { textContent: "-" });
-  const statStop = el("b", { textContent: "-" });
+  const chipSound = el("span", { className: "chip", textContent: "sound: …" });
+
+  const text = el("md-outlined-text-field", { id: "say-text", type: "textarea", rows: 2, label: "What the avatar should say", value: PRESETS[0][1] }) as MdOutlinedTextField;
+  const speak = el("md-filled-button", { textContent: "Speak" });
+  const streamBtn = el("md-filled-tonal-button", { textContent: "Speak word by word" });
+  const queue = el("md-outlined-button", { textContent: "Queue two lines" });
+  const cancel = el("md-filled-tonal-button", { className: "danger", textContent: "Cancel", disabled: true });
+  const presets = el("md-chip-set", { ariaLabel: "Example lines" });
+  for (const [name, content] of PRESETS) presets.append(el("md-assist-chip", { label: name, onclick: () => (text.value = content) }));
+
+  const statFirst = el("b", { textContent: "–" });
+  const statSpeech = el("b", { textContent: "–" });
+  const statStop = el("b", { textContent: "–" });
+  const log = el("div", { id: "log", className: "log", role: "log", ariaLive: "polite" });
 
   const t0 = performance.now();
   const stamp = () => `${((performance.now() - t0) / 1000).toFixed(1).padStart(5)}s`;
@@ -85,48 +74,34 @@ export function mountSpeechDemo(o: SpeechDemoOptions): { onState(state: DriverSt
     cancel.disabled = false;
     if (how === "say") o.driver.say(content, id);
     else o.driver.stream(content, id, 5);
-    line("", `sent ${how === "stream" ? "(streamed) " : ""}${quote(content)}  [${id}]`);
+    line("", `sent ${how === "stream" ? "(word by word) " : ""}${quote(content)}  [${id}]`);
   };
 
-  speak.onclick = () => send("say", text.value);
-  streamBtn.onclick = () => send("stream", text.value);
-  queue.onclick = () => {
+  speak.addEventListener("click", () => send("say", text.value));
+  streamBtn.addEventListener("click", () => send("stream", text.value));
+  queue.addEventListener("click", () => {
     send("say", "First, a short line.");
     send("say", "And then, a second one right behind it.");
-  };
-  cancel.onclick = () => {
+  });
+  cancel.addEventListener("click", () => {
     if (!lastId) return;
     cancelAt = { id: lastId, at: performance.now() };
     o.driver.cancel(lastId);
     line("stop", `cancel ${lastId}`);
-  };
+  });
 
-  const presets = el("div", { className: "row" });
-  for (const [name, content] of PRESETS) {
-    presets.append(el("button", { type: "button", textContent: name, onclick: () => (text.value = content) }));
-  }
+  const tile = (value: HTMLElement, label: string) => el("div", { className: "tile" }, value, el("span", { className: "label-medium", textContent: label }));
 
   document.body.append(
     el(
       "aside",
-      { id: "speech", ariaLabel: "vikaki speech demo" },
-      el("h1", { textContent: "vikaki speech demo" }),
-      el("p", { textContent: "This page is the driver. It sends text to the hub, the hub turns it into speech, and the avatar says it. A real game or LLM does the same from its own process." }),
-      el("div", { className: "chips" }, chipDriver, chipVoice, chipSound),
-      el("h2", { textContent: "What to say" }),
-      text,
-      presets,
-      el("div", { className: "row" }, speak, streamBtn, queue, cancel),
-      el("h2", { textContent: "Measured here" }),
-      el(
-        "div",
-        { className: "stats" },
-        el("div", { className: "stat" }, statFirst, el("span", { textContent: "send → speech starts" })),
-        el("div", { className: "stat" }, statSpeech, el("span", { textContent: "speech length" })),
-        el("div", { className: "stat" }, statStop, el("span", { textContent: "cancel → stopped" })),
-      ),
-      el("h2", { textContent: "What the hub reports" }),
-      log,
+      { id: "speech", className: "side-sheet", ariaLabel: "Speech demo" },
+      el("h1", { className: "headline-small", textContent: "Speech demo" }),
+      banner,
+      el("div", { className: "chips" }, chipDriver, chipSound),
+      el("section", {}, text, presets, el("div", { className: "actions" }, speak, streamBtn, queue, cancel)),
+      el("section", {}, el("h2", { className: "title-small", textContent: "Measured here" }), el("div", { className: "tiles" }, tile(statFirst, "to first sound"), tile(statSpeech, "speech length"), tile(statStop, "cancel to stop"))),
+      el("section", { style: "flex:1;min-height:0" }, el("h2", { className: "title-small", textContent: "What the hub reports" }), log),
     ),
   );
 
@@ -134,23 +109,29 @@ export function mountSpeechDemo(o: SpeechDemoOptions): { onState(state: DriverSt
     chip.textContent = label;
     chip.className = `chip ${kind}`;
   };
-  const refreshSound = () => (o.soundBlocked() ? setChip(chipSound, "sound: click Speak to allow", "warn") : setChip(chipSound, "sound: on", "ok"));
+  const refreshSound = () => (o.soundBlocked() ? setChip(chipSound, "sound: press Speak to allow", "warn") : setChip(chipSound, "sound: on", "ok"));
   refreshSound();
   // The browser can allow sound at any moment (a click, or autoplay settings), with no message to announce it.
   setInterval(refreshSound, 400);
-  const started = new Map<string, number>();
 
   return {
     refreshSound,
     onState(state, info) {
-      const ready = state === "ready";
+      const ready = state === "ready" && info.speech !== "off"; // with no engine, Speak could do nothing
       for (const b of [speak, streamBtn, queue]) b.disabled = !ready;
       if (ready) setChip(chipDriver, "driver: connected", "ok");
       else if (state === "busy") setChip(chipDriver, "driver: another program is already driving", "bad");
       else setChip(chipDriver, `driver: ${state}`, "warn");
-      if (info.speech === "off") setChip(chipVoice, "voice: off (start with --tts)", "bad");
-      else if (info.speech === "fake") setChip(chipVoice, 'voice: test voice ("aah"), see docs/tts.md for real speech', "warn");
-      else if (info.speech) setChip(chipVoice, `voice: ${info.speech}`, "ok");
+
+      if (state === "busy") {
+        setBanner("bad", "Another program is driving", "Stop it, then reload this page. Only one driver can send speech at a time.");
+      } else if (info.speech === "off") {
+        setBanner("bad", "Speech is off", "The server was started without a voice. Restart it without ", el("code", { textContent: "--tts none" }), ".");
+      } else if (info.speech === "fake") {
+        setBanner("warn", "This is a test tone, not speech", "The real voice isn't installed, so the avatar will hold one steady “aah”. Run ", el("code", { textContent: "make install-voice" }), ", then restart this demo.");
+      } else if (info.speech) {
+        setBanner("ok", "Real voice", `${info.speech === "kokoro" ? "Kokoro" : info.speech}${info.voice ? `, voice ${info.voice}` : ""}. What you hear is generated speech.`);
+      }
       if (state === "busy") line("err", "Another program is already the driver. Stop it, then reload this page.");
     },
     onMessage(m) {

@@ -1,4 +1,6 @@
 import { VISEMES, type VisemeWeights } from "./renderer.ts";
+import { el } from "./ui/dom.ts";
+import { loadMaterial } from "./ui/material.ts";
 
 export interface DemoControls {
   /** Hold a mouth shape (or {} to release). */
@@ -14,50 +16,23 @@ export interface DemoFrame {
   volume: number;
 }
 
-const CSS = `
-body.demo canvas { width: calc(100% - 320px); }
-#demo { position: fixed; top: 0; right: 0; bottom: 0; width: 320px; box-sizing: border-box; padding: 16px;
-  background: #171d24; color: #cfd8e0; font: 14px/1.4 system-ui, sans-serif; overflow-y: auto; border-left: 1px solid #263039; }
-#demo h1 { font-size: 16px; margin: 0 0 4px; color: #fff; }
-#demo h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #7f93a3; margin: 18px 0 6px; }
-#demo p { margin: 0 0 6px; color: #8fa1b0; font-size: 12px; }
-#demo .row { display: flex; flex-wrap: wrap; gap: 6px; }
-#demo button, #demo label.btn { background: #243240; color: #e6edf3; border: 1px solid #34475a; border-radius: 6px;
-  padding: 8px 12px; font: inherit; cursor: pointer; user-select: none; }
-#demo button:hover, #demo label.btn:hover { background: #2d4054; }
-#demo button:active, #demo button.on { background: #3b82f6; border-color: #3b82f6; color: #fff; }
-#demo button:focus-visible, #demo label.btn:focus-within { outline: 2px solid #8ab4ff; outline-offset: 2px; }
-#demo input[type=file] { position: absolute; opacity: 0; width: 1px; height: 1px; }
-#demo .meter { display: grid; grid-template-columns: 56px 1fr 38px; gap: 8px; align-items: center; margin: 3px 0; font-size: 12px; }
-#demo .bar { height: 10px; background: #0e1318; border-radius: 5px; overflow: hidden; }
-#demo .bar > i { display: block; height: 100%; width: 0; background: #4ade80; }
-#demo .bar.blink > i { background: #fbbf24; } #demo .bar.vol > i { background: #60a5fa; }
-#demo .num { text-align: right; color: #8fa1b0; font-variant-numeric: tabular-nums; }
-#demo .status { min-height: 1.4em; color: #fbbf24; font-size: 12px; margin-top: 6px; }
-`;
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  props: Record<string, unknown> = {},
-  ...kids: (Node | string)[]
-): HTMLElementTagNameMap[K] {
-  const e = document.createElement(tag);
-  Object.assign(e, props);
-  e.append(...kids);
-  return e;
+export interface DemoPanel {
+  update(f: DemoFrame): void;
+  status(text: string): void;
+  setMic(on: boolean): void;
 }
 
-/** A side panel for judging the avatar by eye: held mouth shapes, blink, mic, audio file, live meters. */
-export function mountDemoPanel(ctl: DemoControls): { update(f: DemoFrame): void; status(text: string): void; setMic(on: boolean): void } {
-  document.body.classList.add("demo");
-  document.head.append(el("style", { textContent: CSS }));
+/** A side sheet for judging the avatar by eye: held mouth shapes, blink, mic, audio file, live meters. */
+export async function mountDemoPanel(ctl: DemoControls): Promise<DemoPanel> {
+  await loadMaterial();
+  document.body.classList.add("has-panel");
 
-  const status = el("div", { className: "status", role: "status" });
+  const status = el("p", { className: "body-small status", role: "status", style: "min-height:1rem;color:var(--md-sys-color-warning)" });
 
-  // Mouth shapes: hold a button to hold the shape.
-  const shapes = el("div", { className: "row" });
+  // Hold a button to hold the shape.
+  const shapes = el("div", { className: "actions" });
   for (const v of [...VISEMES, "closed"] as const) {
-    const b = el("button", { type: "button", textContent: v });
+    const b = el("md-filled-tonal-button", { textContent: v });
     const press = () => ctl.hold(v === "closed" ? {} : { [v]: 1 });
     const release = () => ctl.hold({});
     b.addEventListener("pointerdown", press);
@@ -68,48 +43,42 @@ export function mountDemoPanel(ctl: DemoControls): { update(f: DemoFrame): void;
     shapes.append(b);
   }
 
-  const blinkBtn = el("button", { type: "button", textContent: "Blink now" });
+  const blinkBtn = el("md-outlined-button", { textContent: "Blink now" });
   blinkBtn.addEventListener("click", () => ctl.blink());
 
-  const micBtn = el("button", { type: "button", textContent: "Microphone: off" });
+  const micBtn = el("md-filled-tonal-button", { textContent: "Microphone: off" });
   micBtn.addEventListener("click", () => {
     micBtn.disabled = true;
     ctl.toggleMic().finally(() => (micBtn.disabled = false));
   });
 
-  const fileInput = el("input", { type: "file", accept: "audio/*" });
+  const fileInput = el("input", { type: "file", accept: "audio/*", className: "file-input" });
   fileInput.addEventListener("change", () => {
     const f = fileInput.files?.[0];
     fileInput.value = "";
     if (f) void ctl.playFile(f);
   });
-  const fileBtn = el("label", { className: "btn" }, "Play an audio file…", fileInput);
+  const fileBtn = el("md-outlined-button", { textContent: "Play an audio file…" });
+  fileBtn.addEventListener("click", () => fileInput.click());
 
   const meters = new Map<string, { bar: HTMLElement; num: HTMLElement }>();
-  const meterRows = el("div");
+  const meterRows = el("div", { style: "display:flex;flex-direction:column;gap:8px" });
   for (const [name, cls] of [...VISEMES.map((v) => [v, ""] as const), ["blink", "blink"], ["volume", "vol"]] as const) {
     const bar = el("i");
-    const num = el("span", { className: "num", textContent: "0.00" });
+    const num = el("span", { className: "num label-medium", textContent: "0.00" });
     meters.set(name, { bar, num });
-    meterRows.append(el("div", { className: "meter" }, el("span", { textContent: name }), el("div", { className: `bar ${cls}` }, bar), num));
+    meterRows.append(el("div", { className: "meter" }, el("span", { className: "name label-medium", textContent: name }), el("div", { className: `bar ${cls}` }, bar), num));
   }
 
   document.body.append(
     el(
       "aside",
-      { id: "demo", ariaLabel: "vikaki demo controls" },
-      el("h1", { textContent: "vikaki demo" }),
-      el("p", { textContent: "Judge by eye: is the mouth readable, does it feel alive, is it cute rather than creepy?" }),
-      el("h2", { textContent: "Mouth shapes (hold)" }),
-      shapes,
-      el("h2", { textContent: "Eyes" }),
-      blinkBtn,
-      el("h2", { textContent: "Voice" }),
-      el("div", { className: "row" }, micBtn, fileBtn),
-      el("p", { textContent: "Mic audio stays in this page. An audio file also plays through your speakers." }),
-      status,
-      el("h2", { textContent: "What lip sync reports" }),
-      meterRows,
+      { id: "demo", className: "side-sheet", ariaLabel: "Avatar demo" },
+      el("header", {}, el("h1", { className: "headline-small", textContent: "Avatar demo" }), el("p", { className: "body-medium", textContent: "Is the mouth readable, does it feel alive, and is it cute rather than creepy?" })),
+      el("section", {}, el("h2", { className: "title-small", textContent: "Hold a mouth shape" }), shapes),
+      el("section", {}, el("h2", { className: "title-small", textContent: "Eyes" }), el("div", { className: "actions" }, blinkBtn)),
+      el("section", {}, el("h2", { className: "title-small", textContent: "Voice in" }), el("div", { className: "actions" }, micBtn, fileBtn, fileInput), el("p", { className: "body-small", textContent: "Microphone audio stays in this page. An audio file also plays through your speakers." }), status),
+      el("section", {}, el("h2", { className: "title-small", textContent: "What lip sync reports" }), meterRows),
     ),
   );
 

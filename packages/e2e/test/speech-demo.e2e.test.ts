@@ -43,33 +43,38 @@ async function open(opts: { speech?: boolean; msPerChar?: number } = {}): Promis
   return page;
 }
 
+/** Wait until the Speak button can be pressed: the driver is connected and a voice is available. */
+const speakReady = (page: Page) => expect.poll(() => page.getByRole("button", { name: "Speak", exact: true }).isEnabled(), { timeout: 20_000 }).toBe(true);
+const sayBox = (page: Page) => page.getByRole("textbox", { name: "What the avatar should say" });
 const log = (page: Page) => page.locator("#log").innerText();
 const logHas = (page: Page, text: string, ms = 15_000) =>
   page.waitForFunction((t) => document.getElementById("log")!.innerText.includes(t), text, { timeout: ms });
-const stat = (page: Page, label: string) => page.locator(".stat", { hasText: label }).locator("b").innerText();
+const stat = (page: Page, label: string) => page.locator(".tile", { hasText: label }).locator("b").innerText();
 const button = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
 
 describe("speech demo", () => {
-  it("shows that the driver is connected, which voice is in use, and that sound is on", async () => {
+  it("shows that the driver is connected, says plainly that the voice is a test tone, and that sound is on", async () => {
     const page = await open();
     await page.waitForFunction(() => document.querySelector(".chip.ok")?.textContent === "driver: connected", null, { timeout: 15_000 });
-    const chips = await page.locator(".chip").allInnerTexts();
-    expect(chips[0]).toBe("driver: connected");
-    expect(chips[1]).toContain("test voice");
+    // The fake voice must be called out loudly, in plain words, with the fix.
+    const banner = page.locator(".voice-banner");
+    await expect.poll(() => banner.innerText(), { timeout: 15_000 }).toContain("test tone, not speech");
+    expect(await banner.innerText()).toContain("make install-voice");
+    expect(await banner.getAttribute("class")).toContain("warn");
     await page.waitForFunction(() => [...document.querySelectorAll(".chip")].some((c) => c.textContent === "sound: on"), null, { timeout: 15_000 });
   }, 60_000);
 
   it("speaks the typed text, logs what the hub reports, and measures it", async () => {
     const page = await open();
-    await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>("#speech button.primary")!.disabled, null, { timeout: 15_000 });
-    await page.locator("#say-text").fill("x".repeat(40)); // 2 s
+    await speakReady(page);
+    await sayBox(page).fill("x".repeat(40)); // 2 s
     await button(page, "Speak").click();
     await logHas(page, "speech started");
     await logHas(page, "speech finished");
     const text = await log(page);
     expect(text).toContain("sent");
     expect(text.indexOf("speech started")).toBeLessThan(text.indexOf("speech finished"));
-    expect(await stat(page, "send → speech starts")).toMatch(/ms$|s$/);
+    expect(await stat(page, "to first sound")).toMatch(/ms$|s$/);
     const length = await stat(page, "speech length");
     expect(parseFloat(length)).toBeGreaterThan(1.5);
     if (STRICT_TIMING) expect(parseFloat(length)).toBeLessThan(3.5);
@@ -77,8 +82,8 @@ describe("speech demo", () => {
 
   it("moves the avatar's mouth while it speaks", async () => {
     const page = await open();
-    await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>("#speech button.primary")!.disabled, null, { timeout: 15_000 });
-    await page.locator("#say-text").fill("x".repeat(40));
+    await speakReady(page);
+    await sayBox(page).fill("x".repeat(40));
     const peak = page.evaluate(async () => {
       let max = 0;
       const end = performance.now() + 4000;
@@ -94,7 +99,7 @@ describe("speech demo", () => {
 
   it("cancels mid-speech, shows the interruption, and measures how fast it stopped", async () => {
     const page = await open();
-    await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>("#speech button.primary")!.disabled, null, { timeout: 15_000 });
+    await speakReady(page);
     await button(page, "Long story").click();
     await button(page, "Speak").click();
     await logHas(page, "speech started");
@@ -104,7 +109,7 @@ describe("speech demo", () => {
     await logHas(page, "speech interrupted", 3000);
     const text = await log(page);
     expect(text).not.toContain("speech finished");
-    const stopped = await stat(page, "cancel → stopped");
+    const stopped = await stat(page, "cancel to stop");
     if (STRICT_TIMING) {
       expect(parseFloat(stopped)).toBeLessThan(400);
       expect(stopped).toMatch(/ms$/);
@@ -115,26 +120,26 @@ describe("speech demo", () => {
 
   it("sends a streamed line word by word, and starts speaking before the end of it is sent", async () => {
     const page = await open({ msPerChar: 10 }); // speaks fast, so the time is dominated by the 5 words a second sent
-    await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>("#speech button.primary")!.disabled, null, { timeout: 15_000 });
-    await page.locator("#say-text").fill("This is the first sentence of a streamed line. And here are a good many more words coming afterwards, one at a time, like a model.");
+    await speakReady(page);
+    await sayBox(page).fill("This is the first sentence of a streamed line. And here are a good many more words coming afterwards, one at a time, like a model.");
     const clicked = Date.now();
-    await button(page, "Speak, streamed word by word").click();
+    await button(page, "Speak word by word").click();
     await logHas(page, "speech started");
     const startedAfter = Date.now() - clicked;
     if (STRICT_TIMING) expect(startedAfter).toBeLessThan(3200); // the 24 words take about 4.8 s to send at 5 a second
     await logHas(page, "speech finished", 25_000);
     const finishedAfter = Date.now() - clicked;
     expect(finishedAfter).toBeGreaterThan(4400); // it cannot end before the last word has been sent
-    expect(await log(page)).toContain("(streamed)");
+    expect(await log(page)).toContain("(word by word)");
   }, 90_000);
 
   it("fills the text box from a preset", async () => {
     const page = await open();
     await button(page, "Poker").click();
-    expect(await page.locator("#say-text").inputValue()).toContain("bluffing");
+    expect(await page.evaluate(() => (document.getElementById("say-text") as unknown as { value: string }).value)).toContain("bluffing");
   }, 60_000);
 
-  it("says plainly when another program is already driving, and does not let you speak", async () => {
+  it("says plainly when another program is already driving (after trying a few times, in case it is just a reload), and does not let you speak", async () => {
     server = await startServer({ staticDir, speech: { tts: new FakeTts() } });
     const other = new WebSocket(server.wsUrl);
     sockets.push(other);
@@ -144,13 +149,34 @@ describe("speech demo", () => {
     const page = await browser.newPage({ viewport: { width: 1200, height: 720 } });
     pages.push(page);
     await page.goto(`${server.url}?demo=speech&live=1`);
-    await page.waitForFunction(() => document.querySelector(".chip.bad")?.textContent?.includes("already driving"), null, { timeout: 20_000 });
+    await page.waitForFunction(() => document.querySelector(".chip.bad")?.textContent?.includes("already driving"), null, { timeout: 30_000 });
+    expect(await page.locator(".voice-banner").innerText()).toContain("Another program is driving");
     expect(await button(page, "Speak").isDisabled()).toBe(true);
     expect(await log(page)).toContain("Another program is already the driver");
   }, 60_000);
 
+  it("connects once the other driver goes away, as after a quick reload, instead of giving up at once", async () => {
+    server = await startServer({ staticDir, speech: { tts: new FakeTts() } });
+    const old = new WebSocket(server.wsUrl);
+    sockets.push(old);
+    await new Promise((ok) => old.once("open", ok));
+    old.send(JSON.stringify(make("hello", { role: "driver" })));
+    await new Promise((r) => setTimeout(r, 150));
+    const page = await browser.newPage({ viewport: { width: 1200, height: 720 } });
+    pages.push(page);
+    await page.goto(`${server.url}?demo=speech&live=1`);
+    await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 30_000 });
+    await page.waitForTimeout(1200); // the page has been refused at least once by now
+    old.terminate(); // the stale connection finally goes
+    await page.waitForFunction(() => document.querySelector(".chip.ok")?.textContent === "driver: connected", null, { timeout: 15_000 });
+    expect(await page.locator(".voice-banner").innerText()).toContain("test tone");
+    expect(await button(page, "Speak").isEnabled()).toBe(true);
+  }, 90_000);
+
   it("says so when the hub has no speech engine", async () => {
     const page = await open({ speech: false });
-    await page.waitForFunction(() => [...document.querySelectorAll(".chip")].some((c) => c.textContent?.startsWith("voice: off")), null, { timeout: 15_000 });
+    await expect.poll(() => page.locator(".voice-banner").innerText(), { timeout: 15_000 }).toContain("Speech is off");
+    expect(await page.locator(".voice-banner").getAttribute("class")).toContain("bad");
+    expect(await button(page, "Speak").isDisabled()).toBe(true); // nothing to speak with
   }, 60_000);
 });
