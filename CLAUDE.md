@@ -43,7 +43,7 @@ make check                       # typecheck + test: the fast gate, same as the 
 
 - Branch per slice off fresh `main`, PR-only, CI green before merge. Do not push to `main`.
 - Run `make check` before every push. Install the hook once: `make hooks`.
-- Direction is cartoon-first and cute. Do not add realistic or human-mimicking avatar options (ADR-0005).
+- Direction is cartoon-first, cute, friendly and approachable. Do not add realistic or human-mimicking avatar options (ADR-0005). Look at screenshots of any avatar or visual change yourself before calling it done (`node scripts/screenshot.mjs`, see also `make demo`).
 - Tests never call a paid or non-deterministic service. Use fakes (`FakeTts`, fake mic WAV).
 - Every bug gets a failing test first.
 - Never commit secrets. TTS keys, if any, come from environment variables and are never logged.

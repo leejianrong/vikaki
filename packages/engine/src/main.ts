@@ -3,6 +3,7 @@ import { VrmAvatar } from "./vrm-avatar.ts";
 import { AudioSession } from "./audio-session.ts";
 import { Blinker, idlePose, mulberry32 } from "./behaviour.ts";
 import { mountDemoPanel } from "./demo-panel.ts";
+import { frameFromEyeLevel } from "./framing.ts";
 import type { VisemeWeights } from "./renderer.ts";
 
 const params = new URLSearchParams(location.search);
@@ -48,6 +49,8 @@ declare global {
       blink: number;
       blinks: number;
       setVisemes(w: VisemeWeights): void;
+      /** True if the avatar has eye bones; false means eye level is estimated. */
+      eyeBones?: boolean;
     };
   }
 }
@@ -55,7 +58,7 @@ const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", viseme
 window.__vikaki = api;
 
 const baseUrl = import.meta.env.BASE_URL;
-const avatarUrl = params.get("avatar") ?? `${baseUrl}avatars/teddy.vrm`;
+const avatarUrl = params.get("avatar") ?? `${baseUrl}avatars/cookieman.vrm`;
 const demo = params.get("demo") === "1";
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
@@ -63,14 +66,14 @@ const session = new AudioSession(`${baseUrl}profiles/default.bin`);
 try {
   const avatar = await VrmAvatar.load(avatarUrl);
   scene.add(avatar.scene);
-  // Frame the head: from the head bone (base of the skull) up to the top of the model.
+  // Camera at the avatar's eye level, looking straight ahead, so we are never looking up at it.
   const head = avatar.headPosition();
   const top = new Box3().setFromObject(avatar.scene).max.y;
-  const headHeight = Math.max(top - head.y, 0.1);
-  const centerY = head.y + headHeight * 0.45;
-  const distance = (headHeight * 1.7) / (2 * Math.tan((camera.fov * Math.PI) / 360));
-  camera.position.set(head.x, centerY, head.z + distance);
-  camera.lookAt(head.x, centerY, head.z);
+  const eyeY = avatar.eyeLevel();
+  const framing = frameFromEyeLevel(eyeY, head.y, top, camera.fov);
+  camera.position.set(head.x, framing.y, head.z + framing.distance);
+  camera.lookAt(head.x, framing.y, head.z);
+  api.eyeBones = avatar.hasEyeBones();
 
   let manual: VisemeWeights = {};
   api.avatar = avatar;
