@@ -70,7 +70,22 @@ The speech demo has a **Timeline** dock under the avatar. Pick **Live** (the las
 - The page reported `started` as soon as audio played, but the driver was told 1.45 s later in one run, because the hub's event loop stalled up to 1.8 s while Kokoro made the next sentence (measured with `scripts/probe-hub-lag.ts`). Fixed by running the voice in a worker thread (ADR-0013, KAN-1957): the stall is now under 20 ms and the driver hears `started` within 10 ms.
 - With the test voice, the mouth takes about 0.7 s to open fully at the start of an utterance, and sags between sentences.
 
-**Limits.** The microphone has no audio lane (the recorder only sees speech played from the hub). The spectrogram of a very long utterance is computed in one go on first view, which can pause the page briefly. Word-level timing and the karaoke dot come next.
+## Phase 2, part 3: karaoke
+
+In the speech demo, **Now speaking** shows the words of the latest line and puts a red dot on the one being said; words already said turn dark. The timeline's words lane draws each word as its own pill, with the same dot on the current one in the live view. A word stays current through a pause until the next begins.
+
+**The word times are estimates, and the page says so.** The voice model gives only a waveform. `estimateWordTimings` (`packages/audio/src/words.ts`) works from the text and the audio of one sentence:
+1. Find where there is sound (within 35 dB of the clip's loud end).
+2. Share that stretch among the words by syllable count (a rough counter; a comma or full stop adds a pause's worth).
+3. Move each boundary to a real pause if one is nearby (the whole quiet stretch is left out of both words); otherwise to the quietest frame, with dips far from the expected place discounted, so a closure inside "Shall" is not taken for its end.
+
+On six real Kokoro clips (46 words) only 2 words had a duration more than 2.5 times or less than 0.4 times their syllable share ("quick" at 55 ms and "if" at 30 ms), against 5 without the distance penalty. That compares against syllable share, not a true alignment, which I do not have. By eye on the timeline the boundaries fall on the bursts of sound.
+
+It sits behind the `WordTimer` type (`(text, samples, rate) => {word, start, end}[]`), and `TimelineRecorder` takes one as an option, so a source that knows the real durations can replace it. The words are exported in the timeline JSON (`pieces[].words`, in timeline milliseconds).
+
+**When the words arrive.** A sentence can only be timed once all of its audio is there, so the hub now sends an empty audio message with `sentence_end: true` right after each sentence's last slice (docs/protocol.md). The page times the sentence then, which is before it is heard. A voice that streams a sentence as it generates it (the test voice in real time) delivers the whole sentence only at its end, so the first words are timed late; Kokoro returns each sentence whole, so it is on time.
+
+**Limits.** The microphone has no audio lane (the recorder only sees speech played from the hub). The spectrogram of a very long utterance is computed in one go on first view, which can pause the page briefly. 
 
 ## What this cannot tell you
 ## What this cannot tell you

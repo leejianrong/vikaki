@@ -426,6 +426,9 @@
         "sentence_text": {
           "type": "string",
           "maxLength": 4000
+        },
+        "sentence_end": {
+          "type": "boolean"
         }
       },
       "required": [
