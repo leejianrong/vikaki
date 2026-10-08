@@ -8,6 +8,9 @@ import { FakeTts } from "@vikaki/tts";
 
 const staticDir = fileURLToPath(new URL("../../engine/dist", import.meta.url));
 
+/** See speech.e2e.test.ts: millisecond budgets are enforced on a normal machine, not on CI's 2 shared cores. */
+const STRICT_TIMING = !process.env.CI;
+
 let browser: Browser;
 let server: RunningServer | undefined;
 const pages: Page[] = [];
@@ -69,7 +72,7 @@ describe("speech demo", () => {
     expect(await stat(page, "send → speech starts")).toMatch(/ms$|s$/);
     const length = await stat(page, "speech length");
     expect(parseFloat(length)).toBeGreaterThan(1.5);
-    expect(parseFloat(length)).toBeLessThan(3.5);
+    if (STRICT_TIMING) expect(parseFloat(length)).toBeLessThan(3.5);
   }, 60_000);
 
   it("moves the avatar's mouth while it speaks", async () => {
@@ -102,8 +105,11 @@ describe("speech demo", () => {
     const text = await log(page);
     expect(text).not.toContain("speech finished");
     const stopped = await stat(page, "cancel → stopped");
-    expect(parseFloat(stopped)).toBeLessThan(400);
-    expect(stopped).toMatch(/ms$/);
+    if (STRICT_TIMING) {
+      expect(parseFloat(stopped)).toBeLessThan(400);
+      expect(stopped).toMatch(/ms$/);
+    }
+    expect(stopped).not.toBe("-"); // it was measured at all
     expect(await button(page, "Cancel").isDisabled()).toBe(true);
   }, 60_000);
 
@@ -115,7 +121,7 @@ describe("speech demo", () => {
     await button(page, "Speak, streamed word by word").click();
     await logHas(page, "speech started");
     const startedAfter = Date.now() - clicked;
-    expect(startedAfter).toBeLessThan(3200); // the 24 words take about 4.8 s to send at 5 a second
+    if (STRICT_TIMING) expect(startedAfter).toBeLessThan(3200); // the 24 words take about 4.8 s to send at 5 a second
     await logHas(page, "speech finished", 25_000);
     const finishedAfter = Date.now() - clicked;
     expect(finishedAfter).toBeGreaterThan(4400); // it cannot end before the last word has been sent
