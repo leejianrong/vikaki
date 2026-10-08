@@ -44,6 +44,8 @@ export interface UtteranceTimeline {
   endMs: number;
   /** Set when playback was cut short; nothing after this was heard. */
   interruptedAtMs?: number;
+  /** `"mic"` for a stretch of the microphone, which has audio but no text (so no pieces and no words). */
+  source?: "mic";
   pieces: Piece[];
   audio: AudioPlacement[];
 }
@@ -183,6 +185,26 @@ export class TimelineRecorder {
     piece.endMs = Math.max(piece.endMs, endMs);
   }
 
+  /** Audio from the microphone, heard from `startPerfMs`. A phrase is one utterance with audio and no pieces: the mic has no text. */
+  micAudio(utteranceId: string, startPerfMs: number, samples: Float32Array, sampleRate: number): void {
+    const startMs = this.fromPerfMs(startPerfMs);
+    const place: AudioPlacement = { startMs, sampleRate, samples };
+    let u = this.byId.get(utteranceId);
+    if (!u) {
+      u = { id: utteranceId, startMs, endMs: startMs, pieces: [], audio: [], source: "mic" };
+      this.byId.set(u.id, u);
+      while (this.byId.size > this.maxUtterances) this.byId.delete(this.byId.keys().next().value as string);
+    }
+    u.audio.push(place);
+    u.startMs = Math.min(u.startMs, startMs);
+    u.endMs = Math.max(u.endMs, startMs + durationMs(place));
+  }
+
+  /** Drop an utterance (its audio is the memory). */
+  forget(id: string): void {
+    this.byId.delete(id);
+  }
+
   /** A whole sentence's audio has arrived (not yet heard): estimate when each of its words falls. */
   sentence(utteranceId: string, index: number, text: string, samples: Float32Array, sampleRate: number): void {
     if (!text.trim() || samples.length === 0) return;
@@ -242,6 +264,7 @@ export class TimelineRecorder {
           startMs: round(u.startMs),
           endMs: round(u.endMs),
           ...(u.interruptedAtMs !== undefined ? { interruptedAtMs: round(u.interruptedAtMs) } : {}),
+          ...(u.source ? { source: u.source } : {}),
           pieces: u.pieces.map(({ words, ...p }) => ({
             ...p,
             startMs: round(p.startMs),
