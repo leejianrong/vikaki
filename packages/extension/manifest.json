@@ -5,20 +5,50 @@
   "description": "Replaces your camera in browser meetings with a cartoon avatar that lip-syncs to your microphone. The physical camera is never opened and your audio never leaves the page.",
   "content_scripts": [
     {
-      "matches": ["https://meet.google.com/*"],
-      "js": ["main-world.js"],
+      "matches": [
+        "https://meet.google.com/*",
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*",
+        "https://teams.cloud.microsoft/*",
+        "https://app.zoom.us/wc/*",
+        "https://zoom.us/wc/*"
+      ],
+      "js": [
+        "main-world.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN",
       "all_frames": true
     },
     {
-      "matches": ["https://meet.google.com/*"],
-      "js": ["bridge.js"],
+      "matches": [
+        "https://meet.google.com/*",
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*",
+        "https://teams.cloud.microsoft/*",
+        "https://app.zoom.us/wc/*",
+        "https://zoom.us/wc/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
       "run_at": "document_start",
       "all_frames": true
     }
   ],
   "web_accessible_resources": [
-    { "resources": ["assets/*"], "matches": ["https://meet.google.com/*"] }
+    {
+      "resources": [
+        "assets/*"
+      ],
+      "matches": [
+        "https://meet.google.com/*",
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*",
+        "https://teams.cloud.microsoft/*",
+        "https://app.zoom.us/*",
+        "https://zoom.us/*"
+      ]
+    }
   ]
 }

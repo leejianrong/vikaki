@@ -9,7 +9,7 @@ Trust the code over the docs where they disagree, then fix the docs.
 | Slice | State |
 |-------|-------|
 | V1 Mic to avatar to a real call | In progress. Done: V1.1 scaffold, V1.2 VRM avatar, V1.3 lip-sync spike (wLipSync, ADR-0007), V1.4 mic to lip sync, V1.5 blink and sway, a demo page, and V1.6 meeting extension for Meet (tested against a stand-in page only). Next: V1.7 test it on the real call machine |
-| V2 LLM text driver and MCP | Not started |
+| V2 LLM text driver and MCP | In progress. Done: V2.1 protocol, V2.2 hub. Next: V2.3 TTS interface |
 | V3 Emotions and personas | Not started |
 | V4 Headless, container, MJPEG feed | Not started |
 
@@ -34,11 +34,13 @@ make check                       # typecheck + test: the fast gate, same as the 
 ## Layout
 
 - `packages/engine` Vite page: Three.js scene, lip sync, behaviour (browser code).
+- `packages/protocol` message types, validation and the JSON Schema (`docs/protocol.md`). After changing it run `pnpm --filter @vikaki/protocol schema`.
 - `packages/tts` the `Tts` interface, `FakeTts`, `SentenceChunker` and the optional `KokoroTts` (docs/tts.md).
-- `packages/server` Node HTTP and (later) WebSocket hub.
+- `packages/server` Node HTTP server and the WebSocket hub (`/ws`).
 - `packages/cli` the `vikaki` command.
 - `packages/extension` the Meet extension (main-world script, isolated-world bridge, build script).
 - `packages/e2e` Playwright tests against the built page (software WebGL, no GPU).
+- `scripts/` dev helpers: `screenshot.mjs`, `probe-*.mjs`, `real-site-check.mjs` (manual, needs internet), `make-vowel-fixture.py`.
 - `spikes/` throwaway comparisons with their own README or script. `docs/spikes/` holds the write-ups.
 - `docs/adr` one decision per file.
 
