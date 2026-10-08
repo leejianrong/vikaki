@@ -1,13 +1,6 @@
+import { create as createCore } from "./kokoro-core.mjs";
 import { TtsError, type AudioChunk, type SynthesisRequest, type Tts } from "./types.ts";
-
-/** Just the parts of kokoro-js we use, so this package needs no copy of it to compile. */
-interface KokoroInstance {
-  generate(text: string, options: { voice?: string }): Promise<{ audio: Float32Array; sampling_rate: number }>;
-  voices: Record<string, unknown>;
-}
-interface KokoroModule {
-  KokoroTTS: { from_pretrained(model: string, options: { dtype: string; device: string }): Promise<KokoroInstance> };
-}
+import { WorkerTts } from "./worker-tts.ts";
 
 export interface KokoroOptions {
   /** Hugging Face model id. */
@@ -17,58 +10,44 @@ export interface KokoroOptions {
   voice?: string;
   /** Where to import kokoro-js from. Defaults to the package name; tests can pass a file path. */
   importFrom?: string;
+  /** Run in this thread instead of a worker. Only for measuring and debugging: it holds the process during synthesis. */
+  inProcess?: boolean;
 }
-
-const INSTALL_HINT =
-  "Local speech needs the optional kokoro-js package (Apache-2.0, about 400 MB with its runtime). " +
-  "Install it next to Vikaki with: npm install kokoro-js --onnxruntime-node-install-cuda=skip " +
-  "(the flag avoids an install error on machines with CUDA 11). The first run also downloads a model of about 90 MB.";
 
 /**
  * Local text-to-speech with Kokoro (Apache-2.0 code and model), on CPU. Loaded on demand so that
  * everything else works without its large dependency. About 0.75x real time on a laptop CPU, so a
  * short first sentence takes roughly 1.5 s to produce.
+ *
+ * It runs in a worker thread: synthesis holds its thread for up to 1.8 s at a time, and in the server's own thread
+ * that stalled everything the hub relays (KAN-1957). Call `close()` to stop the worker.
  */
 export class KokoroTts implements Tts {
   readonly name = "kokoro";
-  private constructor(
-    private readonly engine: KokoroInstance,
-    private readonly defaultVoice: string,
-  ) {}
+  private constructor(private readonly inner: Tts & { voices: string[] }) {}
 
   static async create(options: KokoroOptions = {}): Promise<KokoroTts> {
-    const from: string = options.importFrom ?? "kokoro-js";
-    let mod: KokoroModule;
+    const { inProcess, ...plain } = options; // what the engine is given must be plain data
     try {
-      mod = (await import(/* @vite-ignore */ from)) as KokoroModule;
+      return new KokoroTts(inProcess ? await createCore(plain) : await WorkerTts.create({ module: new URL("./kokoro-core.mjs", import.meta.url), options: plain }));
     } catch (err) {
-      throw new TtsError(INSTALL_HINT, { cause: err });
-    }
-    try {
-      const engine = await mod.KokoroTTS.from_pretrained(options.model ?? "onnx-community/Kokoro-82M-v1.0-ONNX", {
-        dtype: options.dtype ?? "q8",
-        device: "cpu",
-      });
-      return new KokoroTts(engine, options.voice ?? "af_heart");
-    } catch (err) {
-      throw new TtsError(`could not load the Kokoro model: ${(err as Error).message}`, { cause: err });
+      throw err instanceof TtsError ? err : new TtsError((err as Error).message, { cause: err });
     }
   }
 
   get voices(): string[] {
-    return Object.keys(this.engine.voices);
+    return this.inner.voices;
   }
 
   async *synthesize(request: SynthesisRequest): AsyncGenerator<AudioChunk> {
-    if (request.signal?.aborted) return;
-    const voice = request.voice && this.voices.includes(request.voice) ? request.voice : this.defaultVoice;
-    let result: { audio: Float32Array; sampling_rate: number };
     try {
-      result = await this.engine.generate(request.text, { voice });
+      yield* this.inner.synthesize(request);
     } catch (err) {
-      throw new TtsError(`Kokoro failed: ${(err as Error).message}`, { cause: err });
+      throw err instanceof TtsError ? err : new TtsError((err as Error).message, { cause: err });
     }
-    if (request.signal?.aborted) return; // cancelled while generating; the audio is no longer wanted
-    yield { samples: result.audio, sampleRate: result.sampling_rate };
+  }
+
+  async close(): Promise<void> {
+    await this.inner.close?.();
   }
 }

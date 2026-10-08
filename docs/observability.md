@@ -67,7 +67,7 @@ The speech demo has a **Timeline** dock under the avatar. Pick **Live** (the las
 
 **What the first real-speech timelines showed**
 - Kokoro leaves about 0.7 s of silence between sentences, inside each sentence's audio.
-- The page reports `started` as soon as audio plays, but the driver was told 1.45 s later in one run, because the hub's event loop stalled up to 1.8 s while Kokoro synthesised the next sentence (measured with `scripts/probe-hub-lag.ts`). That delays `speech_started` and would delay a `cancel`. Tracked as KAN-1957, not fixed here.
+- The page reported `started` as soon as audio played, but the driver was told 1.45 s later in one run, because the hub's event loop stalled up to 1.8 s while Kokoro made the next sentence (measured with `scripts/probe-hub-lag.ts`). Fixed by running the voice in a worker thread (ADR-0013, KAN-1957): the stall is now under 20 ms and the driver hears `started` within 10 ms.
 - With the test voice, the mouth takes about 0.7 s to open fully at the start of an utterance, and sags between sentences.
 
 ## Phase 2, part 3: karaoke

@@ -27,6 +27,10 @@ cd .vikaki/voice && npm install kokoro-js --onnxruntime-node-install-cuda=skip
 - Measured on a laptop CPU: roughly 0.75x real time, so a short first sentence takes about 1.6 s.
 - To run the real-engine test: `VIKAKI_KOKORO_PATH=$PWD/.vikaki/voice/node_modules/kokoro-js/dist/kokoro.js pnpm --filter @vikaki/tts test`.
 
+## Where engines run
+
+`KokoroTts` runs in a **worker thread** (ADR-0013). Synthesis holds its thread for up to 1.8 s at a time, and in the server's own thread that stalled everything the hub relays, including `speech_started` and `cancel`. Any engine can be run the same way with `WorkerTts.create({ module, options })`, where `module` is a JavaScript file exporting `create(options)`. Call `close()` to stop it; it lets work in progress finish first, because stopping Kokoro's native runtime mid-run can crash the process. `scripts/probe-hub-lag.ts [--in-process]` measures the difference with the real voice.
+
 ## Splitting text
 
 `SentenceChunker` turns streamed text into pieces worth speaking so audio can start before a reply is finished. It splits at sentence ends (not at abbreviations like "Dr." or decimals like "3.5"), at CJK stops, and cuts a long sentence at a comma once it passes 80 characters, to start speaking sooner.

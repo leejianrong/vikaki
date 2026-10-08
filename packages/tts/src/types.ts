@@ -19,6 +19,8 @@ export interface SynthesisRequest {
 export interface Tts {
   readonly name: string;
   synthesize(request: SynthesisRequest): AsyncIterable<AudioChunk>;
+  /** Release whatever the engine holds (a worker thread, a model). Safe to omit for engines that hold nothing. */
+  close?(): Promise<void>;
 }
 
 /** Thrown by an engine when it cannot produce audio. The hub reports it to the driver as `tts_failed`. */
