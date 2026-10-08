@@ -73,6 +73,10 @@ declare global {
 const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", visemes: {}, applied: {}, blink: 0, blinks: 0, setVisemes: () => {}, setEmotion: () => {}, setThinking: () => {} };
 window.__vikaki = api;
 
+// `?bg=00b140` paints the page a solid colour: video cannot be transparent, so a feed picks one (or a green for chroma keying).
+const bg = params.get("bg");
+if (bg && /^[0-9a-f]{6}$/i.test(bg)) document.body.style.background = `#${bg}`;
+
 const baseUrl = import.meta.env.BASE_URL;
 const persona = params.get("persona") ?? undefined;
 let avatarUrl = params.get("avatar") ?? `${baseUrl}avatars/cookieman.vrm`;

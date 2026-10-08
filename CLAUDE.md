@@ -33,7 +33,7 @@ pnpm test:e2e:smoke              # the quick tagged subset CI runs on every PR; 
 make check                       # typecheck + unit tests: the fast gate, same as the pre-push hook
 make demo / make demo-speech     # judge the avatar by eye / type text and hear it said (installs the voice if needed)
 make install-voice               # the real voice (Kokoro, ~410 MB) into .vikaki/voice; make doctor checks everything and prints the fix
-make install-renderer            # Chromium for `serve --headless` and `vikaki stream` (optional, ~170 MB; docs/headless.md)
+make install-renderer            # Chromium for `serve --headless` and `vikaki stream` (optional, ~170 MB; docs/headless.md, docs/stream.md)
 ```
 
 CI-like e2e locally: `CI=1 taskset -c 0,1 pnpm --filter @vikaki/e2e exec vitest run`. Node's TS stripping cannot run the server code; use `tsx`.

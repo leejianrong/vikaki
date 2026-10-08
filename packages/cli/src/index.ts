@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { DebugRecorder, EventLog, findFreePort, loadPersonas, PersonaError, startServer } from "@vikaki/server";
-import { HeadlessRenderer, RendererUnavailable } from "@vikaki/render";
+import { HeadlessRenderer, MjpegFeed, RendererUnavailable, startScreencast } from "@vikaki/render";
 import { cancel, replay, say, type Io } from "./commands.ts";
 import { runMcp } from "./mcp.ts";
 import { hubUrl } from "./hub-client.ts";
@@ -18,6 +18,8 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
                     [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>] [--debug-dir <dir|off>]
                     [--event-log <file.jsonl>] [--personas <personas.yaml>]
                     [--headless [--audio-only] [--gpu] [--chrome <path>]]
+       vikaki stream [serve options] [--size 1280x720] [--fps 15] [--quality 80] [--background fff1e8|green] [--stream-persona <name>]
+                                     serve, render headless and publish the avatar as an MJPEG feed at /stream.mjpg
        vikaki say <text...> [--persona <name>] [--emotion <name>] [--think <seconds>]
                                      speak one line and wait until it is over; --think shows the avatar thinking first
        vikaki cancel [<utterance_id>]    stop what the avatar is saying (everything, or one line)
@@ -38,6 +40,10 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
   --headless  also open the avatar page in a hidden Chromium (one tab per persona), so lines are rendered with no one at a screen.
              Needs the optional browser: \`make install-renderer\`. --audio-only opens audio-only pages that draw nothing;
              --gpu uses the machine's GPU instead of software WebGL; --chrome (or VIKAKI_CHROME) names a browser to use.
+  stream     is serve with --headless and an MJPEG feed: VLC, ffplay, OBS (a media source) or a browser <img> can open
+             http://127.0.0.1:<port>/stream.mjpg (one frame: /stream.jpg). --size, --fps and --quality set the picture;
+             --background is a solid colour as 6 hex digits, or \`green\` for chroma keying (video cannot be transparent);
+             --stream-persona says which persona's page to publish when there are several. With --token, add ?token=<secret>.
   --personas  a personas file: named characters (avatar, voice, default emotion, style). A line naming a persona the file lacks is refused.
   --event-log  write every message the hub sees, one JSON object per line (audio as its size only). Feed it to \`vikaki replay\`.`;
 
@@ -102,11 +108,29 @@ async function serve(argv: string[]): Promise<void> {
       "audio-only": { type: "boolean", default: false },
       gpu: { type: "boolean", default: false },
       chrome: { type: "string" },
+      stream: { type: "boolean", default: false },
+      size: { type: "string", default: "1280x720" },
+      fps: { type: "string", default: "15" },
+      quality: { type: "string", default: "80" },
+      background: { type: "string", default: "fff1e8" },
+      "stream-persona": { type: "string" },
     },
   });
   if (!["auto", "kokoro", "fake", "none"].includes(values.tts!)) {
     console.error(`--tts must be auto, kokoro, fake or none, not "${values.tts}"`);
     process.exit(1);
+  }
+  const streaming = values.stream;
+  const sizeMatch = /^(\d{2,5})x(\d{2,5})$/.exec(values.size!);
+  const fps = Number(values.fps);
+  const quality = Number(values.quality);
+  const background = values.background === "green" ? "00b140" : values.background!;
+  if (streaming) {
+    const bad = !sizeMatch ? `--size must look like 1280x720, not "${values.size}"` : !(fps >= 1 && fps <= 60) ? `--fps must be 1 to 60, not "${values.fps}"` : !(quality >= 1 && quality <= 100) ? `--quality must be 1 to 100, not "${values.quality}"` : !/^[0-9a-f]{6}$/i.test(background) ? `--background must be 6 hex digits or "green", not "${values.background}"` : values["audio-only"] ? "--audio-only draws nothing, so there is nothing to stream" : undefined;
+    if (bad) {
+      console.error(bad);
+      process.exit(1);
+    }
   }
   if (!existsSync(values.static!)) {
     console.error(`no built page at ${values.static}; run \`pnpm build\` first`);
@@ -135,12 +159,14 @@ async function serve(argv: string[]): Promise<void> {
         process.exit(1);
       })
     : undefined;
+  const feed = streaming ? new MjpegFeed({ fps, token }) : undefined;
   const eventLog = values["event-log"] ? new EventLog(resolve(values["event-log"])) : undefined;
   const server = await startServer({
     staticDir: values.static!,
     port,
     host,
     personas,
+    routes: feed ? { "/stream.mjpg": (req, res) => feed.handle(req, res), "/stream.jpg": (req, res) => feed.snapshot(req, res) } : undefined,
     hub: { ...(token ? { token } : {}), onEvent: eventLog?.record },
     speech: tts
       ? { tts, defaultVoice: chosen?.voice, observer: recorder, onTiming: (t) => console.log(`  ${t.utterance_id}: first audio made ${t.firstAudioAt - t.textAt} ms after the text arrived`) }
@@ -150,7 +176,8 @@ async function serve(argv: string[]): Promise<void> {
   console.log(`vikaki serving ${url}`);
   console.log(`  drivers connect to ${server.wsUrl}${token ? " (token required)" : ""}; speech: ${tts ? tts.name : "off"}`);
   let renderer: HeadlessRenderer | undefined;
-  if (values.headless) {
+  let stopCast: (() => Promise<void>) | undefined;
+  if (values.headless || streaming) {
     try {
       if (values.chrome) process.env.VIKAKI_CHROME = values.chrome;
       renderer = await HeadlessRenderer.launch({
@@ -158,9 +185,17 @@ async function serve(argv: string[]): Promise<void> {
         personas: personas ? personas.names : [undefined],
         audioOnly: values["audio-only"],
         gpu: values.gpu,
+        ...(streaming ? { size: { width: Number(sizeMatch![1]), height: Number(sizeMatch![2]) }, query: { bg: background } } : {}),
         onPageError: (message, who) => console.error(`  headless${who ? ` (${who})` : ""}: page error: ${message}`),
       });
       console.log(`  headless: ${values["audio-only"] ? "audio-only" : "rendering"} ${personas ? personas.names.join(", ") : "one page for every line"}`);
+      if (feed) {
+        const who = values["stream-persona"] ?? personas?.names[0];
+        const page = renderer.pages.get(who);
+        if (!page) throw new Error(`--stream-persona "${who}" is not one of: ${[...renderer.pages.keys()].join(", ")}`);
+        stopCast = await startScreencast(page, { width: Number(sizeMatch![1]), height: Number(sizeMatch![2]), quality }, (jpeg) => feed.push(jpeg));
+        console.log(`  stream: ${server.url.replace(/\/avatar$/, "")}/stream.mjpg  (${sizeMatch![1]}x${sizeMatch![2]}, ${fps} fps${who ? `, ${who}` : ""}; one frame: /stream.jpg${token ? "; add ?token=<your token>" : ""})`);
+      }
     } catch (err) {
       await server.close();
       await tts?.close?.();
@@ -168,7 +203,7 @@ async function serve(argv: string[]): Promise<void> {
       process.exit(1);
     }
   } else if (values["audio-only"] || values.gpu || values.chrome) {
-    console.error("--audio-only, --gpu and --chrome only mean something with --headless");
+    console.error("--audio-only, --gpu and --chrome only mean something with --headless (or stream)");
     await server.close();
     await tts?.close?.();
     process.exit(1);
@@ -187,6 +222,8 @@ async function serve(argv: string[]): Promise<void> {
     stopping = true;
     console.log("\nStopping...");
     await recorder?.flush();
+    await stopCast?.().catch(() => {});
+    feed?.close(); // viewers see the feed end, not a dead socket
     await renderer?.close().catch(() => {}); // the hidden browser first, so it does not see the hub vanish
     await eventLog?.close();
     // the engine's worker is stopped too, after it has finished what it is in the middle of (stopping it mid-run can crash the process)
@@ -240,6 +277,8 @@ async function clientCommand(command: string, argv: string[]): Promise<number> {
 const [command, ...rest] = process.argv.slice(2);
 if (command === "serve") {
   await serve(rest);
+} else if (command === "stream") {
+  await serve([...rest, "--stream"]);
 } else if (command === "say" || command === "cancel" || command === "replay" || command === "mcp") {
   process.exit(await clientCommand(command, rest));
 } else if (command === "doctor") {
