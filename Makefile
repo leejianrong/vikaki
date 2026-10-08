@@ -2,7 +2,7 @@
 
 # Run the CLI directly, not through pnpm: pnpm reports a clean Ctrl+C stop as a failed command.
 CLI = cd packages/cli && exec ../../node_modules/.bin/tsx src/index.ts
-.PHONY: help install install-voice install-renderer doctor build serve demo demo-speech extension e2e-smoke check hooks
+.PHONY: help install install-voice install-renderer docker-build docker-test doctor build serve demo demo-speech extension e2e-smoke check hooks
 
 help: ## List available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -15,6 +15,13 @@ install-voice: ## Install the real voice (Kokoro, about 410 MB) into .vikaki/voi
 
 install-renderer: ## Install the browser for headless rendering (Chromium, about 170 MB), for `vikaki stream` and `serve --headless`
 	pnpm exec playwright install chromium
+
+docker-build: ## Build both Docker images (vikaki, and vikaki-render with a browser)
+	docker build --target vikaki -t vikaki .
+	docker build --target vikaki-render -t vikaki-render .
+
+docker-test: ## Build the images, start containers and check them (health, non-root, a driver speaks, the feed); takes minutes
+	VIKAKI_DOCKER_TESTS=1 pnpm --filter @vikaki/e2e exec vitest run docker
 
 doctor: ## Check that everything the demos need is in place
 	@( $(CLI) doctor ) || true  # the report is the output; `vikaki doctor` itself exits 1 on a problem, for scripts

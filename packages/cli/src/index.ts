@@ -181,7 +181,8 @@ async function serve(argv: string[]): Promise<void> {
     try {
       if (values.chrome) process.env.VIKAKI_CHROME = values.chrome;
       renderer = await HeadlessRenderer.launch({
-        pageUrl: server.url,
+        // Listening on every interface (a container) is not an address to visit, and the hub answers only local names: go in by 127.0.0.1.
+        pageUrl: server.url.replace(/\/\/(0\.0\.0\.0|\[::\]):/, "//127.0.0.1:"),
         personas: personas ? personas.names : [undefined],
         audioOnly: values["audio-only"],
         gpu: values.gpu,
@@ -199,7 +200,7 @@ async function serve(argv: string[]): Promise<void> {
     } catch (err) {
       await server.close();
       await tts?.close?.();
-      console.error(err instanceof RendererUnavailable ? `cannot start the headless renderer: ${err.message}` : err);
+      console.error(err instanceof RendererUnavailable ? `cannot start the headless renderer: ${err.message}${process.env.VIKAKI_IMAGE === "vikaki" ? "\nThis is the small image, which has no browser: run the vikaki-render image instead." : ""}` : err);
       process.exit(1);
     }
   } else if (values["audio-only"] || values.gpu || values.chrome) {
