@@ -36,17 +36,22 @@ async function open(): Promise<Page> {
   return page;
 }
 
-/** Highest mouth weight seen over `ms` milliseconds. */
-const peakOpen = (page: Page, ms: number) =>
-  page.evaluate(async (t) => {
+/**
+ * Highest mouth weight seen while an audio file plays. Waits for the panel to say it is playing,
+ * then samples until it stops, so a slow machine (decode, WASM start-up) cannot cut the window short.
+ */
+const peakWhilePlaying = (page: Page) =>
+  page.evaluate(async () => {
+    const status = () => document.querySelector("#demo .status")?.textContent ?? "";
+    const giveUp = performance.now() + 40_000;
+    while (!status().includes("Playing") && performance.now() < giveUp) await new Promise((r) => setTimeout(r, 40));
     let max = 0;
-    const end = performance.now() + t;
-    while (performance.now() < end) {
+    while (status().includes("Playing") && performance.now() < giveUp) {
       max = Math.max(max, ...Object.values(window.__vikaki!.visemes), 0);
       await new Promise((r) => setTimeout(r, 40));
     }
     return max;
-  }, ms);
+  });
 
 describe("demo panel", () => {
   it("shows the controls and the meters", async () => {
@@ -80,11 +85,11 @@ describe("demo panel", () => {
 
   it("lip-syncs an audio file picked through the file input", async () => {
     const page = await open();
-    const peak = peakOpen(page, 5000); // sample while the file plays
+    const peak = peakWhilePlaying(page);
     await page.locator('#demo input[type="file"]').setInputFiles(fixture);
     expect(await peak).toBeGreaterThan(0.3);
     await page.close();
-  });
+  }, 90_000);
 
   it("turns the mic on and off from the toggle", async () => {
     const page = await open();
