@@ -178,6 +178,34 @@ describe("speech, from driver to avatar and back", () => {
     await driver.waitFor(finished());
   }, 60_000);
 
+  it("opens the mouth only between speech_started and speech_finished for a line sent as three deltas", async () => {
+    const { driver, page } = await setup();
+    // Sample the mouth with wall-clock times, to line up against when the driver was told.
+    const sampling = page.evaluate(async (ms) => {
+      const out: [number, number][] = [];
+      const end = Date.now() + ms;
+      while (Date.now() < end) {
+        out.push([Date.now(), Math.max(0, ...Object.values(window.__vikaki!.visemes))]);
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return out;
+    }, 5000);
+    await page.waitForTimeout(300); // some samples from before anything is said
+    const send = (delta: string, final?: boolean) =>
+      driver.send({ protocol_version: PROTOCOL_VERSION, type: "utterance", seat_id: "seat-1", utterance_id: "u1", delta, ...(final ? { final } : {}) });
+    send("The first sentence is a long one. ");
+    send("And the second follows it. ");
+    send("Then it ends.", true);
+    const startedAt = await driver.waitFor(started());
+    const finishedAt = await driver.waitFor(finished());
+    const samples = await sampling;
+    const open = (from: number, to: number) => samples.filter(([t]) => t >= from && t <= to).map(([, v]) => v);
+    // Margins cover the hop from page to driver and the mouth's own smoothing (about 200 ms); they are not a timing budget.
+    expect(Math.max(...open(0, startedAt - 100))).toBeLessThan(0.05);
+    expect(Math.max(...open(startedAt, finishedAt))).toBeGreaterThan(0.3);
+    expect(Math.max(...open(finishedAt + 800, Infinity), 0)).toBeLessThan(0.05);
+  }, 60_000);
+
   it("reports a speech failure to the driver and carries on", { tags: ["smoke"], timeout: 60_000 }, async () => {
     const { driver } = await setup({ failOn: "boom" });
     driver.say("this will boom", "bad");
