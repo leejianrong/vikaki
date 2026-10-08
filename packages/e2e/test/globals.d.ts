@@ -7,6 +7,7 @@ interface Window {
     visemes: Record<string, number>;
     applied: Record<string, number>;
     timeline?: unknown;
+    timelineUi?: { mode(): string; select(m: string): void; exportPng(): string; exportJson(): string; exportLayout(): { width: number; height: number; gutter: number; lanes: { id: string; top: number; height: number }[] } };
     blink: number;
     blinks: number;
     setVisemes(w: Record<string, number>): void;

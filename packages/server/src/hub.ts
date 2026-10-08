@@ -116,6 +116,7 @@ export class Hub {
       this.viewers.delete(ws);
       if (this.driver === ws) {
         this.driver = undefined;
+        this.seen.clear(); // the next driver starts afresh, and may reuse ids (a reloaded page counts from demo-1 again)
         this.opts.onDriverGone?.();
       }
     });

@@ -10,5 +10,7 @@ export async function loadMaterial(): Promise<void> {
     import("@material/web/textfield/outlined-text-field.js"),
     import("@material/web/chips/chip-set.js"),
     import("@material/web/chips/assist-chip.js"),
+    import("@material/web/select/outlined-select.js"),
+    import("@material/web/select/select-option.js"),
   ]);
 }

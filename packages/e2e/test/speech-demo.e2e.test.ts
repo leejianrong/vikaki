@@ -180,3 +180,153 @@ describe("speech demo", () => {
     expect(await button(page, "Speak").isDisabled()).toBe(true); // nothing to speak with
   }, 60_000);
 });
+
+/** Fraction of pixels in a lane of the exported picture that differ from the lane's own background. */
+const laneInk = (page: Page, png: string, lane: string) =>
+  page.evaluate(
+    async ([url, id]) => {
+      const layout = window.__vikaki!.timelineUi!.exportLayout();
+      const img = new Image();
+      img.src = url as string;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const g = c.getContext("2d")!;
+      g.drawImage(img, 0, 0);
+      const l = layout.lanes.find((x) => x.id === id)!;
+      const w = layout.width - layout.gutter;
+      const px = g.getImageData(layout.gutter, l.top, w, l.height).data;
+      const role = (name: string) => {
+        const hex = getComputedStyle(document.documentElement).getPropertyValue(`--md-sys-color-${name}`).trim();
+        return [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+      };
+      const empty = [role("surface-container"), role("outline-variant")]; // a lane's background and the time gridlines
+      let ink = 0;
+      for (let i = 0; i < px.length; i += 4) {
+        const near = empty.some((c) => Math.abs(px[i]! - c[0]!) + Math.abs(px[i + 1]! - c[1]!) + Math.abs(px[i + 2]! - c[2]!) <= 40);
+        if (!near) ink++;
+      }
+      return { ink: ink / (px.length / 4), size: [img.width, img.height] };
+    },
+    [png, lane] as const,
+  );
+
+/** How many pixels of a lane in the exported picture are close to a Material colour role (for example the sentence text). */
+const laneRolePixels = (page: Page, png: string, lane: string, roleName: string) =>
+  page.evaluate(
+    async ([url, id, name]) => {
+      const layout = window.__vikaki!.timelineUi!.exportLayout();
+      const img = new Image();
+      img.src = url as string;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const g = c.getContext("2d")!;
+      g.drawImage(img, 0, 0);
+      const l = layout.lanes.find((x) => x.id === id)!;
+      const px = g.getImageData(layout.gutter, l.top, layout.width - layout.gutter, l.height).data;
+      const hex = getComputedStyle(document.documentElement).getPropertyValue(`--md-sys-color-${name}`).trim();
+      const want = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+      let n = 0;
+      for (let i = 0; i < px.length; i += 4) if (Math.abs(px[i]! - want[0]!) + Math.abs(px[i + 1]! - want[1]!) + Math.abs(px[i + 2]! - want[2]!) <= 60) n++;
+      return n;
+    },
+    [png, lane, roleName] as const,
+  );
+
+describe("reloading the page", () => {
+  it("still hears the avatar report back when the same demo ids come round again", async () => {
+    const page = await open();
+    await speakReady(page);
+    await sayBox(page).fill("x".repeat(10));
+    await button(page, "Speak").click();
+    await logHas(page, "speech finished");
+    await page.reload(); // a fresh page counts its utterances from demo-1 again
+    await speakReady(page);
+    await sayBox(page).fill("x".repeat(10));
+    await button(page, "Speak").click();
+    await logHas(page, "speech started");
+    await logHas(page, "speech finished");
+  }, 60_000);
+});
+
+describe("the timeline dock", () => {
+  const speakAndWait = async (page: Page, text = "Hello there. How are you?") => {
+    await speakReady(page);
+    await sayBox(page).fill(text);
+    await button(page, "Speak").click();
+    await logHas(page, "speech finished", 30_000);
+  };
+
+  it("lists a spoken line, shows it in review, and draws every lane in the exported picture", { tags: ["smoke"], timeout: 90_000 }, async () => {
+    const page = await open();
+    await speakAndWait(page);
+    await page.waitForFunction(() => window.__vikaki!.timelineUi !== undefined);
+    expect(await page.evaluate(() => window.__vikaki!.timelineUi!.mode())).toBe("live");
+    // the entry's length is its final length, not what had been scheduled when it first appeared
+    const optionText = await page.evaluate(() => [...document.querySelectorAll("#timeline md-select-option")].map((o) => o.textContent ?? "").join("|"));
+    const listed = Number(/demo-1 · .* · ([\d.]+) s/.exec(optionText)?.[1]);
+    const exported = JSON.parse(await page.evaluate(() => (window.__vikaki!.timelineUi!.select("demo-1"), window.__vikaki!.timelineUi!.exportJson()))).utterances[0];
+    expect(Math.abs(listed - (exported.endMs - exported.startMs) / 1000)).toBeLessThan(0.06);
+    await page.evaluate(() => window.__vikaki!.timelineUi!.select("live"));
+    // choose it from the selector, like a person would
+    await page.getByRole("combobox", { name: "Show" }).click();
+    await page.getByRole("option", { name: /demo-1/ }).click();
+    await expect.poll(() => page.evaluate(() => window.__vikaki!.timelineUi!.mode())).toBe("demo-1");
+    await expect.poll(() => page.locator(".dock-summary").innerText()).toMatch(/Utterance demo-1: 2 sentences, [\d.]+ seconds\. The mouth opened to at most 1\.00/);
+
+    const png = await page.evaluate(() => window.__vikaki!.timelineUi!.exportPng());
+    expect(png.startsWith("data:image/png;base64,")).toBe(true);
+    for (const [lane, least] of [["words", 0.15], ["wave", 0.02], ["spec", 0.3], ["mouth", 0.008], ["events", 0.003]] as const) {
+      const r = await laneInk(page, png, lane);
+      expect(r.size).toEqual([1600, 420]);
+      expect(r.ink, `the ${lane} lane has something drawn in it`).toBeGreaterThan(least);
+    }
+    expect(await laneRolePixels(page, png, "words", "on-secondary-container"), "the sentences' text is drawn").toBeGreaterThan(40);
+  });
+
+  it("an empty review has nothing in the speech lanes, so the picture really depends on the data", async () => {
+    const page = await open();
+    await page.waitForFunction(() => window.__vikaki!.timelineUi !== undefined);
+    const png = await page.evaluate(() => window.__vikaki!.timelineUi!.exportPng());
+    for (const lane of ["words", "wave", "spec", "mouth"]) expect((await laneInk(page, png, lane)).ink).toBeLessThan(0.002);
+  });
+
+  it("exports the same view as JSON, with the audio when reviewing an utterance", async () => {
+    const page = await open();
+    await speakAndWait(page);
+    await page.evaluate(() => window.__vikaki!.timelineUi!.select("demo-1"));
+    const json = JSON.parse(await page.evaluate(() => window.__vikaki!.timelineUi!.exportJson()));
+    expect(json.utterances).toHaveLength(1);
+    expect(json.utterances[0].pieces.map((p: { text: string }) => p.text)).toEqual(["Hello there.", "How are you?"]);
+    expect(json.utterances[0].audio[0].pcm.length).toBeGreaterThan(100);
+    expect(json.frames.length).toBeGreaterThan(10);
+    expect(json.events.map((e: { kind: string }) => e.kind)).toEqual(expect.arrayContaining(["sent", "started", "finished", "driver:started", "driver:finished"]));
+    await page.evaluate(() => window.__vikaki!.timelineUi!.select("live"));
+    expect(JSON.parse(await page.evaluate(() => window.__vikaki!.timelineUi!.exportJson())).utterances[0].audio[0].pcm).toBeUndefined();
+  });
+
+  it("sits under the avatar without covering it or the side sheet, and the canvas has no inline size", { tags: ["smoke"], timeout: 60_000 }, async () => {
+    const page = await open();
+    await page.waitForSelector("#timeline canvas");
+    const box = (sel: string) => page.locator(sel).first().boundingBox();
+    const [avatar, dock, side] = [await box("body > canvas"), await box("#timeline"), await box("#speech")];
+    expect(dock!.y).toBeGreaterThanOrEqual(avatar!.y + avatar!.height - 1); // below the avatar
+    expect(dock!.x + dock!.width).toBeLessThanOrEqual(side!.x + 1); // beside the side sheet, not under it
+    expect(avatar!.height).toBeGreaterThan(250); // the avatar keeps a usable height
+    expect(await page.locator("#timeline canvas").getAttribute("style")).toBeNull();
+    expect(await page.locator("body > canvas").getAttribute("style")).toBeNull();
+  });
+
+  it("can be hidden and shown again", async () => {
+    const page = await open();
+    await page.waitForSelector("#timeline canvas");
+    const before = (await page.locator("#timeline").boundingBox())!.height;
+    await button(page, "Hide").click();
+    await expect.poll(async () => (await page.locator("#timeline").boundingBox())!.height).toBeLessThan(before / 2);
+    await button(page, "Show").click();
+    await expect.poll(async () => (await page.locator("#timeline").boundingBox())!.height).toBeGreaterThan(before - 5);
+  });
+});

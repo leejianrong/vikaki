@@ -42,7 +42,8 @@ describe("audio analysis properties", () => {
         const back = decodeWav(encodeWav(x, r));
         return back.sampleRate === r && back.samples.length === x.length && x.every((v, i) => Math.abs(v - back.samples[i]!) <= 1 / 32768 + 1e-7);
       }),
-      { numRuns: 40 },
+      // the case CI's random run found: positives were scaled by 32767 on the way out and 32768 on the way back
+      { numRuns: 40, examples: [[Float32Array.of(0.6205750703811646), 8000]] },
     );
   });
 

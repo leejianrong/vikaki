@@ -19,8 +19,8 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array
   text(36, "data");
   view.setUint32(40, samples.length * 2, true);
   for (let i = 0; i < samples.length; i++) {
-    const v = Math.max(-1, Math.min(1, samples[i]!));
-    view.setInt16(44 + i * 2, Math.round(v < 0 ? v * 32768 : v * 32767), true);
+    // The usual scale: 32768 steps each way, with full-scale positive clamped to 32767, matching what decodeWav divides by.
+    view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, Math.round(samples[i]! * 32768))), true);
   }
   return out;
 }

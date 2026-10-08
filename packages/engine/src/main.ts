@@ -7,6 +7,7 @@ import { DriverConsole } from "./driver-console.ts";
 import { mountSpeechDemo } from "./speech-demo.ts";
 import { createStage, frameAvatar, Puppet } from "./stage.ts";
 import { TimelineRecorder } from "./timeline.ts";
+import type { TimelineUi } from "./timeline-ui.ts";
 import type { VisemeWeights } from "./renderer.ts";
 
 const params = new URLSearchParams(location.search);
@@ -34,6 +35,8 @@ declare global {
       applied: VisemeWeights;
       /** What the page recorded on one clock: frames, events, speech pieces and audio. Only with the speech demo or `?timeline=1`. */
       timeline?: TimelineRecorder;
+      /** The timeline dock (speech demo): which view is showing, switching it, and exporting what it shows. */
+      timelineUi?: TimelineUi;
       /** Eyelid closure applied on the last frame, and how many blinks have started. */
       blink: number;
       blinks: number;
@@ -149,6 +152,7 @@ try {
         message: (message) => ui.onMessage(message),
       });
       const ui = await mountSpeechDemo({ driver, timeline, unlockSound: unblock, soundBlocked: () => !session.running });
+      if (timeline) api.timelineUi = (await import("./timeline-ui.ts")).mountTimeline(timeline);
       driver.connect();
     }
   }

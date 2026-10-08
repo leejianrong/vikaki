@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
-import { beforeEach, onTestFailed } from "vitest";
+import { afterEach, beforeEach } from "vitest";
 
 const OUT = fileURLToPath(new URL("../artifacts/", import.meta.url));
 interface Tracked {
@@ -46,16 +46,18 @@ chromium.launchPersistentContext = async (...a: Parameters<typeof launchPersiste
 
 const slug = (s: string) => s.replace(/[^A-Za-z0-9]+/g, "-").slice(0, 80);
 
-beforeEach((ctx) => {
-  open.clear();
-  onTestFailed(async () => {
-    const dir = join(OUT, `${slug(ctx.task.file?.name.split("/").pop() ?? "test")}--${slug(ctx.task.name)}`);
-    mkdirSync(dir, { recursive: true });
-    let n = 0;
-    for (const t of [...open]) {
-      const id = ++n;
-      writeFileSync(join(dir, `page-${id}.console.log`), `${t.page.url()}\n\n${t.log.join("\n")}\n`);
-      await t.page.screenshot({ path: join(dir, `page-${id}.png`), timeout: 5000 }).catch(() => {});
-    }
-  });
+beforeEach(() => open.clear());
+
+// This runs before a test file's own afterEach (see `sequence.hooks: "list"` in vitest.config.ts), which usually
+// closes the pages. By then the failure is already recorded on the test.
+afterEach(async (ctx) => {
+  if (ctx.task.result?.state !== "fail") return;
+  const dir = join(OUT, `${slug(ctx.task.file?.name.split("/").pop() ?? "test")}--${slug(ctx.task.name)}`);
+  mkdirSync(dir, { recursive: true });
+  let n = 0;
+  for (const t of [...open]) {
+    const id = ++n;
+    writeFileSync(join(dir, `page-${id}.console.log`), `${t.page.url()}\n\n${t.log.join("\n")}\n`);
+    await t.page.screenshot({ path: join(dir, `page-${id}.png`), timeout: 5000 }).catch(() => {});
+  }
 });
