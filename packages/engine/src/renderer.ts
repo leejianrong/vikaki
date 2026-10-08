@@ -22,4 +22,9 @@ export interface AvatarRenderer {
   setHeadPose(pose: HeadPose): void;
   /** Advance internal animation by `dt` seconds. */
   update(dt: number): void;
+  /**
+   * What the avatar is actually showing for each mouth shape after the last `update`, in [0, 1]. It can differ
+   * from what was set when blends or overrides intervene. Optional: a renderer that cannot tell leaves it out.
+   */
+  appliedVisemes?(): VisemeWeights;
 }

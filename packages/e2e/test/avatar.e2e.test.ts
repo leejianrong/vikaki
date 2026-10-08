@@ -73,6 +73,31 @@ describe("avatar page", () => {
     await page.close();
   });
 
+  it("reports what the avatar actually displays, and it follows the mouth shape that was set", { tags: ["smoke"] }, async () => {
+    const page = await open("?demo=1&seed=7");
+    await page.evaluate(() => window.__vikaki!.setVisemes({ aa: 0.5 }));
+    await framesRendered(page, 3);
+    const shown = await page.evaluate(() => window.__vikaki!.applied);
+    expect(shown.aa).toBeCloseTo(0.5, 2);
+    expect(shown.ou).toBeCloseTo(0, 2);
+    await page.close();
+  });
+
+  it("reads the applied mouth from the morph targets, not from the weight that was set", async () => {
+    const page = await open("?demo=1&seed=7");
+    const read = await page.evaluate(() => {
+      const avatar = window.__vikaki!.avatar as unknown as {
+        vrm: { expressionManager: { getExpression(n: string): { binds: { primitives: { morphTargetInfluences: number[] }[]; index: number; weight: number }[] } } };
+        appliedVisemes(): Record<string, number>;
+      };
+      const bind = avatar.vrm.expressionManager.getExpression("aa").binds[0]!;
+      bind.primitives[0]!.morphTargetInfluences[bind.index] = 0.3 * bind.weight; // as if a blend had pulled the mouth to 0.3
+      return avatar.appliedVisemes().aa;
+    });
+    expect(read).toBeCloseTo(0.3, 3);
+    await page.close();
+  });
+
   it("clamps viseme weights to [0, 1]", async () => {
     const page = await open();
     await page.evaluate(() => window.__vikaki!.setVisemes({ aa: 5, oh: -3 }));

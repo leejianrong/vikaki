@@ -100,9 +100,14 @@ export const ErrorMessage = z.object({
 /** Longest base64 audio payload in one message (about 1.4 MB, over 15 s of 24 kHz speech). */
 export const MAX_AUDIO_B64 = 2_000_000;
 
+/** Longest text of one spoken piece. A piece is a sentence, or a clause of a long one. */
+export const MAX_SENTENCE_TEXT = 4000;
+
 /**
  * A slice of speech. `pcm` is base64 of 16-bit little-endian mono samples. Slices of one utterance
- * arrive in `seq` order; the last has `final: true` and may carry no samples.
+ * arrive in `seq` order; the last has `final: true` and may carry no samples. `sentence_index` says which
+ * spoken piece of the utterance a slice belongs to, and `sentence_text` carries that piece's text on the first
+ * slice of each piece only. Both are optional, so a hub without them still works and older pages ignore them.
  */
 export const AudioMessage = z.object({
   ...common,
@@ -113,6 +118,8 @@ export const AudioMessage = z.object({
   sample_rate: z.number().int().min(8000).max(48000),
   pcm: z.string().max(MAX_AUDIO_B64),
   final: z.boolean(),
+  sentence_index: z.number().int().min(0).optional(),
+  sentence_text: z.string().max(MAX_SENTENCE_TEXT).optional(),
 });
 
 export const Message = z.discriminatedUnion("type", [

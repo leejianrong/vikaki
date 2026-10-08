@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@vikaki/audio": "workspace:*",
     "@vikaki/protocol": "workspace:*",
     "@vikaki/tts": "workspace:*",
     "ws": "^8.22.0"

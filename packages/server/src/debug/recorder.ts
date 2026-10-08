@@ -1,8 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { analyse, classify } from "./metrics.ts";
+import { analyse, classify, encodeWav } from "@vikaki/audio";
 import { spectrogramPng } from "./spectrogram.ts";
-import { encodeWav } from "./wav.ts";
 import type { SpeechObserver } from "../speech.ts";
 
 interface Sentence {

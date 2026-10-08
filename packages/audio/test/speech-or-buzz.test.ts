@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { synthVowel } from "@vikaki/tts";
-import { analyse, classify, decodeWav, encodeWav, spectrogramPng } from "../src/server.ts";
+import { analyse, classify, decodeWav, encodeWav } from "../src/index.ts";
 
 const golden = () => decodeWav(readFileSync(new URL("./fixtures/kokoro-good-morning.wav", import.meta.url)));
 
@@ -80,13 +80,5 @@ describe("audio helpers", () => {
 
   it("refuses something that is not a WAV", () => {
     expect(() => decodeWav(new Uint8Array([1, 2, 3, 4]))).toThrow(/not a WAV/);
-  });
-
-  it("draws a valid PNG whose width follows the duration", () => {
-    const { samples, sampleRate } = golden();
-    const png = spectrogramPng(samples, sampleRate);
-    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    expect(png.readUInt32BE(16)).toBeGreaterThan(300); // width
-    expect(png.readUInt32BE(20)).toBeGreaterThan(100); // height
   });
 });

@@ -417,6 +417,15 @@
         },
         "final": {
           "type": "boolean"
+        },
+        "sentence_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sentence_text": {
+          "type": "string",
+          "maxLength": 4000
         }
       },
       "required": [

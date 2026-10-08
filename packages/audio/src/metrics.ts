@@ -1,4 +1,4 @@
-import { stft } from "./spectrogram.ts";
+import { stft } from "./stft.ts";
 
 export interface Pause {
   startSec: number;

@@ -1,3 +1,4 @@
+import type { TimelineRecorder } from "./timeline.ts";
 import type { Message } from "@vikaki/protocol";
 import type { MdOutlinedTextField } from "@material/web/textfield/outlined-text-field.js";
 import { DriverConsole, formatMs, type DriverState } from "./driver-console.ts";
@@ -8,6 +9,8 @@ export interface SpeechDemoOptions {
   driver: DriverConsole;
   /** Called on each button press, so the browser lets the page make sound. */
   unlockSound(): void;
+  /** Where the demo notes what it sent and what the hub reported, on the timeline's clock. */
+  timeline?: TimelineRecorder;
   soundBlocked(): boolean;
 }
 
@@ -70,6 +73,7 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
     if (!o.driver.ready || !content.trim()) return;
     const id = o.driver.nextId();
     lastId = id;
+    o.timeline?.event("sent", id, how);
     sentAt.set(id, performance.now());
     cancel.disabled = false;
     if (how === "say") o.driver.say(content, id);
@@ -86,6 +90,7 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
   cancel.addEventListener("click", () => {
     if (!lastId) return;
     cancelAt = { id: lastId, at: performance.now() };
+    o.timeline?.event("cancel", lastId);
     o.driver.cancel(lastId);
     line("stop", `cancel ${lastId}`);
   });
@@ -140,17 +145,21 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
         const sent = sentAt.get(m.utterance_id);
         if (sent !== undefined) statFirst.textContent = formatMs(performance.now() - sent);
         started.set(m.utterance_id, performance.now());
+        o.timeline?.event("driver:started", m.utterance_id);
         line("go", `▶ speech started  [${m.utterance_id}]`);
       } else if (m.type === "speech_finished") {
         const s = started.get(m.utterance_id);
         if (s !== undefined) statSpeech.textContent = formatMs(performance.now() - s);
+        o.timeline?.event("driver:finished", m.utterance_id);
         line("go", `■ speech finished  [${m.utterance_id}]`);
         if (m.utterance_id === lastId) cancel.disabled = true;
       } else if (m.type === "speech_interrupted") {
         if (cancelAt?.id === m.utterance_id) statStop.textContent = formatMs(performance.now() - cancelAt.at);
+        o.timeline?.event("driver:interrupted", m.utterance_id, m.reason);
         line("stop", `✕ speech interrupted (${m.reason})  [${m.utterance_id}]`);
         if (m.utterance_id === lastId) cancel.disabled = true;
       } else if (m.type === "error" && m.code !== "driver_busy") {
+        o.timeline?.event("error", m.utterance_id, m.code);
         line("err", `⚠ ${m.code}: ${m.message}`);
       }
     },

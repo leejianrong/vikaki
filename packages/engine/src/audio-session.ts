@@ -71,6 +71,11 @@ export class AudioSession {
     const { ctx, ls } = this.require();
     return {
       now: () => ctx.currentTime,
+      // Where a point on the audio clock is heard on the page's clock. The output timestamp includes the device's latency.
+      perfMs: (t) => {
+        const stamp = ctx.getOutputTimestamp();
+        return stamp.contextTime && stamp.performanceTime ? stamp.performanceTime + (t - stamp.contextTime) * 1000 : performance.now() + (t - ctx.currentTime + (ctx.outputLatency || 0)) * 1000;
+      },
       play: (samples, sampleRate, at) => {
         const buffer = ctx.createBuffer(1, samples.length, sampleRate);
         buffer.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);

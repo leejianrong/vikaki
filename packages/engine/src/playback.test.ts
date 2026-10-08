@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Playback, type AudioSlice, type Output, type PlaybackEvents } from "./playback.ts";
+import { Playback, type AudioSlice, type Output, type PlaybackEvents, type ScheduledSlice } from "./playback.ts";
 
 /** A clock and a recorder standing in for Web Audio. */
 class FakeOutput implements Output {
   time = 0;
+  perfMs?: (t: number) => number;
   readonly played: { at: number; seconds: number; stopped: boolean }[] = [];
   now() {
     return this.time;
@@ -36,6 +37,33 @@ function setup(options?: { lookahead?: number; lead?: number }) {
   };
   return { out, log, pb, slice, advance };
 }
+
+describe("Playback: telling the timeline what was scheduled", () => {
+  it("reports each slice with when it is heard on the page clock, and its sentence", () => {
+    const out = new FakeOutput();
+    out.perfMs = (t) => 5000 + t * 1000; // the page clock runs 5 s ahead of this output's
+    const seen: ScheduledSlice[] = [];
+    const pb = new Playback(() => out, { started() {}, finished() {}, interrupted() {} }, { lookahead: 5, lead: 0.5, scheduled: (s) => seen.push(s) });
+    const slice = (seconds: number, extra: Partial<AudioSlice>): AudioSlice => ({ utteranceId: "a", samples: new Float32Array(seconds * 1000), sampleRate: 1000, final: false, ...extra });
+    pb.push(slice(1, { sentenceIndex: 0, sentenceText: "Hello." }));
+    pb.push(slice(2, { sentenceIndex: 1, sentenceText: "How are you?" }));
+    pb.push(slice(1, { sentenceIndex: 1 }));
+    expect(seen.map((s) => [s.utteranceId, s.sentenceIndex, s.sentenceText, s.startPerfMs])).toEqual([
+      ["a", 0, "Hello.", 5500],
+      ["a", 1, "How are you?", 6500],
+      ["a", 1, undefined, 8500],
+    ]);
+    expect(seen[1]!.samples).toHaveLength(2000);
+  });
+
+  it("assumes the output clock in seconds when it cannot say", () => {
+    const out = new FakeOutput();
+    const seen: ScheduledSlice[] = [];
+    const pb = new Playback(() => out, { started() {}, finished() {}, interrupted() {} }, { lead: 0.25, scheduled: (s) => seen.push(s) });
+    pb.push({ utteranceId: "a", samples: new Float32Array(500), sampleRate: 1000, final: false });
+    expect(seen[0]!.startPerfMs).toBe(250);
+  });
+});
 
 describe("Playback", () => {
   it("schedules slices back to back with no gap", () => {

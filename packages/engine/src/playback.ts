@@ -4,6 +4,19 @@ export interface Output {
   now(): number;
   /** Play `samples` starting at time `at` on that clock. */
   play(samples: Float32Array, sampleRate: number, at: number): { stop(): void };
+  /** `performance.now()` in milliseconds when output-clock time `t` is heard, if this output can tell. Otherwise `t * 1000` is assumed. */
+  perfMs?(t: number): number;
+}
+
+/** One slice handed to the output, with where in time it will be heard. For the timeline. */
+export interface ScheduledSlice {
+  utteranceId: string;
+  sentenceIndex?: number;
+  sentenceText?: string;
+  /** When it starts being heard, in `performance.now()` milliseconds. */
+  startPerfMs: number;
+  samples: Float32Array;
+  sampleRate: number;
 }
 
 export interface PlaybackEvents {
@@ -18,12 +31,15 @@ export interface AudioSlice {
   samples: Float32Array;
   sampleRate: number;
   final: boolean;
+  /** Which spoken piece of the utterance this slice is from, and that piece's text (first slice of the piece only). */
+  sentenceIndex?: number;
+  sentenceText?: string;
 }
 
 interface Entry {
   id: string;
   seatId?: string;
-  pending: { samples: Float32Array; rate: number }[];
+  pending: { samples: Float32Array; rate: number; sentenceIndex?: number; sentenceText?: string }[];
   final: boolean;
   handles: { stop(): void }[];
   firstStart?: number;
@@ -47,7 +63,7 @@ export class Playback {
   constructor(
     private readonly output: () => Output,
     private readonly events: PlaybackEvents,
-    private readonly options: { lookahead?: number; lead?: number } = {},
+    private readonly options: { lookahead?: number; lead?: number; scheduled?: (slice: ScheduledSlice) => void } = {},
   ) {}
 
   /** Utterances waiting or playing, in order. */
@@ -62,7 +78,7 @@ export class Playback {
       e = { id: slice.utteranceId, seatId: slice.seatId, pending: [], final: false, handles: [], reportedStart: false };
       this.queue.push(e);
     }
-    if (slice.samples.length > 0) e.pending.push({ samples: slice.samples, rate: slice.sampleRate });
+    if (slice.samples.length > 0) e.pending.push({ samples: slice.samples, rate: slice.sampleRate, sentenceIndex: slice.sentenceIndex, sentenceText: slice.sentenceText });
     if (slice.final) e.final = true;
     this.tick();
   }
@@ -101,6 +117,14 @@ export class Playback {
         const slice = head.pending.shift()!;
         const start = Math.max(this.cursor, now + lead);
         head.handles.push(out.play(slice.samples, slice.rate, start));
+        this.options.scheduled?.({
+          utteranceId: head.id,
+          sentenceIndex: slice.sentenceIndex,
+          sentenceText: slice.sentenceText,
+          startPerfMs: out.perfMs ? out.perfMs(start) : start * 1000,
+          samples: slice.samples,
+          sampleRate: slice.rate,
+        });
         head.firstStart ??= start;
         this.cursor = start + slice.samples.length / slice.rate;
       }

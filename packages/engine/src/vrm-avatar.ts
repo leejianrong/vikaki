@@ -69,4 +69,30 @@ export class VrmAvatar implements AvatarRenderer {
   update(dt: number): void {
     this.vrm.update(dt);
   }
+
+  /**
+   * The mouth as displayed, read from the morph targets behind each shape's expression after `update`, which is
+   * where overrides (a smile that blocks the mouth) and binary snapping have already been applied. A shape that
+   * moves no morph target (colour or texture binds) falls back to the expression's own weight.
+   */
+  appliedVisemes(): VisemeWeights {
+    const em = this.vrm.expressionManager;
+    const out: VisemeWeights = {};
+    if (!em) return out;
+    for (const v of VISEMES) {
+      const e = em.getExpression(v);
+      if (!e) continue;
+      const shown: number[] = [];
+      for (const b of e.binds) {
+        const bind = b as unknown as { primitives?: { morphTargetInfluences?: number[] }[]; index?: number; weight?: number };
+        if (!bind.primitives || bind.index === undefined || !bind.weight) continue;
+        for (const mesh of bind.primitives) {
+          const influence = mesh.morphTargetInfluences?.[bind.index];
+          if (influence !== undefined) shown.push(clamp01(influence / bind.weight));
+        }
+      }
+      out[v] = shown.length > 0 ? shown.reduce((a, b) => a + b, 0) / shown.length : clamp01(e.weight);
+    }
+    return out;
+  }
 }
