@@ -35,6 +35,10 @@ importers:
       '@vikaki/tts':
         specifier: workspace:*
         version: link:../tts
+    devDependencies:
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/e2e:
     dependencies:

@@ -14,6 +14,8 @@ export interface HubOptions {
   helloTimeoutMs?: number;
   /** Shown to clients in `welcome`. */
   speechName?: string;
+  /** Shown to clients in `welcome`. */
+  speechVoice?: string;
   /** Called with each valid message the driver sends, after it has been relayed. */
   onDriverMessage?: (message: Message) => void;
   /** Called when the driver disconnects. */
@@ -188,6 +190,7 @@ export class Hub {
         role: hello.role,
         ...(hello.session_id ? { session_id: hello.session_id } : {}),
         ...(this.opts.speechName ? { speech: this.opts.speechName } : {}),
+        ...(this.opts.speechVoice ? { voice: this.opts.speechVoice } : {}),
       }),
     );
   }

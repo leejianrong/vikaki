@@ -47,6 +47,8 @@ export const Welcome = z.object({
   role: z.enum(["driver", "viewer"]),
   /** The hub's speech engine, such as "kokoro" or "fake", or "off". For display. */
   speech: z.string().max(64).optional(),
+  /** The default voice of that engine, such as "af_heart". For display. */
+  voice: z.string().max(64).optional(),
 });
 
 // ---- from the driver (a game, an LLM, a script) ----
