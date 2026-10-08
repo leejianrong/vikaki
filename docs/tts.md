@@ -33,4 +33,4 @@ cd .vikaki/voice && npm install kokoro-js --onnxruntime-node-install-cuda=skip
 
 ## How to tell speech from a test tone
 
-Without the real voice the demos play a steady "aah" and the avatar holds one open mouth. The speech demo says so in a large amber banner. By ear or by eye: real speech has pauses and moving formants in a spectrogram, while the test tone is the same horizontal stripes throughout. Measured on a real clip against the test tone: loudness variation 0.5 against 0.06, and spectral wander of about 1,700 Hz against 8 Hz.
+Without the real voice the demos play a steady "aah" and the avatar holds one open mouth. The speech demo says so in a large amber banner. By ear or by eye: real speech has pauses and moving formants in a spectrogram, while the test tone is the same horizontal stripes throughout. Measured on a real clip against the test tone: loudness variation 0.5 against 0.06, and spectral wander of about 1,700 Hz against 8 Hz. `--debug-dir` records this for every utterance and a test gates on it: see docs/observability.md.

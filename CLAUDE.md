@@ -12,7 +12,7 @@ Trust the code over the docs where they disagree, then fix the docs.
 | V2 LLM text driver and MCP | In progress. Done: V2.1 protocol, V2.2 hub, V2.3 TTS, V2.4 speech pipeline and page player, V2.5 lifecycle and cancel. Next: V2.6 CLI say/cancel/replay, V2.7 timing, V2.8 MCP |
 | V3 Emotions and personas | Not started (the avatar's default brows are fine now: Cookieman is the default avatar) |
 | V4 Headless, container, MJPEG feed | Not started |
-| Observability, phases 0 to 3 (see below) | Phase 0 done (honest speech demo, install-voice, doctor, Material 3 UI). Phase 1 next |
+| Observability, phases 0 to 3 (see below) | Phase 0 done (honest speech demo, install-voice, doctor, Material 3 UI). Phase 1 done on branch `phase1-debug-recorder` (PR open; docs/observability.md). Phase 2 next |
 
 **Observability plan** (agreed with Jian): Phase 1 debug recorder (`--debug-dir`: per-utterance wav, spectrogram PNG, metrics JSON, text, timings) and a speech-versus-buzz gate as a test; Phase 2 live and per-utterance spectrograms, karaoke highlight on the current word (estimated word timings; Kokoro's ONNX model outputs only a waveform), a timeline view; Phase 3 phoneme-driven lip sync scored by a lip-sync scorecard. A testing strategy (layers, local vs CI vs nightly, no fixed sleeps, millisecond budgets only off CI) was proposed and is to be written to `docs/testing.md`.
 
@@ -42,7 +42,7 @@ make check                       # typecheck + test: the fast gate, same as the 
 - `packages/engine` Vite page: Three.js scene, lip sync, behaviour (browser code).
 - `packages/protocol` message types, validation and the JSON Schema (`docs/protocol.md`). After changing it run `pnpm --filter @vikaki/protocol schema`.
 - `packages/tts` the `Tts` interface, `FakeTts`, `SentenceChunker` and the optional `KokoroTts` (docs/tts.md).
-- `packages/server` Node HTTP server and the WebSocket hub (`/ws`).
+- `packages/server` Node HTTP server, the WebSocket hub (`/ws`), the speech engine and the debug recorder (`src/debug`).
 - `packages/cli` the `vikaki` command.
 - `packages/extension` the Meet extension (main-world script, isolated-world bridge, build script).
 - `packages/e2e` Playwright tests against the built page (software WebGL, no GPU).
