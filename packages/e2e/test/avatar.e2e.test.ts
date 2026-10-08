@@ -41,7 +41,7 @@ afterAll(async () => {
 });
 
 describe("avatar page", () => {
-  it("loads the default VRM avatar with no page errors", async () => {
+  it("loads the default VRM avatar with no page errors", { tags: ["smoke"] }, async () => {
     const page = await open();
     expect(pageErrors).toEqual([]);
     await page.close();
@@ -55,7 +55,7 @@ describe("avatar page", () => {
     await page.close();
   });
 
-  it("opens the mouth on `aa` and changes the rendered frame", async () => {
+  it("opens the mouth on `aa` and changes the rendered frame", { tags: ["smoke"] }, async () => {
     const page = await open("?hud=0");
     await framesRendered(page, 3);
     const closed = await page.screenshot();

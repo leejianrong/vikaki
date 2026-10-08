@@ -14,7 +14,7 @@ Trust the code over the docs where they disagree, then fix the docs.
 | V4 Headless, container, MJPEG feed | Not started |
 | Observability, phases 0 to 3 (see below) | Phase 0 done (honest speech demo, install-voice, doctor, Material 3 UI). Phase 1 done on branch `phase1-debug-recorder` (PR open; docs/observability.md). Phase 2 next |
 
-**Observability plan** (agreed with Jian): Phase 1 debug recorder (`--debug-dir`: per-utterance wav, spectrogram PNG, metrics JSON, text, timings) and a speech-versus-buzz gate as a test; Phase 2 live and per-utterance spectrograms, karaoke highlight on the current word (estimated word timings; Kokoro's ONNX model outputs only a waveform), a timeline view; Phase 3 phoneme-driven lip sync scored by a lip-sync scorecard. A testing strategy (layers, local vs CI vs nightly, no fixed sleeps, millisecond budgets only off CI) was proposed and is to be written to `docs/testing.md`.
+**Observability plan** (agreed with Jian): Phase 1 debug recorder (`--debug-dir`: per-utterance wav, spectrogram PNG, metrics JSON, text, timings) and a speech-versus-buzz gate as a test; Phase 2 live and per-utterance spectrograms, karaoke highlight on the current word (estimated word timings; Kokoro's ONNX model outputs only a waveform), a timeline view; Phase 3 phoneme-driven lip sync scored by a lip-sync scorecard. The testing strategy is in `docs/testing.md` (layers, what runs on a PR vs main vs nightly, smoke e2e, failure artefacts).
 
 ## Commands
 
@@ -26,7 +26,8 @@ pnpm build                       # builds the avatar page into packages/engine/d
 pnpm serve --port 8787           # serves http://127.0.0.1:8787/avatar (needs a build first); --tts none|fake|kokoro|auto
 pnpm typecheck                   # tsc --noEmit in every package
 pnpm test                        # vitest unit and integration, no network or GPU needed
-pnpm test:e2e                    # builds, then runs Playwright against the page (needs: pnpm exec playwright install chromium)
+pnpm test:e2e                    # builds, then runs all Playwright tests (needs: pnpm exec playwright install chromium)
+pnpm test:e2e:smoke              # the quick tagged subset CI runs on every PR (also `make e2e-smoke`)
 make demo                        # build, serve on a free port and open the demo page to judge the avatar by eye
 make install-voice               # install the real voice (Kokoro, ~410 MB) into .vikaki/voice; safe to repeat
 make doctor                      # check Node, build, port, voice, model; prints the exact fix for each problem

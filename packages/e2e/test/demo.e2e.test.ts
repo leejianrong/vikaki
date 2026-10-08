@@ -82,7 +82,7 @@ const peakWhilePlaying = (page: Page) =>
   });
 
 describe("demo panel", () => {
-  it("shows the controls and the meters", async () => {
+  it("shows the controls and the meters", { tags: ["smoke"] }, async () => {
     const page = await open();
     for (const name of ["aa", "ih", "ou", "ee", "oh", "closed", "Blink now"]) {
       expect(await page.getByRole("button", { name, exact: true }).count()).toBe(1);
@@ -160,7 +160,7 @@ describe("layout", () => {
   it.each([
     ["the demo page", "?demo=1&seed=7", "#demo"],
     ["the speech demo", "?demo=speech&live=1&seed=7", "#speech"],
-  ])("%s: the canvas sits beside the panel, not under it, and follows the window size", async (_name, query, panelSel) => {
+  ])("%s: the canvas sits beside the panel, not under it, and follows the window size", { tags: ["smoke"], timeout: 60_000 }, async (_name, query, panelSel) => {
     const page = await browser.newPage({ viewport: { width: 1200, height: 700 } });
     await page.goto(`${server.url}${query}`);
     await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 30_000 });
@@ -176,5 +176,5 @@ describe("layout", () => {
     expect(after.width).toBeLessThan(box.width);
     expect(after.x + after.width).toBeLessThanOrEqual((await page.locator(panelSel).boundingBox())!.x + 1);
     await page.close();
-  }, 60_000);
+  });
 });

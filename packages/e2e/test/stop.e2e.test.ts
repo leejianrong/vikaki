@@ -37,7 +37,7 @@ function signalGroup(run: Run, signal: NodeJS.Signals) {
 }
 
 describe("stopping the server", () => {
-  it.each(["SIGINT", "SIGTERM"] as const)("the CLI says it is stopping, exits 0, and prints no errors on %s", async (sig) => {
+  it.each(["SIGINT", "SIGTERM"] as const)("the CLI says it is stopping, exits 0, and prints no errors on %s", { tags: ["smoke"], timeout: 60_000 }, async (sig) => {
     const run = start(tsx, ["src/index.ts", "serve", "--tts", "none"], `${root}/packages/cli`);
     await run.ready;
     signalGroup(run, sig);
@@ -47,7 +47,7 @@ describe("stopping the server", () => {
     expect(run.out()).toContain("Stopping...");
     expect(run.out()).toContain("Stopped.");
     expect(run.out()).not.toMatch(/error|Error|ELIFECYCLE|ERR_/);
-  }, 60_000);
+  });
 
   it("`make serve` ends on Ctrl+C with no pnpm error block and no make 'Interrupt' line", async () => {
     const run = start("make", ["serve"], root);

@@ -6,3 +6,5 @@ dist/
 .env.*
 .claude/settings.local.json
 .vikaki/
+packages/e2e/artifacts/
+timings.json

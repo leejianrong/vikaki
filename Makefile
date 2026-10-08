@@ -2,7 +2,7 @@
 
 # Run the CLI directly, not through pnpm: pnpm reports a clean Ctrl+C stop as a failed command.
 CLI = cd packages/cli && exec ../../node_modules/.bin/tsx src/index.ts
-.PHONY: help install install-voice doctor build serve demo demo-speech extension check hooks
+.PHONY: help install install-voice doctor build serve demo demo-speech extension e2e-smoke check hooks
 
 help: ## List available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -30,6 +30,9 @@ demo-speech: install-voice build ## Install the real voice if needed, then open 
 
 extension: ## Build the browser extension into packages/extension/dist
 	pnpm --filter @vikaki/extension build
+
+e2e-smoke: ## Quick browser tests: the subset CI runs on every pull request
+	pnpm test:e2e:smoke
 
 check: ## Fast gate: typecheck + tests (what the pre-push hook runs)
 	pnpm typecheck

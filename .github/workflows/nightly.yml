@@ -1,0 +1,67 @@
+name: Nightly
+
+# The slow checks that should not hold up a pull request: every browser test, the audit, and a timing comparison
+# against the previous night. Timings from shared runners are noisy, so they only warn (see docs/testing.md).
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - name: Full e2e, recording how long every test took
+        run: pnpm --filter @vikaki/e2e exec vitest run --reporter=default --reporter=json --outputFile.json=../../timings.json
+      - name: Compare with the previous night
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p previous
+          gh run download --name nightly-timings --dir previous \
+            "$(gh run list --workflow nightly.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')" 2>/dev/null || echo "no earlier timings yet"
+          node scripts/compare-timings.mjs previous/timings.json timings.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: nightly-timings
+          path: timings.json
+          retention-days: 30
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-failures
+          path: packages/e2e/artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod

@@ -110,7 +110,7 @@ const finished = (id = "u1") => (m: Msg) => m.type === "speech_finished" && m.ut
 const interrupted = (id = "u1") => (m: Msg) => m.type === "speech_interrupted" && m.utterance_id === id;
 
 describe("speech, from driver to avatar and back", () => {
-  it("speaks a line: the mouth moves while it plays, and the driver hears when it starts and ends", async () => {
+  it("speaks a line: the mouth moves while it plays, and the driver hears when it starts and ends", { tags: ["smoke"], timeout: 60_000 }, async () => {
     const { driver, page } = await setup();
     const sampling = mouth(page, 4500);
     driver.say("x".repeat(40)); // 2.0 s
@@ -122,7 +122,7 @@ describe("speech, from driver to avatar and back", () => {
     expect(max).toBeGreaterThan(0.3); // the mouth opened for the speech
     expect(min).toBeLessThan(0.05); // and was closed before and after it
     expect(await page.evaluate(() => window.__vikaki!.live!.events)).toEqual(["started:u1", "finished:u1"]);
-  }, 60_000);
+  });
 
   it("closes the mouth again once the speech has ended", async () => {
     const { driver, page } = await setup();
@@ -168,13 +168,13 @@ describe("speech, from driver to avatar and back", () => {
     await driver.waitFor(finished());
   }, 60_000);
 
-  it("reports a speech failure to the driver and carries on", async () => {
+  it("reports a speech failure to the driver and carries on", { tags: ["smoke"], timeout: 60_000 }, async () => {
     const { driver } = await setup({ failOn: "boom" });
     driver.say("this will boom", "bad");
     await driver.waitFor((m) => m.type === "error" && m.code === "tts_failed" && m.utterance_id === "bad");
     driver.say("all fine", "good");
     await driver.waitFor(finished("good"));
-  }, 60_000);
+  });
 
   it("tells the driver once when two avatar pages are watching", async () => {
     const { driver, viewers } = await setup({}, 2);
