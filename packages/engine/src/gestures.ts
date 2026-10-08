@@ -1,5 +1,8 @@
 import type { ProsodyCue } from "@vikaki/audio";
 
+/** The longest slice of animation time one frame may advance, in seconds. */
+const MAX_STEP = 0.05;
+
 /** However many cues pile up, the head never turns further than this (radians, about 7 degrees). */
 export const MAX_GESTURE_ANGLE = 0.12;
 
@@ -35,8 +38,12 @@ export class Gestures {
     return wanted;
   }
 
-  /** Head offsets for this frame, in radians, to add to the idle sway and the emotion. */
-  update(dt: number): { pitch: number; roll: number } {
+  /**
+   * Head offsets for this frame, in radians, to add to the idle sway and the emotion. A frame longer than `MAX_STEP` (the page
+   * stalled, as software WebGL does at the first speech) moves the animation on by `MAX_STEP` only, so a nod is delayed, not skipped.
+   */
+  update(rawDt: number): { pitch: number; roll: number } {
+    const dt = Math.min(rawDt, MAX_STEP);
     let pitch = 0;
     let roll = 0;
     for (const m of this.motions) {

@@ -46,6 +46,13 @@ To put a test in it, tag it: `it("…", { tags: ["smoke"] }, async () => { … }
 
 The job uploads `e2e-failures` (14 days): for each failing test, a screenshot and the console log of every page that was open. `packages/e2e/test/setup.ts` does this for every test with no change to the tests. Download it from the run's Artifacts section, or locally find it under `packages/e2e/artifacts/` (git-ignored). A failing axe scan prints its violations, with the selectors, in the assertion message.
 
+## Keeping main green
+
+- A pull request runs `pnpm test:e2e:smoke` (about 20 quick tests). It is reported, not required.
+- `main` runs the **full** suite after every merge, and nightly runs it again with timings. On CI the files run **one at a time** (`fileParallelism` is off when `CI` is set): every file starts its own Chromium with software WebGL, and two at once on the runner's two shared cores starve each other. Locally they run side by side.
+- So a green pull request does not mean a green `main`. After merging, check the `main` run (`gh run list --branch main --workflow ci.yml`) and fix a red one before more feature work.
+- Image tests (`make docker-test`) run in their own workflow, `docker.yml`, when the image or the code it runs changes, and nightly.
+
 ## Timings
 
 The nightly run records every test's duration (`nightly-timings` artefact) and `scripts/compare-timings.mjs` writes a summary of tests that got more than 2x and 1.5 s slower than the night before. It only reports; shared runners are too noisy to gate on. Real-voice latency (time to first audio, about 1.6 s on a laptop CPU) depends on the machine and needs the large Kokoro install, so it is checked by hand with `make demo-speech` and read from `timings.json` in a debug recording.

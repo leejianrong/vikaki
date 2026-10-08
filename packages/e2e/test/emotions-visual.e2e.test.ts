@@ -49,14 +49,14 @@ function changed(a: number[], b: number[]): number {
 }
 
 describe("what each emotion draws", () => {
-  it("every emotion looks different from neutral on screen, and more so at full strength than at a third", { timeout: 90_000 }, async () => {
+  it("every emotion looks different from neutral on screen, and more so at full strength than at a third", { timeout: 300_000 }, async () => {
     const page = await browser.newPage({ viewport: { width: 480, height: 400 } });
     // `still=1` holds the head at rest, so any difference between pictures is the emotion.
     await page.goto(`${server.url}?hud=0&seed=3&still=1`);
     await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 30_000 });
     const set = async (emotion: string, intensity: number) => {
       await page.evaluate(([e, k]) => window.__vikaki!.setEmotion(e as string, k as number), [emotion, intensity] as const);
-      await page.waitForTimeout(1300); // the face eases in
+      await page.waitForTimeout(1100); // the face eases in (about 99% after 0.8 s)
     };
     await set("neutral", 1);
     const neutral = await settled(page); // neutral stands still
@@ -84,7 +84,7 @@ describe("what each emotion draws", () => {
     await page.close();
   });
 
-  it("a made-up emotion draws exactly what neutral draws", { timeout: 60_000 }, async () => {
+  it("a made-up emotion draws exactly what neutral draws", { timeout: 120_000 }, async () => {
     const page = await browser.newPage({ viewport: { width: 480, height: 400 } });
     await page.goto(`${server.url}?hud=0&seed=3&still=1`);
     await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 30_000 });
