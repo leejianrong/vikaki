@@ -8,7 +8,8 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "serve": "pnpm --filter @vikaki/cli dev serve",
-    "test:e2e": "pnpm build && pnpm --filter @vikaki/e2e test:e2e"
+    "test:e2e": "pnpm build && pnpm --filter @vikaki/e2e test:e2e",
+    "test:e2e:smoke": "pnpm build && pnpm --filter @vikaki/e2e test:e2e:smoke"
   },
   "packageManager": "pnpm@11.13.0",
   "devDependencies": {

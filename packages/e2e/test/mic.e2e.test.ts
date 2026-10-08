@@ -62,7 +62,7 @@ describe("mic mode", () => {
     await page.close();
   });
 
-  it("falls back to idle with a visible error when the mic is unavailable", async () => {
+  it("falls back to idle with a visible error when the mic is unavailable", { tags: ["smoke"] }, async () => {
     const noMic = await chromium.launch({
       args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
     });

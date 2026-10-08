@@ -53,7 +53,7 @@ const stat = (page: Page, label: string) => page.locator(".tile", { hasText: lab
 const button = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
 
 describe("speech demo", () => {
-  it("shows that the driver is connected, says plainly that the voice is a test tone, and that sound is on", async () => {
+  it("shows that the driver is connected, says plainly that the voice is a test tone, and that sound is on", { tags: ["smoke"], timeout: 60_000 }, async () => {
     const page = await open();
     await page.waitForFunction(() => document.querySelector(".chip.ok")?.textContent === "driver: connected", null, { timeout: 15_000 });
     // The fake voice must be called out loudly, in plain words, with the fix.
@@ -62,7 +62,7 @@ describe("speech demo", () => {
     expect(await banner.innerText()).toContain("make install-voice");
     expect(await banner.getAttribute("class")).toContain("warn");
     await page.waitForFunction(() => [...document.querySelectorAll(".chip")].some((c) => c.textContent === "sound: on"), null, { timeout: 15_000 });
-  }, 60_000);
+  });
 
   it("speaks the typed text, logs what the hub reports, and measures it", async () => {
     const page = await open();
@@ -97,7 +97,7 @@ describe("speech demo", () => {
     expect(await peak).toBeGreaterThan(0.3);
   }, 60_000);
 
-  it("cancels mid-speech, shows the interruption, and measures how fast it stopped", async () => {
+  it("cancels mid-speech, shows the interruption, and measures how fast it stopped", { tags: ["smoke"], timeout: 60_000 }, async () => {
     const page = await open();
     await speakReady(page);
     await button(page, "Long story").click();
@@ -116,7 +116,7 @@ describe("speech demo", () => {
     }
     expect(stopped).not.toBe("-"); // it was measured at all
     expect(await button(page, "Cancel").isDisabled()).toBe(true);
-  }, 60_000);
+  });
 
   it("sends a streamed line word by word, and starts speaking before the end of it is sent", async () => {
     const page = await open({ msPerChar: 10 }); // speaks fast, so the time is dominated by the 5 words a second sent

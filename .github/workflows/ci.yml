@@ -63,8 +63,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --prod
 
+  # Browser tests. A pull request runs the quick smoke subset (one or two tests per surface, see docs/testing.md);
+  # main runs everything. Neither is a required check: software WebGL on 2 shared cores is the likeliest to flake.
   e2e:
-    # Reported, not required: boots Chromium with software WebGL, slower and the likeliest to flake.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -74,5 +75,22 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - name: Smoke e2e (pull request)
+        if: github.event_name == 'pull_request'
+        run: pnpm test:e2e:smoke
+      - name: Full e2e (main)
+        if: github.event_name != 'pull_request'
+        run: pnpm test:e2e
+      - name: Keep screenshots and console logs of failures
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-failures
+          path: packages/e2e/artifacts
+          if-no-files-found: ignore
+          retention-days: 14

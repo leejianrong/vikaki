@@ -86,7 +86,7 @@ const mouthRange = (page: Page, ms: number) =>
   }, ms);
 
 describe("meeting extension", () => {
-  it("offers the avatar as the only camera and never touches the physical one", async () => {
+  it("offers the avatar as the only camera and never touches the physical one", { tags: ["smoke"], timeout: 60_000 }, async () => {
     const { page, result } = await joinMeeting("/meeting");
     expect(result.devices.filter((d) => d.kind === "videoinput")).toEqual([{ kind: "videoinput", label: "Vikaki Avatar" }]);
     expect(result.devices.some((d) => d.kind === "audioinput")).toBe(true); // the mic is still there
@@ -98,9 +98,9 @@ describe("meeting extension", () => {
     expect(state.physicalCameraRequests).toBe(0);
     expect(state.videoRequestsServed).toBe(1);
     await page.close();
-  }, 60_000);
+  });
 
-  it("sends real avatar frames, not the fake camera's test pattern", async () => {
+  it("sends real avatar frames, not the fake camera's test pattern", { tags: ["smoke"], timeout: 60_000 }, async () => {
     const { page } = await joinMeeting("/meeting");
     await page.waitForFunction(() => (window as unknown as { __vikakiExt: { avatarReady: boolean } }).__vikakiExt.avatarReady, null, { timeout: 30_000 });
     await page.waitForFunction(() => (window as unknown as { brownShare(): { share: number } }).brownShare().share > 0.08, null, { timeout: 15_000 });
@@ -115,7 +115,7 @@ describe("meeting extension", () => {
       expect(c[3]).toBe(255);
     }
     await page.close();
-  }, 60_000);
+  });
 
   it("lip-syncs from the microphone with wLipSync", async () => {
     const { page } = await joinMeeting("/meeting");

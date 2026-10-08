@@ -13,9 +13,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "echo 'e2e runs with: pnpm test:e2e (needs a build and Chromium)'",
-    "test:e2e": "vitest run"
+    "test:e2e": "vitest run",
+    "test:e2e:smoke": "vitest run --tags-filter smoke"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@types/ws": "^8.18.2"
   }
 }
