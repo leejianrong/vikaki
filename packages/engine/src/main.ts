@@ -1,4 +1,4 @@
-import { Clock } from "three";
+import { Box3, Clock, Vector3 } from "three";
 import { VrmAvatar } from "./vrm-avatar.ts";
 import { AudioSession } from "./audio-session.ts";
 import { mountDemoPanel } from "./demo-panel.ts";
@@ -6,6 +6,8 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { DriverConsole } from "./driver-console.ts";
 import { mountSpeechDemo } from "./speech-demo.ts";
 import { createStage, frameAvatar, Puppet } from "./stage.ts";
+import { EmotionSymbols } from "./symbols.ts";
+import { poseFor, type EmotionPose } from "./emotion.ts";
 import { FirstFrameTimer } from "./first-frame.ts";
 import { TimelineRecorder } from "./timeline.ts";
 import type { TimelineUi } from "./timeline-ui.ts";
@@ -38,6 +40,12 @@ declare global {
       timeline?: TimelineRecorder;
       /** The timeline dock (speech demo): which view is showing, switching it, and exporting what it shows. */
       timelineUi?: TimelineUi;
+      /** Show an emotion now (what the driver's `emotion` and `intensity` do). Unknown names are neutral. */
+      setEmotion(emotion: string | undefined, intensity?: number): void;
+      /** What the preset for `emotion` at `intensity` says. For tests to compare against `emotionPose`. */
+      presetPose?: (emotion: string, intensity: number) => EmotionPose;
+      /** The emotion on show after the last frame, and the symbol drawn for it. */
+      emotionPose?: EmotionPose;
       /** Eyelid closure applied on the last frame, and how many blinks have started. */
       blink: number;
       blinks: number;
@@ -49,7 +57,7 @@ declare global {
     };
   }
 }
-const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", visemes: {}, applied: {}, blink: 0, blinks: 0, setVisemes: () => {} };
+const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", visemes: {}, applied: {}, blink: 0, blinks: 0, setVisemes: () => {}, setEmotion: () => {} };
 window.__vikaki = api;
 
 const baseUrl = import.meta.env.BASE_URL;
@@ -70,6 +78,13 @@ try {
   };
 
   const puppet = new Puppet(avatar, seed);
+  const box = new Box3().setFromObject(avatar.scene);
+  const head = avatar.headPosition();
+  const symbols = new EmotionSymbols(new Vector3(head.x, (head.y + box.max.y) / 2, head.z + 0.05), (box.max.y - head.y) * 1.2);
+  scene.add(symbols.group);
+  api.setEmotion = (e, i) => puppet.emotion.set(e, i);
+  api.presetPose = poseFor;
+  if (params.has("emotion")) puppet.emotion.set(params.get("emotion")!, params.has("intensity") ? Number(params.get("intensity")) : 1);
 
   /** Start the mic. A failure leaves the avatar idle with a visible error, never a frozen frame. */
   async function startMic(): Promise<void> {
@@ -124,6 +139,8 @@ try {
     const player = new SpeechPlayer({
       url: url.href,
       timer: firstFrame,
+      // The face follows the line: its emotion while it is heard, then a moment's lingering before relaxing.
+      onEmotion: (e, i, phase) => (phase === "start" ? puppet.emotion.set(e, i) : puppet.emotion.release(0.7)),
       session,
       sessionId: params.get("session") ?? undefined,
       onReport: (what) => {
@@ -168,10 +185,13 @@ try {
   let lastBlinks = 0;
   renderer.setAnimationLoop(() => {
     const mouth = Object.keys(manual).length > 0 ? manual : (session.lipsync?.weights ?? {});
-    puppet.update(clock.getDelta(), mouth);
+    const dt = clock.getDelta();
+    puppet.update(dt, mouth);
+    symbols.update(dt, puppet.emotion.pose);
+    api.emotionPose = puppet.emotion.pose;
     api.visemes = puppet.visemes;
     api.applied = puppet.applied;
-    firstFrame.frame(performance.now(), Object.values(puppet.applied).reduce((a, w) => a + (w ?? 0), 0));
+    firstFrame.frame(performance.now(), Object.values(mouth).reduce((a, w) => a + (w ?? 0), 0)); // what lip sync asked for, not the resting smile
     if (timeline) {
       timeline.frame(mouth, puppet.applied, session.lipsync?.volume ?? 0, puppet.blink);
       if (puppet.blinks !== lastBlinks) timeline.event("blink");

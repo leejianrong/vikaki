@@ -1,5 +1,5 @@
 // Dev helper: speak through the speech demo and screenshot the page, live and reviewing the utterance, light and dark.
-//   pnpm exec tsx scripts/screenshot-speech.ts <outdir> [fake|kokoro] ["text to say"]     (needs `pnpm build`)
+//   pnpm exec tsx scripts/screenshot-speech.ts <outdir> [fake|kokoro] ["text to say"] [emotion]     (needs `pnpm build`)
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -7,7 +7,7 @@ import { findVoice } from "../packages/cli/src/voice.ts";
 import { startServer } from "../packages/server/src/server.ts";
 import { FakeTts, KokoroTts, type Tts } from "../packages/tts/src/index.ts";
 
-const [out = "shots", engine = "fake", text = "Good morning, everyone. Shall we begin? Oh, you really think so?"] = process.argv.slice(2);
+const [out = "shots", engine = "fake", text = "Good morning, everyone. Shall we begin? Oh, you really think so?", emotion = "neutral"] = process.argv.slice(2);
 mkdirSync(out, { recursive: true });
 const found = engine === "kokoro" ? findVoice() : undefined;
 if (engine === "kokoro" && !found) throw new Error("the real voice is not installed; run `make install-voice`");
@@ -21,10 +21,11 @@ for (const scheme of ["light", "dark"] as const) {
   await page.goto(`${server.url}?demo=speech&live=1&seed=7`);
   await page.waitForFunction(() => window.__vikaki?.live?.state === "connected" && window.__vikaki.timelineUi, null, { timeout: 60_000 });
   await page.getByRole("textbox", { name: "What the avatar should say" }).fill(text);
+  await page.evaluate((e) => ((document.querySelector("md-outlined-select") as HTMLElement & { value: string }).value = e), emotion);
   await page.getByRole("button", { name: "Speak", exact: true }).click();
   await page.waitForFunction(() => window.__vikaki!.live!.events.some((e) => e.startsWith("started:")), null, { timeout: 60_000 });
-  await page.waitForTimeout(2500); // mid-speech
-  await page.screenshot({ path: `${out}/${engine}-${scheme}-live.png` });
+  await page.waitForTimeout(emotion === "neutral" ? 2500 : 900); // mid-speech
+  await page.screenshot({ path: `${out}/${engine}-${emotion}-${scheme}-live.png` });
   await page.waitForFunction(() => window.__vikaki!.live!.events.some((e) => e.startsWith("finished:")), null, { timeout: 90_000 });
   const id = await page.evaluate(() => (window.__vikaki!.timeline as { utterances(): { id: string }[] }).utterances().at(-1)!.id);
   await page.evaluate((i) => window.__vikaki!.timelineUi!.select(i), id);

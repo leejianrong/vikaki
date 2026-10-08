@@ -134,6 +134,38 @@ describe("speech, from driver to avatar and back", () => {
     expect(done.timing?.frame_ms).toBeGreaterThanOrEqual(done.timing!.audio_ms);
   });
 
+  it("shows each emotion a line asks for, scaled by its intensity, and relaxes after it", { timeout: 120_000 }, async () => {
+    const { driver, page } = await setup({ msPerChar: 60 });
+    // What the preset says at full strength, read from the page's own model so the test follows the presets.
+    const want = (e: string, k: number) =>
+      page.evaluate(([name, i]) => window.__vikaki!.presetPose!(name as string, i as number), [e, k] as const);
+    let n = 0;
+    for (const emotion of ["happy", "smug", "worried", "surprised", "sad", "angry"]) {
+      const id = `e${++n}`;
+      driver.say("x".repeat(30), id, { emotion, intensity: n % 2 === 0 ? 1 : 0.6 }); // 1.8 s
+      const at = await driver.waitFor(started(id), 40_000); // patient: no millisecond budget here, and CI is slow
+      await page.waitForTimeout(Math.max(0, 1000 - (Date.now() - at))); // one second after the avatar began
+      const shown = await page.evaluate(() => window.__vikaki!.emotionPose!);
+      const expected = (await want(emotion, n % 2 === 0 ? 1 : 0.6)) as typeof shown;
+      for (const k of ["squint", "pitch", "roll", "shake", "bob"] as const) expect(Math.abs(shown[k] - expected[k]), `${emotion} ${k}`).toBeLessThan(0.05);
+      expect(shown.symbol, emotion).toBe(expected.symbol);
+      expect(Math.abs(shown.symbolAmount - expected.symbolAmount)).toBeLessThan(0.05);
+      await driver.waitFor(finished(id), 40_000);
+    }
+    // After the last line the face relaxes to neutral.
+    await page.waitForFunction(() => window.__vikaki!.emotionPose!.symbol === null && window.__vikaki!.emotionPose!.squint < 0.02, null, { timeout: 8000 });
+  });
+
+  it("treats an unknown emotion as neutral, without an error", async () => {
+    const { driver, page } = await setup();
+    driver.say("x".repeat(30), "u1", { emotion: "blorp" });
+    await driver.waitFor(started());
+    await page.waitForTimeout(600);
+    expect(await page.evaluate(() => window.__vikaki!.emotionPose!.symbol)).toBeNull();
+    expect(driver.count((m) => m.type === "error")).toBe(0);
+    await driver.waitFor(finished());
+  });
+
   it("closes the mouth again once the speech has ended", async () => {
     const { driver, page } = await setup();
     driver.say("x".repeat(10)); // 0.5 s

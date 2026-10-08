@@ -26,7 +26,7 @@ The first message on a connection must be `hello`; the hub answers `welcome`.
 | `turn_started` / `turn_ended` | `seat_id` | Lets the avatar switch to a thinking pose. |
 | `game_over` | `outcome` (`won`, `lost`, `drew`), optional `seat_id` | |
 
-`emotion` is one of `neutral`, `happy`, `smug`, `worried`, `surprised`, `sad`, `angry`. Anything else, or nothing, is `neutral`; it is never an error.
+`emotion` is one of `neutral`, `happy`, `smug`, `worried`, `surprised`, `sad`, `angry`. Anything else, or nothing, is `neutral`; it is never an error (the hub logs a warning for an unknown name). `intensity` scales it from 0 to 1 and defaults to 1. The page shows it while the line is heard and relaxes shortly after; ADR-0015 says how it looks.
 
 ## Driver receives
 

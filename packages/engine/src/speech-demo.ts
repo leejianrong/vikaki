@@ -1,3 +1,4 @@
+import { EMOTIONS } from "@vikaki/protocol";
 import { mountKaraoke } from "./karaoke.ts";
 import type { TimelineRecorder } from "./timeline.ts";
 import type { Message } from "@vikaki/protocol";
@@ -53,6 +54,8 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
   const streamBtn = el("md-filled-tonal-button", { textContent: "Speak word by word" });
   const queue = el("md-outlined-button", { textContent: "Queue two lines" });
   const cancel = el("md-filled-tonal-button", { className: "danger", textContent: "Cancel", disabled: true });
+  const emotion = el("md-outlined-select", { label: "Emotion" }) as HTMLElement & { value: string };
+  emotion.append(...EMOTIONS.map((e) => el("md-select-option", { value: e, selected: e === "neutral" }, el("div", { slot: "headline", textContent: e[0]!.toUpperCase() + e.slice(1) }))));
   const presets = el("md-chip-set", { ariaLabel: "Example lines" });
   for (const [name, content] of PRESETS) presets.append(el("md-assist-chip", { label: name, onclick: () => (text.value = content) }));
 
@@ -77,9 +80,10 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
     o.timeline?.event("sent", id, how);
     sentAt.set(id, performance.now());
     cancel.disabled = false;
-    if (how === "say") o.driver.say(content, id);
-    else o.driver.stream(content, id, 5);
-    line("", `sent ${how === "stream" ? "(word by word) " : ""}${quote(content)}  [${id}]`);
+    const feeling = emotion.value && emotion.value !== "neutral" ? emotion.value : undefined;
+    if (how === "say") o.driver.say(content, id, feeling);
+    else o.driver.stream(content, id, 5, feeling);
+    line("", `sent ${how === "stream" ? "(word by word) " : ""}${feeling ? `[${feeling}] ` : ""}${quote(content)}  [${id}]`);
   };
 
   speak.addEventListener("click", () => send("say", text.value));
@@ -105,7 +109,7 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
       el("h1", { className: "headline-small", textContent: "Speech demo" }),
       banner,
       el("div", { className: "chips" }, chipDriver, chipSound),
-      el("section", {}, text, presets, el("div", { className: "actions" }, speak, streamBtn, queue, cancel)),
+      el("section", {}, text, presets, emotion, el("div", { className: "actions" }, speak, streamBtn, queue, cancel)),
       ...(o.timeline ? [mountKaraoke(o.timeline)] : []),
       el("section", {}, el("h2", { className: "title-small", textContent: "Measured here" }), el("div", { className: "tiles" }, tile(statFirst, "to first sound"), tile(statSpeech, "speech length"), tile(statStop, "cancel to stop"))),
       el("section", { style: "flex:1;min-height:0" }, el("h2", { className: "title-small", textContent: "What the hub reports" }), log),
