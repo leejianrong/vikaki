@@ -40,7 +40,7 @@ make check                       # typecheck + test: the fast gate, same as the 
 
 ## Layout
 
-- `packages/engine` Vite page: Three.js scene, lip sync, behaviour (browser code).
+- `packages/engine` Vite page: Three.js scene, lip sync, behaviour, the page-side `TimelineRecorder` (browser code).
 - `packages/protocol` message types, validation and the JSON Schema (`docs/protocol.md`). After changing it run `pnpm --filter @vikaki/protocol schema`.
 - `packages/tts` the `Tts` interface, `FakeTts`, `SentenceChunker` and the optional `KokoroTts` (docs/tts.md).
 - `packages/audio` pure audio code with no Node-only APIs: FFT and spectrogram maths, the speech-or-buzz metrics, WAV. Shared by the server recorder and the page.

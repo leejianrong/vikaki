@@ -6,6 +6,7 @@ interface Window {
     mic: "idle" | "listening" | "error";
     visemes: Record<string, number>;
     applied: Record<string, number>;
+    timeline?: unknown;
     blink: number;
     blinks: number;
     setVisemes(w: Record<string, number>): void;

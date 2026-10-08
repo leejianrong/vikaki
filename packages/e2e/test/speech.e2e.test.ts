@@ -96,7 +96,7 @@ async function setup(tts: FakeTtsOptions = {}, pageCount = 1) {
   for (let i = 0; i < pageCount; i++) {
     const page = await browser.newPage({ viewport: { width: 640, height: 480 } });
     pages.push(page);
-    await page.goto(`${server.url}?live=1&hud=0&seed=3`);
+    await page.goto(`${server.url}?live=1&timeline=1&hud=0&seed=3`);
     await page.waitForFunction(() => window.__vikaki?.live?.state === "connected" && window.__vikaki.live.soundBlocked === false, null, { timeout: 30_000 });
     viewers.push(page);
   }
@@ -189,4 +189,55 @@ describe("speech, from driver to avatar and back", () => {
     expect(driver.count(started())).toBe(1);
     expect(driver.count(finished())).toBe(1);
   }, 90_000);
+});
+
+type Recorded = {
+  frames: number[][];
+  events: { t: number; kind: string; utteranceId?: string }[];
+  utterances: { id: string; startMs: number; endMs: number; interruptedAtMs?: number; pieces: { index: number; text: string; startMs: number; endMs: number }[] }[];
+};
+const recorded = (page: Page) => page.evaluate(() => (window.__vikaki!.timeline as { toJSON(): unknown }).toJSON()) as Promise<Recorded>;
+
+describe("the page's timeline of what happened", () => {
+  it("records each spoken sentence with its text and when it was heard, with the mouth moving inside it", { tags: ["smoke"], timeout: 60_000 }, async () => {
+    const { driver, page } = await setup();
+    driver.say("Hello there. How are you?", "u1");
+    await driver.waitFor(finished());
+    const t = await recorded(page);
+
+    const u = t.utterances.find((x) => x.id === "u1")!;
+    expect(u.pieces.map((p) => p.text)).toEqual(["Hello there.", "How are you?"]);
+    const [a, b] = u.pieces as [typeof u.pieces[0], typeof u.pieces[0]];
+    expect(a.endMs - a.startMs).toBeGreaterThan(400); // 12 characters at 50 ms each
+    expect(Math.abs(b.startMs - a.endMs)).toBeLessThan(60); // the second sentence follows the first with no gap
+
+    // the page's own events, in order, and the first one lands where the audio was scheduled to begin
+    const kinds = t.events.filter((e) => e.utteranceId === "u1").map((e) => e.kind);
+    expect(kinds.indexOf("started")).toBeGreaterThanOrEqual(0);
+    expect(kinds.indexOf("started")).toBeLessThan(kinds.indexOf("finished"));
+    const startedAt = t.events.find((e) => e.kind === "started")!.t;
+    expect(Math.abs(startedAt - a.startMs)).toBeLessThan(STRICT_TIMING ? 250 : 1500);
+
+    // frame layout: [t, 5 commanded, 5 applied, volume, blink]. The mouth opens inside the sentence and is shut well after it.
+    const inside = t.frames.filter((f) => f[0]! >= a.startMs + 100 && f[0]! <= a.endMs);
+    expect(Math.max(...inside.map((f) => f[1]!))).toBeGreaterThan(0.3);
+    const after = t.frames.filter((f) => f[0]! > u.endMs + 800);
+    if (after.length > 0) expect(Math.max(...after.map((f) => f[1]!))).toBeLessThan(0.05);
+    // what was displayed follows what was commanded
+    expect(Math.max(...t.frames.map((f) => Math.max(...[0, 1, 2, 3, 4].map((i) => Math.abs(f[1 + i]! - f[6 + i]!)))))).toBeLessThan(0.02);
+  });
+
+  it("clips an interrupted utterance at the moment it was cut", async () => {
+    const { driver, page } = await setup({ msPerChar: 100 });
+    driver.say("This is a long sentence that will be cut off part way through. And another one after it.", "u1");
+    await driver.waitFor(started());
+    await page.waitForFunction(() => (window.__vikaki!.timeline as { events(): { kind: string }[] }).events().some((e) => e.kind === "started"));
+    driver.cancel("u1");
+    await driver.waitFor(interrupted());
+    await page.waitForFunction(() => (window.__vikaki!.timeline as { events(): { kind: string }[] }).events().some((e) => e.kind === "interrupted"));
+    const u = (await recorded(page)).utterances.find((x) => x.id === "u1")!;
+    expect(u.interruptedAtMs).toBeDefined();
+    expect(u.endMs).toBeLessThanOrEqual(u.interruptedAtMs!);
+    for (const p of u.pieces) expect(p.endMs).toBeLessThanOrEqual(u.interruptedAtMs!);
+  }, 60_000);
 });

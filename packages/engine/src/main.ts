@@ -6,6 +6,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { DriverConsole } from "./driver-console.ts";
 import { mountSpeechDemo } from "./speech-demo.ts";
 import { createStage, frameAvatar, Puppet } from "./stage.ts";
+import { TimelineRecorder } from "./timeline.ts";
 import type { VisemeWeights } from "./renderer.ts";
 
 const params = new URLSearchParams(location.search);
@@ -31,6 +32,8 @@ declare global {
       visemes: VisemeWeights;
       /** What the avatar actually displayed for each mouth shape on the last frame (see `appliedVisemes`). */
       applied: VisemeWeights;
+      /** What the page recorded on one clock: frames, events, speech pieces and audio. Only with the speech demo or `?timeline=1`. */
+      timeline?: TimelineRecorder;
       /** Eyelid closure applied on the last frame, and how many blinks have started. */
       blink: number;
       blinks: number;
@@ -107,6 +110,7 @@ try {
     : undefined;
 
   const speechDemo = params.get("demo") === "speech";
+  const timeline = speechDemo || params.get("timeline") === "1" ? (api.timeline = new TimelineRecorder()) : undefined;
   if (params.get("live") === "1" || speechDemo) {
     const live = { state: "connecting" as LiveState, soundBlocked: true, events: [] as string[] };
     api.live = live;
@@ -116,7 +120,12 @@ try {
       url: url.href,
       session,
       sessionId: params.get("session") ?? undefined,
-      onReport: (what) => live.events.push(what),
+      onReport: (what) => {
+        live.events.push(what);
+        const [kind, ...id] = what.split(":");
+        timeline?.event(kind!, id.join(":"));
+      },
+      onScheduled: (slice) => timeline?.scheduled(slice),
       onState: (state, soundBlocked) => {
         live.state = state;
         live.soundBlocked = soundBlocked;
@@ -139,7 +148,7 @@ try {
         state: (state, info) => ui.onState(state, info),
         message: (message) => ui.onMessage(message),
       });
-      const ui = await mountSpeechDemo({ driver, unlockSound: unblock, soundBlocked: () => !session.running });
+      const ui = await mountSpeechDemo({ driver, timeline, unlockSound: unblock, soundBlocked: () => !session.running });
       driver.connect();
     }
   }
@@ -148,11 +157,17 @@ try {
   say(params.get("live") === "1" ? "vikaki · connecting" : "vikaki");
 
   const clock = new Clock();
+  let lastBlinks = 0;
   renderer.setAnimationLoop(() => {
     const mouth = Object.keys(manual).length > 0 ? manual : (session.lipsync?.weights ?? {});
     puppet.update(clock.getDelta(), mouth);
     api.visemes = puppet.visemes;
     api.applied = puppet.applied;
+    if (timeline) {
+      timeline.frame(mouth, puppet.applied, session.lipsync?.volume ?? 0, puppet.blink);
+      if (puppet.blinks !== lastBlinks) timeline.event("blink");
+      lastBlinks = puppet.blinks;
+    }
     api.blink = puppet.blink;
     api.blinks = puppet.blinks;
     renderer.render(scene, camera);

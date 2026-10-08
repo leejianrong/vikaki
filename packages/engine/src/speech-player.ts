@@ -1,6 +1,6 @@
 import { decodePcm16, make, parseMessage, type Message } from "@vikaki/protocol";
 import type { AudioSession } from "./audio-session.ts";
-import { Playback, type Output } from "./playback.ts";
+import { Playback, type Output, type ScheduledSlice } from "./playback.ts";
 
 export type LiveState = "connecting" | "connected" | "disconnected";
 
@@ -12,12 +12,15 @@ export interface SpeechPlayerOptions {
   onState?: (state: LiveState, soundBlocked: boolean) => void;
   /** Every event this player reported, for diagnostics and tests: "started:u1", "finished:u1", ... */
   onReport?: (what: string) => void;
+  /** Called for every slice of audio as it is handed to the speakers, with when it will be heard. */
+  onScheduled?: (slice: ScheduledSlice) => void;
 }
 
 /** Counts time without making sound, for when the browser has not allowed audio yet. */
 const silent: Output = {
   now: () => performance.now() / 1000,
   play: () => ({ stop() {} }),
+  perfMs: (t) => t * 1000,
 };
 
 /**
@@ -48,6 +51,7 @@ export class SpeechPlayer {
           this.report(make("speech_interrupted", { utterance_id: id, reason }), `interrupted:${id}`);
         },
       },
+      { scheduled: (slice) => o.onScheduled?.(slice) },
     );
     this.timer = setInterval(() => {
       this.playback.tick();
@@ -115,6 +119,8 @@ export class SpeechPlayer {
           samples: decodePcm16(m.pcm),
           sampleRate: m.sample_rate,
           final: m.final,
+          sentenceIndex: m.sentence_index,
+          sentenceText: m.sentence_text,
         });
         break;
       case "cancel":
