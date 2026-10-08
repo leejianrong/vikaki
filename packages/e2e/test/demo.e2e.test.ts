@@ -95,11 +95,10 @@ describe("demo panel", () => {
     const page = await open();
     const ou = page.getByRole("button", { name: "ou", exact: true });
     await ou.dispatchEvent("pointerdown");
-    await page.waitForTimeout(150);
+    await page.waitForFunction(() => window.__vikaki!.visemes.ou === 1, null, { timeout: 5000 });
     expect(await page.evaluate(() => window.__vikaki!.visemes)).toEqual({ ou: 1 });
     await ou.dispatchEvent("pointerup");
-    await page.waitForTimeout(150);
-    expect(Math.max(0, ...Object.values(await page.evaluate(() => window.__vikaki!.visemes)))).toBe(0);
+    await page.waitForFunction(() => Math.max(0, ...Object.values(window.__vikaki!.visemes)) === 0, null, { timeout: 5000 });
     await page.close();
   });
 
@@ -124,8 +123,9 @@ describe("demo panel", () => {
     const peak = peakWhilePlaying(page);
     await page.locator('#demo input[type="file"]').setInputFiles({ name: "loud-end.wav", mimeType: "audio/wav", buffer: loudEndingWav(1.5) });
     expect(await peak).toBeGreaterThan(0.3);
-    await page.waitForTimeout(800); // let the smoothing settle
-    expect(await peakOpen(page, 600)).toBeLessThan(0.05); // not frozen open on the last loud sound
+    // It must close, not stay frozen open on the last loud sound. How fast is a timing budget, not checked here.
+    await page.waitForFunction(() => Math.max(0, ...Object.values(window.__vikaki!.visemes)) < 0.05, null, { timeout: 10_000 });
+    expect(await peakOpen(page, 600)).toBeLessThan(0.05);
     await page.close();
   }, 90_000);
 

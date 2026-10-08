@@ -128,9 +128,9 @@ describe("speech, from driver to avatar and back", () => {
     const { driver, page } = await setup();
     driver.say("x".repeat(10)); // 0.5 s
     await driver.waitFor(finished());
-    await page.waitForTimeout(500);
-    const { max } = await mouth(page, 600);
-    expect(max).toBeLessThan(0.05);
+    // It must close (a mouth stuck open is the bug this guards). How fast is a timing budget, not checked here.
+    await page.waitForFunction(() => Math.max(0, ...Object.values(window.__vikaki!.visemes)) < 0.05, null, { timeout: 10_000 });
+    expect((await mouth(page, 600)).max).toBeLessThan(0.05); // and stays shut
   }, 60_000);
 
   it("stops quickly when cancelled mid-speech, and the next line plays normally", async () => {

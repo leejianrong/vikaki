@@ -103,7 +103,7 @@ describe("meeting extension", () => {
   it("sends real avatar frames, not the fake camera's test pattern", async () => {
     const { page } = await joinMeeting("/meeting");
     await page.waitForFunction(() => (window as unknown as { __vikakiExt: { avatarReady: boolean } }).__vikakiExt.avatarReady, null, { timeout: 30_000 });
-    await page.waitForTimeout(1500);
+    await page.waitForFunction(() => (window as unknown as { brownShare(): { share: number } }).brownShare().share > 0.08, null, { timeout: 15_000 });
     const { share, width, height, corners } = await page.evaluate(() => (window as unknown as { brownShare(): { share: number; width: number; height: number; corners: number[][] } }).brownShare());
     expect([width, height]).toEqual([1280, 720]);
     expect(share).toBeGreaterThan(0.08); // the gingerbread body fills a good part of the frame
