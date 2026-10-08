@@ -8,7 +8,7 @@ const LOCAL_ENTRY = `${ROOT}/.vikaki/voice/node_modules/kokoro-js/dist/kokoro.js
 const BUILT = `${ROOT}/packages/engine/dist/index.html`;
 
 function machine(over: Partial<DoctorEnv> = {}): DoctorEnv {
-  return { nodeVersion: "v24.10.0", root: ROOT, env: {}, platformRelease: "6.1.0-generic", exists: has(), portFree: async () => true, ...over };
+  return { nodeVersion: "v24.10.0", root: ROOT, env: {}, platformRelease: "6.1.0-generic", exists: has(), portFree: async () => true, renderer: async () => ({ ok: true, path: "/pw/chrome", source: "playwright" }), ...over };
 }
 const byName = (checks: Awaited<ReturnType<typeof runDoctor>>, name: string) => checks.find((c) => c.name === name)!;
 
@@ -27,6 +27,22 @@ describe("findVoice", () => {
 
   it("returns nothing when no voice is installed", () => {
     expect(findVoice({}, ROOT, has())).toBeUndefined();
+  });
+});
+
+describe("runDoctor: the headless renderer", () => {
+  it("is ok when a browser is found, saying which", async () => {
+    const c = byName(await runDoctor(machine()), "Headless renderer (Chromium)");
+    expect(c.status).toBe("ok");
+    expect(c.detail).toContain("/pw/chrome");
+  });
+
+  it("only warns, with the install command, when there is none: it is optional, and nothing else needs it", async () => {
+    const all = await runDoctor(machine({ renderer: async () => ({ ok: false, problem: "Playwright (playwright-core) is not installed, so there is no browser to render with", fix: "Run `make install-renderer`" }) }));
+    const c = byName(all, "Headless renderer (Chromium)");
+    expect(c.status).toBe("warn");
+    expect(c.fix).toContain("make install-renderer");
+    expect(formatChecks(all.filter((x) => x.name !== "Real voice (Kokoro)"))).not.toMatch(/FAIL.*renderer/i);
   });
 });
 

@@ -10,6 +10,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@vikaki/protocol": "workspace:*",
+    "@vikaki/render": "workspace:*",
     "@vikaki/server": "workspace:*",
     "@vikaki/tts": "workspace:*",
     "ws": "^8.22.0",

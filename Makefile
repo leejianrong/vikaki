@@ -2,7 +2,7 @@
 
 # Run the CLI directly, not through pnpm: pnpm reports a clean Ctrl+C stop as a failed command.
 CLI = cd packages/cli && exec ../../node_modules/.bin/tsx src/index.ts
-.PHONY: help install install-voice doctor build serve demo demo-speech extension e2e-smoke check hooks
+.PHONY: help install install-voice install-renderer doctor build serve demo demo-speech extension e2e-smoke check hooks
 
 help: ## List available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -12,6 +12,9 @@ install: ## Install dependencies (frozen lockfile)
 
 install-voice: ## Install the real voice (Kokoro, about 410 MB) into .vikaki/voice
 	node scripts/install-voice.mjs
+
+install-renderer: ## Install the browser for headless rendering (Chromium, about 170 MB), for `vikaki stream` and `serve --headless`
+	pnpm exec playwright install chromium
 
 doctor: ## Check that everything the demos need is in place
 	@( $(CLI) doctor ) || true  # the report is the output; `vikaki doctor` itself exits 1 on a problem, for scripts
