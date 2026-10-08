@@ -54,7 +54,7 @@ There is no dedicated performance machine. If that is ever needed, the options a
 
 ## V2 test plan: where each item is covered
 
-The plan in `SLICES.md` (V2) maps onto these tests. Tests marked smoke run on every PR.
+The plan in `docs/SLICES.md` (V2) maps onto these tests. Tests marked smoke run on every PR.
 
 | Plan item | Test |
 | --- | --- |
