@@ -1,0 +1,8 @@
+# Named characters for `vikaki serve --personas personas.example.yaml`.
+# A driver picks one by name: `vikaki say --persona ada "..."`, or the MCP `set_persona` tool.
+personas:
+  ada:
+    avatar: packages/engine/public/avatars/cookieman.vrm   # a .vrm file, relative to this file
+    voice: af_heart                                        # a voice id for the speech engine (Kokoro voice names)
+    emotion: happy                                         # used for lines that name no emotion
+    style: warm, quick-witted, a little teasing            # a note for whoever writes the lines; never spoken

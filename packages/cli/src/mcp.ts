@@ -63,10 +63,10 @@ export function createMcpServer(session: DriverSession): McpServer {
   server.registerTool(
     "set_persona",
     {
-      description: "Set the default persona (voice and character) for the lines that follow.",
+      description: "Set the default persona (voice, look and character) for the lines that follow. A name the hub does not know is refused with the list of known ones, and the previous persona stays. On success the persona's style note is returned: write in that manner.",
       inputSchema: { persona: z.string().min(1).max(64) },
     },
-    guard((a: { persona: string }) => text({ persona: session.setPersona(a.persona) })),
+    guard(async (a: { persona: string }) => text(await session.setPersona(a.persona))),
   );
 
   server.registerTool(

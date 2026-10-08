@@ -7,7 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { EventLog, readEventLog, startServer, type RunningServer } from "@vikaki/server";
+import { EventLog, loadPersonas, readEventLog, startServer, type RunningServer } from "@vikaki/server";
 import { FakeTts } from "@vikaki/tts";
 import { say, type Io } from "../src/commands.ts";
 import { DriverSession } from "../src/driver-session.ts";
@@ -28,9 +28,16 @@ afterEach(async () => {
   servers = [];
 });
 
-async function hub(opts: { msPerChar?: number; log?: EventLog } = {}) {
+async function hub(opts: { msPerChar?: number; log?: EventLog; personas?: boolean } = {}) {
+  let personas;
+  if (opts.personas) {
+    await writeFile(join(dir, "a.vrm"), "x");
+    await writeFile(join(dir, "personas.yaml"), "personas:\n  ada:\n    avatar: a.vrm\n    style: warm and quick\n    emotion: happy\n  ben:\n    avatar: a.vrm\n");
+    personas = await loadPersonas(join(dir, "personas.yaml"));
+  }
   const s = await startServer({
     staticDir: dir,
+    personas,
     hub: opts.log ? { onEvent: opts.log.record } : undefined,
     speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: opts.msPerChar ?? 5, chunkMs: 100 }) },
   });
@@ -137,6 +144,35 @@ describe("vikaki mcp", () => {
     const lines = (await readEventLog(file)).filter((e) => e.message.type === "utterance").map((e) => e.message);
     expect(lines[0]).toMatchObject({ text: "One.", emotion: "smug", persona: "ada" });
     expect(lines[1]).toMatchObject({ text: "Two.", emotion: "sad", persona: "ben" });
+  });
+
+  it("set_persona checks the name against the hub's personas, keeps the previous one on a mistake, and does not take the driver slot", async () => {
+    const url = await hub({ personas: true });
+    const { call } = await connect(url);
+    const good = await call("set_persona", { persona: "ada" });
+    expect(good.json()).toMatchObject({ persona: "ada", style: "warm and quick", emotion: "happy" });
+    const bad = await call("set_persona", { persona: "zed" });
+    expect(bad.isError).toBe(true);
+    expect(bad.body).toMatch(/zed/);
+    expect(bad.body).toMatch(/ada, ben/); // says who exists
+    expect(bad.body).toMatch(/still "ada"/); // and that nothing changed
+    const free = await HubClient.connect({ url, role: "driver" }); // checking a name is not driving
+    await free.close();
+    const spoke = await call("say", { text: "Hi." });
+    expect(spoke.json()).toMatchObject({ outcome: "completed" });
+  });
+
+  it("a say with an unknown persona fails with the hub's explanation, not silence", async () => {
+    const { call } = await connect(await hub({ personas: true }));
+    const r = await call("say", { text: "Hi.", persona: "zed" });
+    expect(r.isError).toBe(true);
+    expect(r.body).toMatch(/unknown_persona/);
+    expect(r.body).toMatch(/ada, ben/);
+  });
+
+  it("set_persona accepts any name when the hub has no personas file", async () => {
+    const { call } = await connect(await hub());
+    expect((await call("set_persona", { persona: "anyone" })).json()).toMatchObject({ persona: "anyone" });
   });
 
   it("tells the model plainly when another driver holds the avatar", async () => {

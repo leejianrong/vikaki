@@ -3,11 +3,13 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer as createNetServer, type AddressInfo } from "node:net";
 import { Hub, type HubOptions } from "./hub.ts";
+import type { PersonaBook } from "./personas.ts";
 import { SpeechEngine, type SpeechOptions } from "./speech.ts";
 
 export { Hub, type HubEvent, type HubOptions } from "./hub.ts";
 export { SpeechEngine, type SpeechObserver, type SpeechOptions, type SpeechTiming } from "./speech.ts";
 export { EventLog, readEventLog, type LoggedEvent } from "./event-log.ts";
+export { loadPersonas, parsePersonas, PersonaBook, PersonaError, type Persona } from "./personas.ts";
 export { DebugRecorder, spectrogramPng } from "./debug/index.ts";
 export { analyse, classify, decodeWav, encodeWav, type SpeechMetrics, type Verdict } from "@vikaki/audio";
 
@@ -30,6 +32,8 @@ export interface VikakiServerOptions {
   host?: string;
   /** Options for the WebSocket hub at /ws. */
   hub?: HubOptions;
+  /** Named characters from a personas file: validates `persona` on lines, picks their voice and default emotion, and serves their avatars. */
+  personas?: PersonaBook;
   /** Turn on speech: utterances from the driver are spoken with this engine. */
   speech?: SpeechOptions;
 }
@@ -55,6 +59,28 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
         res.writeHead(302, { location: "/avatar" }).end();
         return;
       }
+      if (path === "/avatar/personas.json") {
+        const list = (opts.personas?.list() ?? []).map((p) => ({
+          name: p.name,
+          avatarUrl: `/avatar/personas/${encodeURIComponent(p.name)}.vrm`,
+          ...(p.voice ? { voice: p.voice } : {}),
+          ...(p.emotion ? { emotion: p.emotion } : {}),
+          ...(p.style ? { style: p.style } : {}),
+        }));
+        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(list));
+        return;
+      }
+      if (path.startsWith("/avatar/personas/") && path.endsWith(".vrm")) {
+        // Looked up by name in the personas file, never as a path, so only the avatars the file names can be fetched.
+        const name = decodeURIComponent(path.slice("/avatar/personas/".length, -".vrm".length));
+        const persona = opts.personas?.get(name);
+        if (!persona) {
+          res.writeHead(404).end("not found");
+          return;
+        }
+        res.writeHead(200, { "content-type": "model/gltf-binary" }).end(await readFile(persona.avatar));
+        return;
+      }
       if (path !== "/avatar" && !path.startsWith("/avatar/")) {
         res.writeHead(404).end("not found");
         return;
@@ -78,8 +104,11 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
     server.listen(opts.port ?? 0, host, ok);
   });
   const port = (server.address() as AddressInfo).port;
-  const speech = opts.speech ? new SpeechEngine(opts.speech) : undefined;
+  // With a personas file, a persona's voice comes from the file (the engine's own voice if it names none), not from its name.
+  const speechOptions: SpeechOptions | undefined = opts.speech && opts.personas ? { ...opts.speech, voiceFor: (p) => (p ? opts.personas!.get(p)?.voice : undefined) } : opts.speech;
+  const speech = speechOptions ? new SpeechEngine(speechOptions) : undefined;
   const hub = new Hub(server, {
+    personas: opts.personas,
     speechName: opts.speech ? opts.speech.tts.name : "off",
     speechVoice: opts.speech?.defaultVoice,
     ...opts.hub,

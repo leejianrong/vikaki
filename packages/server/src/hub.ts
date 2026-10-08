@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
+import type { PersonaBook } from "./personas.ts";
 import { CONTROLLER_MAY_SEND, DRIVER_MAY_SEND, EMOTIONS, make, parseMessage, VIEWER_MAY_SEND, type ErrorCode, type Message } from "@vikaki/protocol";
 
 export interface HubOptions {
@@ -18,6 +19,8 @@ export interface HubOptions {
   speechVoice?: string;
   /** Called with each valid message the driver sends, after it has been relayed. */
   onDriverMessage?: (message: Message) => void;
+  /** The named characters, from a personas file. When set, a line naming a persona that is not in it is refused. */
+  personas?: PersonaBook;
   /** Where warnings go, such as an emotion the avatar does not know. Defaults to the console. */
   warn?: (message: string) => void;
   /** Called when the driver disconnects. */
@@ -49,6 +52,8 @@ export class Hub {
   private readonly seen = new Set<string>();
   /** Utterances the driver has sent that no one has reported finished or interrupted yet: what "cancel everything" stops. */
   private readonly inFlight = new Set<string>();
+  /** Lines refused for an unknown persona, so the rest of a streamed one is ignored rather than scolded again. */
+  private readonly refused = new Set<string>();
 
   constructor(
     server: Server,
@@ -179,6 +184,19 @@ export class Hub {
   }
 
   private relayFromDriver(from: "driver" | "controller", message: Message): void {
+    if (message.type === "utterance" && this.opts.personas) {
+      if (this.refused.has(message.utterance_id)) return;
+      if (message.persona !== undefined) {
+        const persona = this.opts.personas.get(message.persona);
+        if (!persona) {
+          this.refused.add(message.utterance_id);
+          if (this.refused.size > DEDUP_LIMIT) this.refused.delete(this.refused.values().next().value as string);
+          this.toDriver(make("error", { code: "unknown_persona", message: `no persona "${message.persona}" (known: ${this.opts.personas.names.join(", ")})`, utterance_id: message.utterance_id }));
+          return;
+        }
+        if (message.emotion === undefined && persona.emotion) message = { ...message, emotion: persona.emotion };
+      }
+    }
     if (message.type === "utterance") {
       if (message.emotion !== undefined && !(EMOTIONS as readonly string[]).includes(message.emotion)) {
         (this.opts.warn ?? console.warn)(`utterance ${message.utterance_id}: unknown emotion "${message.emotion}", showing neutral`);
@@ -221,6 +239,7 @@ export class Hub {
         ...(hello.session_id ? { session_id: hello.session_id } : {}),
         ...(this.opts.speechName ? { speech: this.opts.speechName } : {}),
         ...(this.opts.speechVoice ? { voice: this.opts.speechVoice } : {}),
+        ...(this.opts.personas ? { personas: this.opts.personas.names } : {}),
       }),
     );
   }

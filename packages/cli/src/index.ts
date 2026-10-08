@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { DebugRecorder, EventLog, findFreePort, startServer } from "@vikaki/server";
+import { DebugRecorder, EventLog, findFreePort, loadPersonas, PersonaError, startServer } from "@vikaki/server";
 import { cancel, replay, say, type Io } from "./commands.ts";
 import { runMcp } from "./mcp.ts";
 import { hubUrl } from "./hub-client.ts";
@@ -15,7 +15,7 @@ import { FakeTts, KokoroTts, type Tts } from "@vikaki/tts";
 const USAGE = `usage: vikaki doctor            check that everything the demos need is in place
        vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
                     [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>] [--debug-dir <dir|off>]
-                    [--event-log <file.jsonl>]
+                    [--event-log <file.jsonl>] [--personas <personas.yaml>]
        vikaki say <text...> [--persona <name>] [--emotion <name>] [--think <seconds>]
                                      speak one line and wait until it is over; --think shows the avatar thinking first
        vikaki cancel [<utterance_id>]    stop what the avatar is saying (everything, or one line)
@@ -33,6 +33,7 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
   --debug-dir  save each spoken utterance (wav, spectrogram, metrics, text, timings) under <dir>.
              On by default for --speech-demo, into .vikaki/debug. "off" turns it off.
   --token    require this token from the driver (or set VIKAKI_TOKEN)
+  --personas  a personas file: named characters (avatar, voice, default emotion, style). A line naming a persona the file lacks is refused.
   --event-log  write every message the hub sees, one JSON object per line (audio as its size only). Feed it to \`vikaki replay\`.`;
 
 // Default to the engine's built page (run \`pnpm build\` first).
@@ -91,6 +92,7 @@ async function serve(argv: string[]): Promise<void> {
       token: { type: "string" },
       "debug-dir": { type: "string" },
       "event-log": { type: "string" },
+      personas: { type: "string" },
     },
   });
   if (!["auto", "kokoro", "fake", "none"].includes(values.tts!)) {
@@ -118,11 +120,18 @@ async function serve(argv: string[]): Promise<void> {
         onError: (err) => console.error(`  debug: could not save a recording: ${err instanceof Error ? err.message : err}`),
       })
     : undefined;
+  const personas = values.personas
+    ? await loadPersonas(resolve(values.personas)).catch((err) => {
+        console.error(err instanceof PersonaError ? err.message : err);
+        process.exit(1);
+      })
+    : undefined;
   const eventLog = values["event-log"] ? new EventLog(resolve(values["event-log"])) : undefined;
   const server = await startServer({
     staticDir: values.static!,
     port,
     host,
+    personas,
     hub: { ...(token ? { token } : {}), onEvent: eventLog?.record },
     speech: tts
       ? { tts, defaultVoice: chosen?.voice, observer: recorder, onTiming: (t) => console.log(`  ${t.utterance_id}: first audio made ${t.firstAudioAt - t.textAt} ms after the text arrived`) }
@@ -133,6 +142,7 @@ async function serve(argv: string[]): Promise<void> {
   console.log(`  drivers connect to ${server.wsUrl}${token ? " (token required)" : ""}; speech: ${tts ? tts.name : "off"}`);
   if (values.port === undefined && port !== 8787) console.log(`(8787 was busy, using ${port})`);
   if (debugDir) console.log(`  debug recordings: ${debugDir}`);
+  if (personas) console.log(`  personas: ${personas.names.join(", ")}`);
   if (eventLog) console.log(`  event log: ${resolve(values["event-log"]!)}`);
   console.log("press Ctrl+C to stop");
   if (values.open) openBrowser(url);
