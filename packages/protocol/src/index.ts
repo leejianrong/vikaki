@@ -81,7 +81,14 @@ export const GameOver = z.object({ ...common, type: z.literal("game_over"), outc
 // ---- back to the driver, reported by whoever plays the audio ----
 
 export const SpeechStarted = z.object({ ...common, type: z.literal("speech_started"), utterance_id: id, seat_id: id.optional() });
-export const SpeechFinished = z.object({ ...common, type: z.literal("speech_finished"), utterance_id: id });
+/** What a viewer measured on its own clock, in ms from receiving the line. Reported, never gated. */
+export const SpeechTiming = z.object({
+  /** The line reached the page, to its first sound being heard. */
+  audio_ms: z.number().min(0),
+  /** The line reached the page, to the first rendered frame with the mouth open. Absent if the line ended first. */
+  frame_ms: z.number().min(0).optional(),
+});
+export const SpeechFinished = z.object({ ...common, type: z.literal("speech_finished"), utterance_id: id, timing: SpeechTiming.optional() });
 export const SpeechInterrupted = z.object({
   ...common,
   type: z.literal("speech_interrupted"),

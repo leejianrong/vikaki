@@ -121,7 +121,9 @@ async function serve(argv: string[]): Promise<void> {
     port,
     host,
     hub: { ...(token ? { token } : {}), onEvent: eventLog?.record },
-    speech: tts ? { tts, defaultVoice: chosen?.voice, observer: recorder } : undefined,
+    speech: tts
+      ? { tts, defaultVoice: chosen?.voice, observer: recorder, onTiming: (t) => console.log(`  ${t.utterance_id}: first audio made ${t.firstAudioAt - t.textAt} ms after the text arrived`) }
+      : undefined,
   });
   const url = values["speech-demo"] ? `${server.url}?demo=speech&live=1` : values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
   console.log(`vikaki serving ${url}`);

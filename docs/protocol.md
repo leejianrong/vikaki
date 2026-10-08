@@ -33,9 +33,11 @@ The first message on a connection must be `hello`; the hub answers `welcome`.
 | type | fields |
 | --- | --- |
 | `speech_started` | `utterance_id`, optional `seat_id` |
-| `speech_finished` | `utterance_id` |
+| `speech_finished` | `utterance_id`, optional `timing` |
 | `speech_interrupted` | `utterance_id`, `reason` (`cancelled`, `superseded`, `human_spoke`, `driver_disconnected`) |
 | `error` | `code`, `message`, optional `utterance_id` |
+
+`timing` is what the page measured on its own clock, in ms from receiving the line: `audio_ms` until the first sound was heard, and `frame_ms` until the first rendered frame with the mouth open (absent if the line ended first). It is reported, never gated. `vikaki say` also measures send-to-heard itself and prints `time to first audio` and, when a page reported it, `time to first video frame`. `vikaki serve` prints how long the engine took to make the first audio. The local target is under 1500 ms (Q16).
 
 When several viewers report the same event, the driver hears it once.
 

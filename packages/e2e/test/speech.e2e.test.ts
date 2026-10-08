@@ -124,6 +124,16 @@ describe("speech, from driver to avatar and back", () => {
     expect(await page.evaluate(() => window.__vikaki!.live!.events)).toEqual(["started:u1", "finished:u1"]);
   });
 
+  it("reports its own time to first audio and first mouth frame with speech_finished", { tags: ["smoke"], timeout: 60_000 }, async () => {
+    const { driver } = await setup();
+    driver.say("x".repeat(20)); // 1.0 s
+    await driver.waitFor(finished());
+    const done = driver.events.find((e) => finished()(e.msg))!.msg as { timing?: { audio_ms: number; frame_ms?: number } };
+    // Reported, not gated: only that they exist and are in order (the mouth cannot open before the sound is heard).
+    expect(done.timing?.audio_ms).toBeGreaterThan(0);
+    expect(done.timing?.frame_ms).toBeGreaterThanOrEqual(done.timing!.audio_ms);
+  });
+
   it("closes the mouth again once the speech has ended", async () => {
     const { driver, page } = await setup();
     driver.say("x".repeat(10)); // 0.5 s

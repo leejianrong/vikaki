@@ -328,6 +328,23 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 128
+        },
+        "timing": {
+          "type": "object",
+          "properties": {
+            "audio_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "frame_ms": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "audio_ms"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

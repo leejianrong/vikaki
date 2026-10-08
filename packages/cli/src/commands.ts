@@ -53,6 +53,8 @@ export async function say(o: SayOptions, io: Io): Promise<number> {
         ...(o.emotion ? { emotion: o.emotion } : {}),
       }),
     );
+    const sentAt = Date.now();
+    let heardAfter: number | undefined;
     let cancelled = false;
     o.signal?.addEventListener("abort", () => {
       cancelled = true;
@@ -65,8 +67,13 @@ export async function say(o: SayOptions, io: Io): Promise<number> {
         return cancelled ? 130 : 1;
       }
       if ("utterance_id" in m && m.utterance_id !== id) continue;
-      if (m.type === "speech_started") io.out("speaking...");
-      else if (m.type === "speech_finished") {
+      if (m.type === "speech_started") {
+        heardAfter = Date.now() - sentAt;
+        io.out("speaking...");
+        io.out(`  time to first audio: ${heardAfter} ms`);
+      } else if (m.type === "speech_finished") {
+        // The page measured audio to frame on its own clock; add that gap to what we measured end to end.
+        if (m.timing?.frame_ms !== undefined && heardAfter !== undefined) io.out(`  time to first video frame: ${heardAfter + m.timing.frame_ms - m.timing.audio_ms} ms`);
         io.out("done");
         return 0;
       } else if (m.type === "speech_interrupted") {
