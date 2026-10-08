@@ -1,8 +1,9 @@
 import { AmbientLight, Box3, DirectionalLight, PerspectiveCamera, Scene, WebGLRenderer } from "three";
 import { Blinker, idlePose, mulberry32 } from "./behaviour.ts";
 import { EmotionState } from "./emotion.ts";
+import { Gestures } from "./gestures.ts";
 import { frameFromEyeLevel } from "./framing.ts";
-import { VISEMES, type AvatarRenderer, type VisemeWeights } from "./renderer.ts";
+import { VISEMES, type AvatarRenderer, type HeadPose, type VisemeWeights } from "./renderer.ts";
 import type { VrmAvatar } from "./vrm-avatar.ts";
 
 export interface Stage {
@@ -54,6 +55,11 @@ export class Puppet {
   private elapsed = 0;
   /** The feeling on show. Set it from the driver's `emotion`; it eases in and out by itself. */
   readonly emotion = new EmotionState();
+  /** Nods, lifts and blinks answering the voice (mic mode). Feed it the cues from `ProsodyTracker`. */
+  readonly gestures = new Gestures();
+  /** The head pose applied on the last update, in radians, and how much of it came from voice gestures. */
+  head: HeadPose = { pitch: 0, yaw: 0, roll: 0 };
+  gesture = { pitch: 0, roll: 0 };
   /** Eyelid closure and mouth weights applied on the last update. */
   blink = 0;
   visemes: VisemeWeights = {};
@@ -80,15 +86,18 @@ export class Puppet {
     const pose = this.emotion.update(dt);
     this.visemes = mouth; // what lip sync asked for; the resting mouth is layered on below
     this.avatar.setVisemes(withRestMouth(mouth, pose.rest));
+    const gesture = (this.gesture = this.gestures.update(dt));
+    if (this.gestures.takeBlink()) this.blinker.trigger();
     this.blink = Math.max(this.blinker.update(dt), pose.squint);
     this.avatar.setBlink(this.blink);
     const idle = idlePose(this.elapsed);
     const tau = Math.PI * 2;
-    this.avatar.setHeadPose({
-      pitch: idle.pitch + pose.pitch + pose.bob * 0.05 * Math.sin(tau * 1.8 * this.elapsed),
+    this.head = {
+      pitch: idle.pitch + pose.pitch + gesture.pitch + pose.bob * 0.05 * Math.sin(tau * 1.8 * this.elapsed),
       yaw: idle.yaw + pose.yaw + pose.shake * 0.03 * Math.sin(tau * 9 * this.elapsed),
-      roll: idle.roll + pose.roll,
-    });
+      roll: idle.roll + pose.roll + gesture.roll,
+    };
+    this.avatar.setHeadPose(this.head);
     this.avatar.update(dt);
     this.applied = this.avatar.appliedVisemes?.() ?? mouth;
   }

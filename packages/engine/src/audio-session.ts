@@ -16,6 +16,8 @@ export class AudioSession {
   private ls?: MouthDriver;
   private setup?: Promise<{ ctx: AudioContext; ls: MouthDriver }>;
   private mic?: { stop(): void };
+  private micAnalyser?: AnalyserNode;
+  private micWindowBuffer?: Float32Array<ArrayBuffer>;
   /** Which mouth driver is running, once audio has started. */
   mouthKind?: "wlipsync" | "amplitude";
   private fileSource?: AudioBufferSourceNode;
@@ -108,12 +110,26 @@ export class AudioSession {
     const { ctx, ls } = await this.ensure();
     const mic = await openMic(ctx);
     ls.connect(mic.source); // not routed to speakers, so no feedback
+    const analyser = ctx.createAnalyser(); // a second tap on the mic, read for prosody; it too goes nowhere
+    analyser.fftSize = 2048;
+    mic.source.connect(analyser);
+    this.micAnalyser = analyser;
+    this.micWindowBuffer = new Float32Array(analyser.fftSize);
     this.mic = mic;
   }
 
   stopMic(): void {
     this.mic?.stop();
     this.mic = undefined;
+    this.micAnalyser?.disconnect();
+    this.micAnalyser = undefined;
+  }
+
+  /** The latest ~40 ms of the mic and its sample rate, for prosody. Undefined when the mic is off. The array is reused. */
+  micWindow(): { samples: Float32Array; sampleRate: number } | undefined {
+    if (!this.micAnalyser || !this.micWindowBuffer || !this.ctx) return undefined;
+    this.micAnalyser.getFloatTimeDomainData(this.micWindowBuffer);
+    return { samples: this.micWindowBuffer, sampleRate: this.ctx.sampleRate };
   }
 
   /** Browsers may hold audio until the user interacts; call this from a click or key handler. */
