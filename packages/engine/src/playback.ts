@@ -105,6 +105,10 @@ export class Playback {
     if (out !== this.lastOutput) {
       this.lastOutput = out;
       this.cursor = 0; // a different clock: schedule afresh
+      // A time noted on the old clock (the page's, in the thousands of seconds, before sound is allowed) means nothing on the new
+      // one (the audio context's, counting from zero). A line not yet reported started would wait for "now >= firstStart" for
+      // about twenty minutes and never finish. What it had scheduled went to the old output; what is left is scheduled afresh.
+      for (const e of this.queue) if (!e.reportedStart) e.firstStart = undefined;
     }
     const lookahead = this.options.lookahead ?? 0.4;
     const lead = this.options.lead ?? 0.03;
