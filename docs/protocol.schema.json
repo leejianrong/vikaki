@@ -21,7 +21,8 @@
           "type": "string",
           "enum": [
             "driver",
-            "viewer"
+            "viewer",
+            "controller"
           ]
         },
         "token": {
@@ -60,7 +61,8 @@
           "type": "string",
           "enum": [
             "driver",
-            "viewer"
+            "viewer",
+            "controller"
           ]
         },
         "speech": {
@@ -173,8 +175,7 @@
       },
       "required": [
         "protocol_version",
-        "type",
-        "utterance_id"
+        "type"
       ],
       "additionalProperties": false
     },

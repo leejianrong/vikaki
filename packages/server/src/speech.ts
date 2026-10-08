@@ -102,7 +102,7 @@ export class SpeechEngine {
   /** Feed the driver's messages in here. */
   handle(message: Message): void {
     if (message.type === "utterance") this.onUtterance(message);
-    else if (message.type === "cancel") this.cancel(message.utterance_id, "cancelled", false);
+    else if (message.type === "cancel" && message.utterance_id !== undefined) this.cancel(message.utterance_id, "cancelled", false); // the hub expands an id-less cancel
   }
 
   /** The driver left: stop everything it had in flight. */

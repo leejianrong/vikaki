@@ -34,8 +34,8 @@ const common = {
 export const Hello = z.object({
   ...common,
   type: z.literal("hello"),
-  role: z.enum(["driver", "viewer"]),
-  /** Driver credential, required when the hub was started with a token. */
+  role: z.enum(["driver", "viewer", "controller"]),
+  /** Driver or controller credential, required when the hub was started with a token. */
   token: z.string().max(256).optional(),
   /** Free text such as "vikaki-cli/0.1", for logs. */
   client: z.string().max(64).optional(),
@@ -44,7 +44,7 @@ export const Hello = z.object({
 export const Welcome = z.object({
   ...common,
   type: z.literal("welcome"),
-  role: z.enum(["driver", "viewer"]),
+  role: z.enum(["driver", "viewer", "controller"]),
   /** The hub's speech engine, such as "kokoro" or "fake", or "off". For display. */
   speech: z.string().max(64).optional(),
   /** The default voice of that engine, such as "af_heart". For display. */
@@ -72,7 +72,8 @@ export const Utterance = z
   .refine((m) => (m.text === undefined) !== (m.delta === undefined), { message: "send exactly one of `text` or `delta`" })
   .refine((m) => m.text === undefined || m.final === undefined, { message: "`final` only goes with `delta`" });
 
-export const Cancel = z.object({ ...common, type: z.literal("cancel"), utterance_id: id });
+/** Without `utterance_id`, stop everything that is speaking or queued. */
+export const Cancel = z.object({ ...common, type: z.literal("cancel"), utterance_id: id.optional() });
 export const TurnStarted = z.object({ ...common, type: z.literal("turn_started"), seat_id: id });
 export const TurnEnded = z.object({ ...common, type: z.literal("turn_ended"), seat_id: id });
 export const GameOver = z.object({ ...common, type: z.literal("game_over"), outcome: z.enum(OUTCOMES), seat_id: id.optional() });
@@ -145,6 +146,8 @@ export type MessageOf<T extends MessageType> = Extract<Message, { type: T }>;
 
 /** What each role may send after `hello`. The hub enforces this. `audio` is sent by the hub only. */
 export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over"];
+/** A controller is not a driver: it never holds the driver slot and may only stop speech (`vikaki cancel`). */
+export const CONTROLLER_MAY_SEND: readonly MessageType[] = ["cancel"];
 export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error"];
 
 export type ParseResult = { ok: true; message: Message } | { ok: false; code: ErrorCode; message: string };

@@ -5,6 +5,7 @@ JSON text messages over a WebSocket at `ws://127.0.0.1:<port>/ws`. Every message
 ## Roles
 
 - **Driver**: the thing that decides what is said (a game, an LLM, a script). Only one at a time; a second gets `driver_busy`.
+- **Controller**: a side channel for `vikaki cancel`. Never holds the driver slot, receives nothing, may send only `cancel`, and needs the driver token if there is one (ADR-0014).
 - **Viewer**: an avatar page that plays what the driver sends and reports back. Any number.
 
 The first message on a connection must be `hello`; the hub answers `welcome`.
@@ -14,12 +15,14 @@ The first message on a connection must be `hello`; the hub answers `welcome`.
 { "protocol_version": 1, "type": "welcome", "role": "driver" }
 ```
 
+`role` is `driver`, `viewer` or `controller`.
+
 ## Driver sends
 
 | type | fields | notes |
 | --- | --- | --- |
 | `utterance` | `seat_id`, `utterance_id`, `text` **or** `delta` (+ `final`), optional `emotion`, `intensity` (0..1), `persona`, `kind` (`banter`, `clue`, `table_talk`) | `text` is a whole line. For a line still being written, send `delta` chunks in order and end with `final: true`. |
-| `cancel` | `utterance_id` | Stop that line now. |
+| `cancel` | optional `utterance_id` | Stop that line now. Without an id, stop everything speaking or queued. A controller sends the same message. |
 | `turn_started` / `turn_ended` | `seat_id` | Lets the avatar switch to a thinking pose. |
 | `game_over` | `outcome` (`won`, `lost`, `drew`), optional `seat_id` | |
 
@@ -67,3 +70,7 @@ When the hub has a speech engine, it speaks each `utterance` and sends the resul
 - If a speech engine fails, the driver gets `error` with `code: "tts_failed"` and the `utterance_id`, and the utterance is cancelled.
 - **With no viewer connected** the hub plays the speech itself in real time and sends the driver the same `speech_started` and `speech_finished` (or `speech_interrupted`), so a game never waits on a face that is not there.
 - A viewer whose browser has not yet been allowed to make sound (no click yet) does the same: it keeps time silently and reports on schedule.
+
+## Event log and replay
+
+`vikaki serve --event-log run.jsonl` writes every message the hub sees, one JSON object per line: `{ "at": <ms>, "from": "driver"|"controller"|"viewer"|"hub", "to": "driver"|"viewers", "message": {...} }`. Audio keeps only `pcm_bytes`, not the samples. `vikaki replay run.jsonl [--speed N]` connects as the driver and sends the recorded driver and controller messages again, with their original gaps divided by N, then waits for the speech to finish. Through a hub with the same engine it produces the same event sequence.

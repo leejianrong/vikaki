@@ -7,6 +7,7 @@ import { SpeechEngine, type SpeechOptions } from "./speech.ts";
 
 export { Hub, type HubEvent, type HubOptions } from "./hub.ts";
 export { SpeechEngine, type SpeechObserver, type SpeechOptions, type SpeechTiming } from "./speech.ts";
+export { EventLog, readEventLog, type LoggedEvent } from "./event-log.ts";
 export { DebugRecorder, spectrogramPng } from "./debug/index.ts";
 export { analyse, classify, decodeWav, encodeWav, type SpeechMetrics, type Verdict } from "@vikaki/audio";
 

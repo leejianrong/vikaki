@@ -9,7 +9,7 @@ Trust the code over the docs where they disagree, then fix the docs.
 | Slice | State |
 |-------|-------|
 | V1 Mic to avatar to a real call | In progress. Done: V1.1 scaffold, V1.2 VRM avatar, V1.3 lip-sync spike (wLipSync, ADR-0007), V1.4 mic to lip sync, V1.5 blink and sway, a demo page, and V1.6 meeting extension for Meet (tested against a stand-in page only). Next: V1.7 and V1.8 need a human on the real call machine (flagged on the board) |
-| V2 LLM text driver and MCP | In progress. Done: V2.1 protocol, V2.2 hub, V2.3 TTS, V2.4 speech pipeline and page player, V2.5 lifecycle and cancel. Next: V2.6 CLI say/cancel/replay, V2.7 timing, V2.8 MCP |
+| V2 LLM text driver and MCP | In progress. Done: V2.1 protocol, V2.2 hub, V2.3 TTS, V2.4 speech pipeline and page player, V2.5 lifecycle and cancel, V2.6 CLI say/cancel/replay and the event log (PR open). Next: V2.7 timing, V2.8 MCP |
 | V3 Emotions and personas | Not started (the avatar's default brows are fine now: Cookieman is the default avatar) |
 | V4 Headless, container, MJPEG feed | Not started |
 | Observability, phases 0 to 3 (see below) | Phase 0 done (honest speech demo, install-voice, doctor, Material 3 UI). Phase 1 done. Phase 2 in progress: recorder and shared audio package merged (PR #14), timeline dock merged (PR #15), karaoke in PR C (docs/observability.md). Phase 3 next |
@@ -30,6 +30,7 @@ pnpm test:e2e                    # builds, then runs all Playwright tests (needs
 pnpm test:e2e:smoke              # the quick tagged subset CI runs on every PR (also `make e2e-smoke`)
 make demo                        # build, serve on a free port and open the demo page to judge the avatar by eye
 make install-voice               # install the real voice (Kokoro, ~410 MB) into .vikaki/voice; safe to repeat
+vikaki say "Hello" | cancel | replay f.jsonl   # drive a running `pnpm serve` (add --port N); `serve --event-log f.jsonl` records
 make doctor                      # check Node, build, port, voice, model; prints the exact fix for each problem
 make demo-speech                 # installs the voice if needed, then the speech demo: type text, hear the avatar say it
 make extension                   # build the browser extension into packages/extension/dist (see its README to load it)

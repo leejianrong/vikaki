@@ -44,13 +44,22 @@ importers:
 
   packages/cli:
     dependencies:
+      '@vikaki/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@vikaki/server':
         specifier: workspace:*
         version: link:../server
       '@vikaki/tts':
         specifier: workspace:*
         version: link:../tts
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
     devDependencies:
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
       vitest:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(tsx@4.23.15))
