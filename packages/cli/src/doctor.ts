@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { release } from "node:os";
 import { join } from "node:path";
+import { locateChromium, realChromiumEnv, type Located } from "@vikaki/render";
 import { findVoice, INSTALL_COMMAND, modelPath } from "./voice.ts";
 
 export interface Check {
@@ -19,6 +20,8 @@ export interface DoctorEnv {
   exists(path: string): boolean;
   /** Whether a TCP port can be bound on localhost. */
   portFree(port: number): Promise<boolean>;
+  /** Whether there is a browser for headless rendering (`vikaki stream`, `serve --headless`). */
+  renderer(): Promise<Located>;
 }
 
 /** Everything the doctor looks at, so it can be tested with a pretend machine. */
@@ -63,6 +66,13 @@ export async function runDoctor(d: DoctorEnv): Promise<Check[]> {
     );
   }
 
+  const renderer = await d.renderer();
+  checks.push(
+    renderer.ok
+      ? { name: "Headless renderer (Chromium)", status: "ok", detail: `found (${renderer.source}: ${renderer.path})` }
+      : { name: "Headless renderer (Chromium)", status: "warn", detail: `${renderer.problem}; only needed for \`vikaki stream\` and \`serve --headless\``, fix: renderer.fix },
+  );
+
   const wsl = /microsoft|wsl/i.test(d.platformRelease);
   checks.push(
     wsl
@@ -82,6 +92,7 @@ export const realDoctorEnv = async (): Promise<DoctorEnv> => {
     platformRelease: release(),
     exists: existsSync,
     portFree: async (port) => (await findFreePort(port, "127.0.0.1", 1).catch(() => -1)) === port,
+    renderer: () => locateChromium(realChromiumEnv),
   };
 };
 

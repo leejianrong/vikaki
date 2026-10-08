@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { DebugRecorder, EventLog, findFreePort, loadPersonas, PersonaError, startServer } from "@vikaki/server";
+import { HeadlessRenderer, RendererUnavailable } from "@vikaki/render";
 import { cancel, replay, say, type Io } from "./commands.ts";
 import { runMcp } from "./mcp.ts";
 import { hubUrl } from "./hub-client.ts";
@@ -16,6 +17,7 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
        vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
                     [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>] [--debug-dir <dir|off>]
                     [--event-log <file.jsonl>] [--personas <personas.yaml>]
+                    [--headless [--audio-only] [--gpu] [--chrome <path>]]
        vikaki say <text...> [--persona <name>] [--emotion <name>] [--think <seconds>]
                                      speak one line and wait until it is over; --think shows the avatar thinking first
        vikaki cancel [<utterance_id>]    stop what the avatar is saying (everything, or one line)
@@ -33,6 +35,9 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
   --debug-dir  save each spoken utterance (wav, spectrogram, metrics, text, timings) under <dir>.
              On by default for --speech-demo, into .vikaki/debug. "off" turns it off.
   --token    require this token from the driver (or set VIKAKI_TOKEN)
+  --headless  also open the avatar page in a hidden Chromium (one tab per persona), so lines are rendered with no one at a screen.
+             Needs the optional browser: \`make install-renderer\`. --audio-only opens audio-only pages that draw nothing;
+             --gpu uses the machine's GPU instead of software WebGL; --chrome (or VIKAKI_CHROME) names a browser to use.
   --personas  a personas file: named characters (avatar, voice, default emotion, style). A line naming a persona the file lacks is refused.
   --event-log  write every message the hub sees, one JSON object per line (audio as its size only). Feed it to \`vikaki replay\`.`;
 
@@ -93,6 +98,10 @@ async function serve(argv: string[]): Promise<void> {
       "debug-dir": { type: "string" },
       "event-log": { type: "string" },
       personas: { type: "string" },
+      headless: { type: "boolean", default: false },
+      "audio-only": { type: "boolean", default: false },
+      gpu: { type: "boolean", default: false },
+      chrome: { type: "string" },
     },
   });
   if (!["auto", "kokoro", "fake", "none"].includes(values.tts!)) {
@@ -140,6 +149,30 @@ async function serve(argv: string[]): Promise<void> {
   const url = values["speech-demo"] ? `${server.url}?demo=speech&live=1` : values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
   console.log(`vikaki serving ${url}`);
   console.log(`  drivers connect to ${server.wsUrl}${token ? " (token required)" : ""}; speech: ${tts ? tts.name : "off"}`);
+  let renderer: HeadlessRenderer | undefined;
+  if (values.headless) {
+    try {
+      if (values.chrome) process.env.VIKAKI_CHROME = values.chrome;
+      renderer = await HeadlessRenderer.launch({
+        pageUrl: server.url,
+        personas: personas ? personas.names : [undefined],
+        audioOnly: values["audio-only"],
+        gpu: values.gpu,
+        onPageError: (message, who) => console.error(`  headless${who ? ` (${who})` : ""}: page error: ${message}`),
+      });
+      console.log(`  headless: ${values["audio-only"] ? "audio-only" : "rendering"} ${personas ? personas.names.join(", ") : "one page for every line"}`);
+    } catch (err) {
+      await server.close();
+      await tts?.close?.();
+      console.error(err instanceof RendererUnavailable ? `cannot start the headless renderer: ${err.message}` : err);
+      process.exit(1);
+    }
+  } else if (values["audio-only"] || values.gpu || values.chrome) {
+    console.error("--audio-only, --gpu and --chrome only mean something with --headless");
+    await server.close();
+    await tts?.close?.();
+    process.exit(1);
+  }
   if (values.port === undefined && port !== 8787) console.log(`(8787 was busy, using ${port})`);
   if (debugDir) console.log(`  debug recordings: ${debugDir}`);
   if (personas) console.log(`  personas: ${personas.names.join(", ")}`);
@@ -154,6 +187,7 @@ async function serve(argv: string[]): Promise<void> {
     stopping = true;
     console.log("\nStopping...");
     await recorder?.flush();
+    await renderer?.close().catch(() => {}); // the hidden browser first, so it does not see the hub vanish
     await eventLog?.close();
     // the engine's worker is stopped too, after it has finished what it is in the middle of (stopping it mid-run can crash the process)
     const closed = Promise.all([server.close(), tts?.close?.()]).then(() => true, () => false);
