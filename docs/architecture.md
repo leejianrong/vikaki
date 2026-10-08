@@ -23,6 +23,7 @@ flowchart LR
 
   subgraph viewers["Viewers: play what the hub sends"]
     PAGE["Avatar page (browser)<br/>Three.js + VRM, lip sync,<br/>timeline dock, karaoke"]
+    AUDIO["Audio-only page<br/>?render=off: plays speech, draws nothing"]
     EXT["Meeting extension<br/>virtual camera in Meet"]
     HEAD["Headless renderer + MJPEG feed<br/>[V4]"]:::planned
   end
@@ -41,6 +42,8 @@ flowchart LR
   PAGE -- "speech_started / finished / interrupted" --> HUB
   HUB -- "speech events, errors" --> MCP
   HTTP --> PAGE
+  HUB -- "audio and events" --> AUDIO
+  AUDIO -- "speech events" --> HUB
   PAGE -- "canvas as camera" --> EXT
   PAGE -.-> HEAD
 

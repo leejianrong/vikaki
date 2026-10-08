@@ -14,6 +14,7 @@ interface Window {
     setEmotion(emotion: string | undefined, intensity?: number): void;
     setThinking(on: boolean): void;
     persona?: string;
+    audioOnly?: boolean;
     avatarUrl?: string;
     prosody?: { cues: { cue: string; t: number }[] };
     head?: { pitch: number; yaw: number; roll: number };
