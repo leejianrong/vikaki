@@ -8,10 +8,13 @@ Trust the code over the docs where they disagree, then fix the docs.
 
 | Slice | State |
 |-------|-------|
-| V1 Mic to avatar to a real call | In progress. Done: V1.1 scaffold, V1.2 VRM avatar, V1.3 lip-sync spike (wLipSync, ADR-0007), V1.4 mic to lip sync, V1.5 blink and sway, a demo page, and V1.6 meeting extension for Meet (tested against a stand-in page only). Next: V1.7 test it on the real call machine |
+| V1 Mic to avatar to a real call | In progress. Done: V1.1 scaffold, V1.2 VRM avatar, V1.3 lip-sync spike (wLipSync, ADR-0007), V1.4 mic to lip sync, V1.5 blink and sway, a demo page, and V1.6 meeting extension for Meet (tested against a stand-in page only). Next: V1.7 and V1.8 need a human on the real call machine (flagged on the board) |
 | V2 LLM text driver and MCP | In progress. Done: V2.1 protocol, V2.2 hub, V2.3 TTS, V2.4 speech pipeline and page player, V2.5 lifecycle and cancel. Next: V2.6 CLI say/cancel/replay, V2.7 timing, V2.8 MCP |
-| V3 Emotions and personas | Not started |
+| V3 Emotions and personas | Not started (the avatar's default brows are fine now: Cookieman is the default avatar) |
 | V4 Headless, container, MJPEG feed | Not started |
+| Observability, phases 0 to 3 (see below) | Phase 0 done (honest speech demo, install-voice, doctor, Material 3 UI). Phase 1 next |
+
+**Observability plan** (agreed with Jian): Phase 1 debug recorder (`--debug-dir`: per-utterance wav, spectrogram PNG, metrics JSON, text, timings) and a speech-versus-buzz gate as a test; Phase 2 live and per-utterance spectrograms, karaoke highlight on the current word (estimated word timings; Kokoro's ONNX model outputs only a waveform), a timeline view; Phase 3 phoneme-driven lip sync scored by a lip-sync scorecard. A testing strategy (layers, local vs CI vs nightly, no fixed sleeps, millisecond budgets only off CI) was proposed and is to be written to `docs/testing.md`.
 
 ## Commands
 
