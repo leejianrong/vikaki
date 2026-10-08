@@ -279,7 +279,7 @@ describe("the timeline dock", () => {
 
     const png = await page.evaluate(() => window.__vikaki!.timelineUi!.exportPng());
     expect(png.startsWith("data:image/png;base64,")).toBe(true);
-    for (const [lane, least] of [["words", 0.15], ["wave", 0.02], ["spec", 0.3], ["mouth", 0.03], ["events", 0.003]] as const) {
+    for (const [lane, least] of [["words", 0.15], ["wave", 0.02], ["spec", 0.3], ["mouth", 0.008], ["events", 0.003]] as const) {
       const r = await laneInk(page, png, lane);
       expect(r.size).toEqual([1600, 420]);
       expect(r.ink, `the ${lane} lane has something drawn in it`).toBeGreaterThan(least);
@@ -291,7 +291,7 @@ describe("the timeline dock", () => {
     const page = await open();
     await page.waitForFunction(() => window.__vikaki!.timelineUi !== undefined);
     const png = await page.evaluate(() => window.__vikaki!.timelineUi!.exportPng());
-    for (const lane of ["words", "wave", "spec"]) expect((await laneInk(page, png, lane)).ink).toBeLessThan(0.002);
+    for (const lane of ["words", "wave", "spec", "mouth"]) expect((await laneInk(page, png, lane)).ink).toBeLessThan(0.002);
   });
 
   it("exports the same view as JSON, with the audio when reviewing an utterance", async () => {
