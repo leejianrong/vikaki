@@ -5,6 +5,7 @@ Record the licence here before committing any asset.
 | File | What | Source | Licence |
 | --- | --- | --- | --- |
 | `public/avatars/cookieman.vrm` | "Cookieman" gingerbread avatar, 100Avatars R1 #098, VRM 0.x. Default avatar | [ToxSam/open-source-avatars](https://github.com/ToxSam/open-source-avatars), collection `100avatars-r1` | CC0 (declared in the registry's `projects.json` and embedded in the VRM's own metadata: licenseName `CC0`, allowedUser `Everyone`, commercial `Allow`) |
+| `public/avatars/snowy.vrm` | "Snowy" snowman avatar, 100Avatars R1 #097 (author Polygonal Mind), VRM 0.x. The second persona look (ben) | [ToxSam/open-source-avatars](https://github.com/ToxSam/open-source-avatars), collection `100avatars-r1`, file `097_Snowy.vrm` | CC0 (declared for `100avatars-r1` in the registry's `projects.json` and embedded in the VRM's own metadata: licenseName `CC0`, allowedUser `Everyone`, commercial `Allow`). Downloaded 2026-10-08, 1.6 MB; has the five vowel blendshapes `a e i o u` and `blink` |
 
 The VRM has the five vowel blendshapes `a e i o u` and `blink`, which three-vrm exposes as `aa ih ou ee oh blink`.
 

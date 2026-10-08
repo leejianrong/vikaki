@@ -1,6 +1,6 @@
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
-import { Box3, Vector3, type Object3D } from "three";
+import { Box3, Vector3, type Mesh, type Object3D } from "three";
 import { VISEMES, type AvatarRenderer, type HeadPose, type VisemeWeights } from "./renderer.ts";
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -32,8 +32,9 @@ export class VrmAvatar implements AvatarRenderer {
   }
 
   /**
-   * World height of the eyes: the eye bones if the model has them, otherwise 55% of the way
-   * from the head bone to the top of the model, which is where eyes sit on most characters.
+   * World height of the eyes: the eye bones if the model has them, otherwise where its blink shape moves the eyelids,
+   * otherwise 55% of the way from the head bone to the top of the model. (The last is a poor guess for a character in a tall
+   * hat: Snowy's face was cropped.)
    */
   eyeLevel(): number {
     this.vrm.scene.updateMatrixWorld(true);
@@ -42,9 +43,44 @@ export class VrmAvatar implements AvatarRenderer {
       .filter((n): n is NonNullable<typeof n> => n != null)
       .map((n) => n.getWorldPosition(new Vector3()).y);
     if (eyes.length > 0) return eyes.reduce((a, b) => a + b, 0) / eyes.length;
+    const fromBlink = this.blinkEyeLevel();
+    if (fromBlink !== undefined) return fromBlink;
     const headY = this.headPosition().y;
     const top = new Box3().setFromObject(this.vrm.scene).max.y;
     return headY + 0.55 * (top - headY);
+  }
+
+  /**
+   * World height of the eyes, read from the model: the blink expression moves the eyelid vertices and nothing else, so their
+   * average height is where the eyes are, whatever hat or hair sits above. Undefined if the model has no usable blink shape.
+   */
+  blinkEyeLevel(): number | undefined {
+    const blink = this.vrm.expressionManager?.getExpression("blink");
+    if (!blink) return undefined;
+    this.vrm.scene.updateMatrixWorld(true);
+    const v = new Vector3();
+    let sum = 0;
+    let count = 0;
+    for (const b of blink.binds) {
+      const bind = b as unknown as { primitives?: Mesh[]; index?: number };
+      if (!bind.primitives || bind.index === undefined) continue;
+      for (const mesh of bind.primitives) {
+        const base = mesh.geometry.getAttribute("position");
+        const morph = mesh.geometry.morphAttributes.position?.[bind.index];
+        if (!base || !morph) continue;
+        for (let i = 0; i < base.count; i++) {
+          // relative morph targets store the offset; absolute ones store the moved position
+          const dx = mesh.geometry.morphTargetsRelative ? morph.getX(i) : morph.getX(i) - base.getX(i);
+          const dy = mesh.geometry.morphTargetsRelative ? morph.getY(i) : morph.getY(i) - base.getY(i);
+          const dz = mesh.geometry.morphTargetsRelative ? morph.getZ(i) : morph.getZ(i) - base.getZ(i);
+          if (Math.hypot(dx, dy, dz) < 1e-4) continue;
+          v.fromBufferAttribute(base, i).applyMatrix4(mesh.matrixWorld);
+          sum += v.y;
+          count++;
+        }
+      }
+    }
+    return count > 0 ? sum / count : undefined;
   }
 
   /** Where the eye bones were found, for diagnostics. */

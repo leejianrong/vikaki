@@ -436,3 +436,60 @@ describe("a controller (vikaki cancel)", () => {
     expect(seen.at(-1)).toMatchObject({ type: "cancel", utterance_id: "a" });
   });
 });
+
+describe("viewers that show one persona", () => {
+  const join = async (url: string, persona?: string) => {
+    const v = await Client.join(url, "viewer", persona ? { persona } : {});
+    clients.push(v);
+    await v.next();
+    return v;
+  };
+
+  it("sends the line to viewers, and the driver hears from the one that plays it", async () => {
+    server = await startServer({ staticDir: dir, speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: 5, chunkMs: 100 }) } });
+    const ada = await join(server.wsUrl, "ada");
+    const driver = await Client.join(server.wsUrl, "driver");
+    clients.push(driver);
+    await driver.next();
+    driver.send(utterance({ utterance_id: "u1", text: "Hi.", persona: "ada" }));
+    await readUntil(ada, isFinal);
+    ada.send(make("speech_started", { utterance_id: "u1" }));
+    ada.send(make("speech_finished", { utterance_id: "u1" }));
+    expect(await readUntil(driver, (m) => m.type === "speech_finished")).toEqual(expect.arrayContaining([expect.objectContaining({ type: "speech_started" })]));
+  });
+
+  it("does not hang the driver when no page shows the line's persona: the hub keeps time itself", async () => {
+    server = await startServer({ staticDir: dir, speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: 5, chunkMs: 100 }) } });
+    const ada = await join(server.wsUrl, "ada"); // only ada's page is open
+    const driver = await Client.join(server.wsUrl, "driver");
+    clients.push(driver);
+    await driver.next();
+    driver.send(utterance({ utterance_id: "u1", text: "Hello from ben.", persona: "ben" }));
+    const seen = await readUntil(driver, (m) => m.type === "speech_finished");
+    expect(seen.map((m) => m.type)).toEqual(["speech_started", "speech_finished"]);
+    expect(ada.inbox.some((m) => m.type === "audio")).toBe(false); // nobody to play it, so no audio was sent
+  });
+
+  it("a page with no persona shows every line, so one avatar still serves all of them", async () => {
+    server = await startServer({ staticDir: dir, speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: 5, chunkMs: 100 }) } });
+    const any = await join(server.wsUrl);
+    const driver = await Client.join(server.wsUrl, "driver");
+    clients.push(driver);
+    await driver.next();
+    driver.send(utterance({ utterance_id: "u1", text: "Hi.", persona: "ben" }));
+    const got = await readUntil(any, isFinal);
+    expect(audioOf(got, "u1").length).toBeGreaterThan(0);
+  });
+
+  it("counts the page again as a viewer for the persona's lines once it leaves and another joins", async () => {
+    server = await startServer({ staticDir: dir, speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: 5, chunkMs: 100 }) } });
+    const ada = await join(server.wsUrl, "ada");
+    ada.close();
+    await until(() => server!.hub.viewerCount === 0);
+    const driver = await Client.join(server.wsUrl, "driver");
+    clients.push(driver);
+    await driver.next();
+    driver.send(utterance({ utterance_id: "u1", text: "Hi.", persona: "ada" }));
+    expect((await readUntil(driver, (m) => m.type === "speech_finished")).map((m) => m.type)).toContain("speech_started");
+  });
+});

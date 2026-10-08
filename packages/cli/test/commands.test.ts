@@ -80,10 +80,10 @@ describe("vikaki say", () => {
     const viewer = new WebSocket(url);
     await new Promise((ok) => viewer.once("open", ok));
     viewer.send(JSON.stringify({ protocol_version: 1, type: "hello", role: "viewer" }));
-    const seen: { type: string; at: number }[] = [];
+    const seen: { type: string; at: number; persona?: string }[] = [];
     viewer.on("message", (d) => {
       const m = JSON.parse(d.toString());
-      if (["turn_started", "turn_ended", "utterance"].includes(m.type)) seen.push({ type: m.type, at: Date.now() });
+      if (["turn_started", "turn_ended", "utterance"].includes(m.type)) seen.push({ type: m.type, at: Date.now(), persona: m.persona });
       if (m.type === "utterance") {
         const send = (o: object) => viewer.send(JSON.stringify({ protocol_version: 1, utterance_id: m.utterance_id, ...o }));
         send({ type: "speech_started" });
@@ -91,9 +91,10 @@ describe("vikaki say", () => {
       }
     });
     const { io } = quiet();
-    expect(await say({ url, text: "Hi.", thinkSeconds: 0.4 }, io)).toBe(0);
+    expect(await say({ url, text: "Hi.", thinkSeconds: 0.4, persona: "ada" }, io)).toBe(0);
     viewer.close();
     expect(seen.map((s) => s.type)).toEqual(["turn_started", "turn_ended", "utterance"]);
+    expect(seen.map((s) => s.persona)).toEqual(["ada", "ada", "ada"]); // whose turn it is, so a page showing one persona can tell
     expect(seen[1]!.at - seen[0]!.at).toBeGreaterThanOrEqual(350); // it really waited
   });
 

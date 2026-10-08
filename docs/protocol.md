@@ -8,6 +8,8 @@ JSON text messages over a WebSocket at `ws://127.0.0.1:<port>/ws`. Every message
 - **Controller**: a side channel for `vikaki cancel`. Never holds the driver slot, receives nothing, may send only `cancel`, and needs the driver token if there is one (ADR-0014).
 - **Viewer**: an avatar page that plays what the driver sends and reports back. Any number.
 
+A viewer may name the persona it shows in `hello` (`"persona": "ada"`): it then plays only that persona's lines, and the hub keeps time itself for a line whose persona no open viewer shows ([personas.md](personas.md)).
+
 The first message on a connection must be `hello`; the hub answers `welcome`.
 
 ```json
@@ -23,7 +25,7 @@ The first message on a connection must be `hello`; the hub answers `welcome`.
 | --- | --- | --- |
 | `utterance` | `seat_id`, `utterance_id`, `text` **or** `delta` (+ `final`), optional `emotion`, `intensity` (0..1), `persona`, `kind` (`banter`, `clue`, `table_talk`) | `text` is a whole line. For a line still being written, send `delta` chunks in order and end with `final: true`. |
 | `cancel` | optional `utterance_id` | Stop that line now. Without an id, stop everything speaking or queued. A controller sends the same message. |
-| `turn_started` / `turn_ended` | `seat_id` | While a turn is on, the avatar looks thoughtful (head tipped, a bubble of dots). A line that starts ends it; a driver that never sends `turn_ended` is cleared after 30 s. `vikaki say --think 2` does this before speaking. |
+| `turn_started` / `turn_ended` | `seat_id`, optional `persona` | While a turn is on, the avatar looks thoughtful (head tipped, a bubble of dots). A line that starts ends it; a driver that never sends `turn_ended` is cleared after 30 s. `vikaki say --think 2` does this before speaking. `persona` says whose turn it is: a page showing one persona ignores other personas' turns (and turns that name nobody). |
 | `game_over` | `outcome` (`won`, `lost`, `drew`), optional `seat_id` | |
 
 `emotion` is one of `neutral`, `happy`, `smug`, `worried`, `surprised`, `sad`, `angry`. Anything else, or nothing, is `neutral`; it is never an error (the hub logs a warning for an unknown name). `intensity` scales it from 0 to 1 and defaults to 1. The page shows it while the line is heard and relaxes shortly after; ADR-0015 says how it looks.

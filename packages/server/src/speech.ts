@@ -231,7 +231,7 @@ export class SpeechEngine {
     if (chunk.samples.length === 0) return;
     if (!u.spoken) {
       u.spoken = true;
-      u.virtual = (this.hub?.viewerCount ?? 0) === 0;
+      u.virtual = (this.hub?.viewerCountFor(u.persona) ?? 0) === 0;
       this.o.onTiming?.({ utterance_id: u.id, textAt: u.textAt, firstAudioAt: Date.now() });
       if (u.virtual) {
         u.virtualStart = Date.now();

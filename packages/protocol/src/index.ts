@@ -39,6 +39,8 @@ export const Hello = z.object({
   token: z.string().max(256).optional(),
   /** Free text such as "vikaki-cli/0.1", for logs. */
   client: z.string().max(64).optional(),
+  /** A viewer that shows one persona says so: it plays only that persona's lines. Without it, a viewer plays every line. */
+  persona: z.string().min(1).max(64).optional(),
 });
 
 export const Welcome = z.object({
@@ -76,8 +78,9 @@ export const Utterance = z
 
 /** Without `utterance_id`, stop everything that is speaking or queued. */
 export const Cancel = z.object({ ...common, type: z.literal("cancel"), utterance_id: id.optional() });
-export const TurnStarted = z.object({ ...common, type: z.literal("turn_started"), seat_id: id });
-export const TurnEnded = z.object({ ...common, type: z.literal("turn_ended"), seat_id: id });
+/** `persona` says whose turn it is, so a page showing one persona can tell; a page showing everyone ignores it. */
+export const TurnStarted = z.object({ ...common, type: z.literal("turn_started"), seat_id: id, persona: z.string().min(1).max(64).optional() });
+export const TurnEnded = z.object({ ...common, type: z.literal("turn_ended"), seat_id: id, persona: z.string().min(1).max(64).optional() });
 export const GameOver = z.object({ ...common, type: z.literal("game_over"), outcome: z.enum(OUTCOMES), seat_id: id.optional() });
 
 // ---- back to the driver, reported by whoever plays the audio ----
