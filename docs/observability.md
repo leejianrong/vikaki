@@ -87,7 +87,7 @@ It sits behind the `WordTimer` type (`(text, samples, rate) => {word, start, end
 
 **When the words arrive.** A sentence can only be timed once all of its audio is there, so the hub now sends an empty audio message with `sentence_end: true` right after each sentence's last slice (docs/protocol.md). The page times the sentence then, which is before it is heard. A voice that streams a sentence as it generates it (the test voice in real time) delivers the whole sentence only at its end, so the first words are timed late; Kokoro returns each sentence whole, so it is on time.
 
-**Limits.** The microphone has no audio lane (the recorder only sees speech played from the hub). The spectrogram of a very long utterance is computed in one go on first view, which can pause the page briefly. 
+**Limits.** The microphone has no audio lane (the recorder only sees speech played from the hub). 
 
 ## What this cannot tell you
 ## What this cannot tell you
@@ -97,3 +97,5 @@ It cannot say whether speech sounds good or is the right words, only that it is 
 **First-speech freeze under software WebGL.** In headless Chromium with software WebGL (what CI and the e2e suite use), the page freezes for about 0.7 to 1 s shortly after the first speech starts: a trace (`scripts/probe-trace.ts`) shows one main-thread task of about 800 ms with 4 ms of JavaScript in it and a 714 ms GPU task beside it, plus about 200 ms of timeline-dock drawing. On a real GPU the same work is a few milliseconds. The karaoke dot and the display of a short word can skip during that freeze, so the karaoke e2e only excuses a missed word when a freeze overlaps that word (`scripts/probe-jank.ts` measures the gaps). Related: KAN-1963 (long spectrograms are drawn in one go).
 
 **Framing without eye bones.** Neither bundled avatar has eye bones. Framing used to guess the eye line as 55% of the way from the head bone to the top of the model, which cropped Snowy (the top hat is counted). It now reads the eye line from the model: the blink expression moves only the eyelid vertices, so their average height is where the eyes are (`VrmAvatar.blinkEyeLevel`). Cookieman moves about 2.5 cm; Snowy about 10 cm.
+
+**Spectrograms of long lines.** The dock used to compute every 8 ms frame of a line the first time it was drawn: 85 ms for 30 s of speech, 320 ms for two minutes, 1.5 s for ten minutes (`scripts/probe-spectrogram.ts`). It now computes only the frames the picture's columns need (about one per pixel column) and a bounded scan for the loudest frame that sets the colour scale (exact up to 600 frames, an even spread plus the loudest sample's neighbourhood beyond that), so a ten-minute line draws in about 70 ms like a short one, and a redraw of the same view computes nothing.

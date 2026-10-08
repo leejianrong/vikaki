@@ -112,32 +112,78 @@ export function waveformColumns(signals: Signal[], v: View, columns: number): { 
 const SPEC_WINDOW = 512;
 const SPEC_RANGE_DB = 70;
 const SPEC_MAX_HZ = 8000;
-interface Levels {
-  stft: Stft;
-  /** 0 to 255 per (frame, bin up to 8 kHz). */
-  levels: Uint8Array;
-  bins: number;
+/** How many frames the scan for the loudest one looks at, at most. Under this many frames in a line, it looks at every one. */
+const PEAK_SCAN_FRAMES = 600;
+/** Frames kept per line before the oldest are forgotten (a line scrolled through for a long while would otherwise keep them all). */
+const FRAME_CACHE_LIMIT = 6000;
+
+/** How much work the spectrogram has done, for tests: the number of frames (Fourier transforms) computed so far. */
+export const spectrogramStats = { frames: 0 };
+
+interface SpecSource {
   hop: number;
+  frames: number;
+  bins: number;
+  binHz: number;
+  /** The loudest magnitude: what the dB scale is relative to. */
+  top: number;
+  /** 0 to 255 per bin up to 8 kHz, by frame number. */
+  cache: Map<number, Uint8Array>;
 }
-const levelCache = new WeakMap<Float32Array, Levels>();
-function levelsOf(s: Signal): Levels {
-  const cached = levelCache.get(s.samples);
-  if (cached) return cached;
+
+/** The magnitudes of one frame (window `SPEC_WINDOW` samples, starting at `frame * hop`). */
+function frameMagnitudes(s: Signal, hop: number, frame: number): { mag: Float32Array; bins: number; binHz: number } {
+  spectrogramStats.frames++;
+  const t = stft(s.samples.subarray(frame * hop, frame * hop + SPEC_WINDOW), s.rate, SPEC_WINDOW, SPEC_WINDOW);
+  return { mag: t.mag, bins: t.bins, binHz: t.binHz };
+}
+
+const sources = new WeakMap<Float32Array, SpecSource>();
+function sourceOf(s: Signal): SpecSource {
+  const known = sources.get(s.samples);
+  if (known) return known;
   const hop = Math.max(1, Math.round(s.rate * 0.008));
-  const t = stft(s.samples, s.rate, SPEC_WINDOW, hop);
-  const bins = Math.min(t.bins, Math.floor(SPEC_MAX_HZ / t.binHz) + 1);
-  let top = 1e-9;
-  for (let f = 0; f < t.frames; f++) for (let k = 0; k < bins; k++) top = Math.max(top, t.mag[f * t.bins + k]!);
-  const levels = new Uint8Array(t.frames * bins);
-  for (let f = 0; f < t.frames; f++) {
-    for (let k = 0; k < bins; k++) {
-      const db = 20 * Math.log10(Math.max(t.mag[f * t.bins + k]!, 1e-9) / top);
-      levels[f * bins + k] = Math.round(Math.min(1, Math.max(0, 1 + db / SPEC_RANGE_DB)) * 255);
+  const frames = s.samples.length < SPEC_WINDOW ? 0 : 1 + Math.floor((s.samples.length - SPEC_WINDOW) / hop);
+  const binHz = s.rate / SPEC_WINDOW;
+  const bins = Math.min(SPEC_WINDOW / 2 + 1, Math.floor(SPEC_MAX_HZ / binHz) + 1);
+  // The loudest frame sets the scale. Looking at every frame of a ten-minute line was the slow part, so beyond PEAK_SCAN_FRAMES
+  // it looks at an even spread of them, plus the frames around the loudest sample. (Up to that many frames it is exact.)
+  const wanted = new Set<number>();
+  const stride = Math.max(1, Math.floor(frames / PEAK_SCAN_FRAMES));
+  for (let f = 0; f < frames; f += stride) wanted.add(f);
+  if (stride > 1) {
+    let loudest = 0;
+    let at = 0;
+    for (let i = 0; i < s.samples.length; i += 16) {
+      const v = Math.abs(s.samples[i]!);
+      if (v > loudest) (loudest = v), (at = i);
     }
+    const centre = Math.min(frames - 1, Math.max(0, Math.round((at - SPEC_WINDOW / 2) / hop)));
+    for (let d = -12; d <= 12; d++) if (centre + d >= 0 && centre + d < frames) wanted.add(centre + d);
   }
-  const out = { stft: t, levels, bins, hop };
-  levelCache.set(s.samples, out);
-  return out;
+  let top = 1e-9;
+  for (const f of wanted) {
+    const m = frameMagnitudes(s, hop, f);
+    for (let k = 0; k < bins; k++) top = Math.max(top, m.mag[k]!);
+  }
+  const source: SpecSource = { hop, frames, bins, binHz, top, cache: new Map() };
+  sources.set(s.samples, source);
+  return source;
+}
+
+/** One frame as levels (0 to 255), computed the first time it is asked for. */
+function levelsOf(s: Signal, source: SpecSource, frame: number): Uint8Array {
+  const cached = source.cache.get(frame);
+  if (cached) return cached;
+  const m = frameMagnitudes(s, source.hop, frame);
+  const levels = new Uint8Array(source.bins);
+  for (let k = 0; k < source.bins; k++) {
+    const db = 20 * Math.log10(Math.max(m.mag[k]!, 1e-9) / source.top);
+    levels[k] = Math.round(Math.min(1, Math.max(0, 1 + db / SPEC_RANGE_DB)) * 255);
+  }
+  if (source.cache.size >= FRAME_CACHE_LIMIT) source.cache.delete(source.cache.keys().next().value as number);
+  source.cache.set(frame, levels);
+  return levels;
 }
 
 const RAMP = (() => {
@@ -151,14 +197,15 @@ export function spectrogramPixels(signals: Signal[], v: View, columns: number, r
   const px = new Uint8ClampedArray(columns * rows * 4);
   const span = v.toMs - v.fromMs;
   for (const s of signals) {
-    const l = levelsOf(s);
+    const l = sourceOf(s);
     for (let c = 0; c < columns; c++) {
       const t = v.fromMs + ((c + 0.5) * span) / columns;
       const frame = Math.round(((t - s.startMs) / 1000) * (s.rate / l.hop) - SPEC_WINDOW / 2 / l.hop);
-      if (frame < 0 || frame >= l.stft.frames) continue;
+      if (frame < 0 || frame >= l.frames) continue;
+      const levels = levelsOf(s, l, frame);
       for (let r = 0; r < rows; r++) {
         const bin = Math.min(l.bins - 1, Math.floor((1 - (r + 0.5) / rows) * l.bins));
-        const level = l.levels[frame * l.bins + bin]!;
+        const level = levels[bin]!;
         const at = (r * columns + c) * 4;
         px[at] = RAMP[level * 3]!;
         px[at + 1] = RAMP[level * 3 + 1]!;
