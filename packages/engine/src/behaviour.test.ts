@@ -44,14 +44,17 @@ describe("Blinker", () => {
     for (let seed = 1; seed <= 200; seed++) expect(blinkStarts(seed, 10).starts.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("fully closes at 30, 60 and 144 fps, stays within [0, 1], and every blink reopens", () => {
-    for (const fps of [30, 60, 144]) {
+  it("fully closes at any frame rate from 3 to 144 fps, stays within [0, 1], and every blink reopens", () => {
+    for (const fps of [3, 5, 12, 30, 60, 144]) {
       for (let seed = 1; seed <= 20; seed++) {
         const { starts, peak, returns, openFraction } = blinkStarts(seed, 30, fps);
         expect(peak).toBe(1);
         // Every blink returns to fully open; the last one may still be in progress when sampling stops.
         expect(returns).toBeGreaterThanOrEqual(starts.length - 1);
-        expect(openFraction).toBeGreaterThan(0.9); // eyes are open most of the time
+        // Eyes are open most of the time. At 3 to 5 fps a blink spans whole frames, so the
+        // frame-counted fraction is coarse; the guarantees there are the peak and the reopening.
+        if (fps >= 12) expect(openFraction).toBeGreaterThan(0.9);
+        else expect(openFraction).toBeGreaterThan(0.8);
       }
     }
   });

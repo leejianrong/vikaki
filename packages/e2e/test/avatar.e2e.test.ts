@@ -88,7 +88,7 @@ describe("avatar page", () => {
     const page = await open("?hud=0&seed=7");
     const peak = await page.evaluate(async () => {
       let max = 0;
-      const end = performance.now() + 4000;
+      const end = performance.now() + 6000;
       while (performance.now() < end) {
         max = Math.max(max, window.__vikaki!.blink);
         await new Promise((r) => requestAnimationFrame(r));

@@ -31,6 +31,7 @@ export class Blinker {
   blinks = 0;
   private untilNext: number;
   private sinceStart: number | null = null;
+  private closedShown = false;
 
   constructor(private readonly rng: Rng) {
     this.untilNext = between(rng, FIRST_BLINK.min, FIRST_BLINK.max);
@@ -46,11 +47,18 @@ export class Blinker {
       this.untilNext -= dt;
       if (this.untilNext > 0) return 0;
       this.sinceStart = -this.untilNext; // carry the overshoot into the blink
+      this.closedShown = false;
       this.blinks += 1;
     } else {
       this.sinceStart += dt;
     }
     const t = this.sinceStart;
+    // However slow the frame rate, show fully shut at least once per blink. Without this, a
+    // frame gap longer than the blink makes it vanish.
+    if (!this.closedShown && t >= CLOSE_SECONDS) {
+      this.closedShown = true;
+      return 1;
+    }
     if (t >= BLINK_SECONDS) {
       this.sinceStart = null;
       this.untilNext = between(this.rng, BLINK_INTERVAL.min, BLINK_INTERVAL.max);
