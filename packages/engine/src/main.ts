@@ -1,9 +1,8 @@
-import { Box3, Clock, DirectionalLight, AmbientLight, PerspectiveCamera, Scene, WebGLRenderer } from "three";
+import { Clock } from "three";
 import { VrmAvatar } from "./vrm-avatar.ts";
 import { AudioSession } from "./audio-session.ts";
-import { Blinker, idlePose, mulberry32 } from "./behaviour.ts";
 import { mountDemoPanel } from "./demo-panel.ts";
-import { frameFromEyeLevel } from "./framing.ts";
+import { createStage, frameAvatar, Puppet } from "./stage.ts";
 import type { VisemeWeights } from "./renderer.ts";
 
 const params = new URLSearchParams(location.search);
@@ -14,26 +13,8 @@ const say = (text: string) => {
 };
 
 const canvas = document.getElementById("stage") as HTMLCanvasElement;
-const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-const scene = new Scene();
-scene.add(new AmbientLight(0xffffff, 1.6));
-const key = new DirectionalLight(0xffffff, 1.4);
-key.position.set(1, 2, 2);
-scene.add(key);
-
-const camera = new PerspectiveCamera(28, 1, 0.1, 20);
-
-function resize() {
-  const w = canvas.clientWidth || window.innerWidth;
-  const h = canvas.clientHeight || window.innerHeight;
-  renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-}
-new ResizeObserver(resize).observe(canvas);
-resize();
+const { renderer, scene, camera, resize } = createStage(canvas);
+new ResizeObserver(() => resize()).observe(canvas);
 
 /** Test and driver hook. */
 declare global {
@@ -66,14 +47,7 @@ const session = new AudioSession(`${baseUrl}profiles/default.bin`);
 try {
   const avatar = await VrmAvatar.load(avatarUrl);
   scene.add(avatar.scene);
-  // Camera at the avatar's eye level, looking straight ahead, so we are never looking up at it.
-  const head = avatar.headPosition();
-  const top = new Box3().setFromObject(avatar.scene).max.y;
-  const eyeY = avatar.eyeLevel();
-  const framing = frameFromEyeLevel(eyeY, head.y, top, camera.fov);
-  camera.position.set(head.x, framing.y, head.z + framing.distance);
-  camera.lookAt(head.x, framing.y, head.z);
-  api.eyeBones = avatar.hasEyeBones();
+  api.eyeBones = frameAvatar(camera, avatar).eyeBones;
 
   let manual: VisemeWeights = {};
   api.avatar = avatar;
@@ -81,7 +55,7 @@ try {
     manual = w;
   };
 
-  const blinker = new Blinker(mulberry32(seed));
+  const puppet = new Puppet(avatar, seed);
 
   /** Start the mic. A failure leaves the avatar idle with a visible error, never a frozen frame. */
   async function startMic(): Promise<void> {
@@ -109,7 +83,7 @@ try {
   const panel = demo
     ? mountDemoPanel({
         hold: (w) => (manual = w),
-        blink: () => blinker.trigger(),
+        blink: () => puppet.triggerBlink(),
         toggleMic: async () => (session.listening ? stopMic() : startMic()),
         playFile: async (f) => {
           panel?.status(`Playing ${f.name}…`);
@@ -130,15 +104,11 @@ try {
 
   const clock = new Clock();
   renderer.setAnimationLoop(() => {
-    const dt = clock.getDelta();
-    const held = Object.keys(manual).length > 0;
-    api.visemes = held ? manual : (session.lipsync?.weights ?? {});
-    avatar.setVisemes(api.visemes);
-    api.blink = blinker.update(dt);
-    api.blinks = blinker.blinks;
-    avatar.setBlink(api.blink);
-    avatar.setHeadPose(idlePose(clock.elapsedTime));
-    avatar.update(dt);
+    const mouth = Object.keys(manual).length > 0 ? manual : (session.lipsync?.weights ?? {});
+    puppet.update(clock.getDelta(), mouth);
+    api.visemes = puppet.visemes;
+    api.blink = puppet.blink;
+    api.blinks = puppet.blinks;
     renderer.render(scene, camera);
     panel?.update({ visemes: api.visemes, blink: api.blink, volume: session.lipsync?.volume ?? 0 });
   });

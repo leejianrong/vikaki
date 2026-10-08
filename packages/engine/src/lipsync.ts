@@ -1,4 +1,5 @@
-import { createWLipSyncNode, parseBinaryProfile, type WLipSyncAudioNode } from "wlipsync";
+import type { WLipSyncAudioNode } from "wlipsync";
+import type { MouthDriver } from "./mouth.ts";
 import type { VisemeWeights } from "./renderer.ts";
 import { toVisemeWeights } from "./viseme-map.ts";
 
@@ -6,14 +7,23 @@ import { toVisemeWeights } from "./viseme-map.ts";
  * Audio in, mouth shape weights out (ADR-0007). Connect any audio source (mic or TTS
  * playback) to `node`; read `weights` every frame. The node smooths and noise-gates itself.
  */
-export class LipSync {
+export class LipSync implements MouthDriver {
   private constructor(readonly node: WLipSyncAudioNode) {}
 
-  static async create(ctx: AudioContext, profileUrl: string): Promise<LipSync> {
-    const res = await fetch(profileUrl);
-    if (!res.ok) throw new Error(`could not load lip-sync profile ${profileUrl}: HTTP ${res.status}`);
-    const node = await createWLipSyncNode(ctx, parseBinaryProfile(await res.arrayBuffer()));
-    return new LipSync(node);
+  /** `profile` is a URL to fetch or the profile bytes themselves (when a page cannot fetch). */
+  static async create(ctx: AudioContext, profile: string | ArrayBuffer): Promise<LipSync> {
+    let bytes: ArrayBuffer;
+    if (typeof profile === "string") {
+      const res = await fetch(profile);
+      if (!res.ok) throw new Error(`could not load lip-sync profile ${profile}: HTTP ${res.status}`);
+      bytes = await res.arrayBuffer();
+    } else {
+      bytes = profile;
+    }
+    // Loaded on demand: the library compiles WASM at import time, which would delay anything that
+    // imports this file (the meeting extension must install its camera patch immediately).
+    const { createWLipSyncNode, parseBinaryProfile } = await import("wlipsync");
+    return new LipSync(await createWLipSyncNode(ctx, parseBinaryProfile(bytes)));
   }
 
   /** The source must not also be routed through this node to speakers; the node produces no audio. */

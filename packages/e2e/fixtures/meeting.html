@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>fake meeting</title>
+<video id="v" autoplay muted playsinline width="320" height="180"></video>
+<script>
+  // Stands in for a meeting site: asks for camera and mic the way Meet does.
+  window.join = async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const v = document.getElementById("v");
+    v.srcObject = stream;
+    await v.play();
+    window.stream = stream;
+    return {
+      devices: devices.map((d) => ({ kind: d.kind, label: d.label })),
+      videoLabel: stream.getVideoTracks()[0]?.label,
+      videoTracks: stream.getVideoTracks().length,
+      audioTracks: stream.getAudioTracks().length,
+      cameraPermission: (await navigator.permissions.query({ name: "camera" })).state,
+    };
+  };
+  // Share of pixels in the video frame that look like the gingerbread avatar's brown body.
+  window.brownShare = () => {
+    const v = document.getElementById("v");
+    const c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    const g = c.getContext("2d");
+    g.drawImage(v, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], gr = d[i + 1], b = d[i + 2];
+      if (r > 140 && r < 215 && gr > 85 && gr < 150 && b > 30 && b < 100 && r > gr && gr > b) n++;
+    }
+    const px = (x, y) => Array.from(g.getImageData(x, y, 1, 1).data);
+    return { share: n / (d.length / 4), width: c.width, height: c.height, corners: [px(4, 4), px(c.width - 5, 4), px(4, 60)] };
+  };
+</script>
