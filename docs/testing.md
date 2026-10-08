@@ -52,6 +52,23 @@ The nightly run records every test's duration (`nightly-timings` artefact) and `
 
 There is no dedicated performance machine. If that is ever needed, the options are a self-hosted runner on a developer machine (free, real numbers, only when it is on) or a rented dedicated-CPU server.
 
+## V2 test plan: where each item is covered
+
+The plan in `SLICES.md` (V2) maps onto these tests. Tests marked smoke run on every PR.
+
+| Plan item | Test |
+| --- | --- |
+| Jaw non-zero only between `speech_started` and `speech_finished`, for a line sent as three deltas | e2e `speech.e2e`: "opens the mouth only between ..."; the plain-text version is the smoke test "speaks a line" |
+| Cancel gives `speech_interrupted` within 300 ms and a neutral, idle mouth | e2e `speech.e2e`: "stops quickly when cancelled mid-speech" (the 400 ms budget is enforced off CI only, see STRICT_TIMING) |
+| Time to first audio is printed, not gated | e2e (smoke) "reports its own time to first audio and first mouth frame"; `vikaki say` and `vikaki serve` print it; `timings.json` has it for debug recordings |
+| A second driver gets `driver_busy` and is closed | `hub.test`: "refuses a second driver with driver_busy ..." |
+| Replaying a JSONL log reproduces the event sequence | `cli/commands.test`: "reproduces the same event sequence through a fresh hub" |
+| A TTS failure gives `error`, then idle, and the hub keeps working | `speech.test` (hub) and e2e (smoke) "reports a speech failure to the driver and carries on" |
+| An MCP `say` has the same event sequence as `vikaki say`; `cancel` interrupts it | `cli/mcp.test`: "produces the same event sequence ...", "cancel interrupts ..." |
+| The MCP server holds the single driver slot; a concurrent `vikaki say` gets `driver_busy` | `cli/mcp.test`: "holds the single driver slot ...", and the stdio test that it lets go when the client closes stdin |
+| Sentence chunker splits deltas and flushes the tail | `packages/tts` chunker tests, including property tests |
+| Unknown `protocol_version` is rejected clearly | `protocol.test` and `hub.test` |
+
 ## Not done yet
 
 - **Mutation testing at scale.** StrykerJS was tried (core and the Vitest runner, version 10). With Vitest 5 and TypeScript 7 it ran but activated almost none of its mutants (3.6% score on code whose hand-made mutations are all caught), so it was not adopted. Retry when its Vitest runner supports these versions. Until then, mutation checks are done by hand and recorded in the PR.
