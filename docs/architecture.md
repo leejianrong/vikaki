@@ -1,23 +1,23 @@
 # Architecture
 
-How the pieces fit. Solid boxes exist today; dashed boxes are planned (slice in brackets). Protocol details: [protocol.md](protocol.md). Decisions: [adr/](adr/).
+How the pieces fit. Solid boxes exist today; dashed boxes are planned (slice in brackets). MCP and the CLI are built as of V2.8. Protocol details: [protocol.md](protocol.md). Decisions: [adr/](adr/).
 
 ```mermaid
 flowchart LR
   subgraph drivers["Drivers: decide what is said (one at a time)"]
     LLM["LLM client<br/>(Claude Code, ...)"]
-    MCP["vikaki mcp<br/>say / set_emotion / cancel / set_persona<br/>[V2.8]"]:::planned
-    SAY["vikaki say / replay<br/>[V2.6]"]:::planned
+    MCP["vikaki mcp<br/>say / set_emotion / cancel / set_persona"]
+    SAY["vikaki say / replay"]
     GAME["a game or script<br/>(any WebSocket client)"]
   end
-  CTL["vikaki cancel<br/>controller: may only cancel<br/>[V2.6]"]:::planned
+  CTL["vikaki cancel<br/>controller: may only cancel"]
 
   subgraph server["vikaki serve (Node)"]
     HUB["Hub /ws<br/>validates, enforces roles,<br/>one driver, many viewers"]
     SPEECH["SpeechEngine<br/>sentence chunker, queue, cancel"]
     TTS["Tts engine<br/>FakeTts or Kokoro<br/>(worker thread)"]
     REC["DebugRecorder<br/>wav, spectrogram, metrics"]
-    LOG["JSONL event log<br/>[V2.6]"]:::planned
+    LOG["JSONL event log"]
     HTTP["HTTP: avatar page, /avatar"]
   end
 
@@ -51,9 +51,9 @@ flowchart LR
 
 ## Where MCP fits
 
-`vikaki mcp` is just another **driver**. An LLM client starts it as a stdio subprocess; it speaks MCP to the client and the ordinary protocol to the hub. Nothing in the hub or the page knows an LLM is involved, so a `say` tool call produces the same event sequence as `vikaki say` (tested in V2.9).
+`vikaki mcp` is just another **driver**. An LLM client starts it as a stdio subprocess; it speaks MCP to the client and the ordinary protocol to the hub. Nothing in the hub or the page knows an LLM is involved, so a `say` tool call produces the same event sequence as `vikaki say` (tested: the same event sequence).
 
-- It connects to a hub that is already running (`vikaki mcp --port 8787`), so the page you are watching is the one it drives.
+- It connects to a hub that is already running (`vikaki mcp --port 8787`), so the page you are watching is the one it drives. Setup and tools: [mcp.md](mcp.md).
 - It takes the single driver slot on the first tool call. While it holds it, `vikaki say` or a game gets `driver_busy`. `vikaki cancel` still works, because a controller is not a driver.
 - `say` returns after the avatar finishes (or is interrupted), with the outcome and time to first audio.
 - `set_emotion` and `set_persona` set session defaults that are stamped onto later `utterance` messages. Persona picks the voice now; emotion shows once V3.1 lands.

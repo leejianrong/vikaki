@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { DebugRecorder, EventLog, findFreePort, startServer } from "@vikaki/server";
 import { cancel, replay, say, type Io } from "./commands.ts";
+import { runMcp } from "./mcp.ts";
 import { hubUrl } from "./hub-client.ts";
 import { resolve } from "node:path";
 import { formatChecks, realDoctorEnv, runDoctor } from "./doctor.ts";
@@ -17,9 +18,10 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
                     [--event-log <file.jsonl>]
        vikaki say <text...> [--persona <name>] [--emotion <name>]   speak one line and wait until it is over
        vikaki cancel [<utterance_id>]    stop what the avatar is saying (everything, or one line)
+       vikaki mcp                        MCP server on stdio so an LLM can drive the avatar (tools: say, set_emotion, set_persona, cancel)
        vikaki replay <file.jsonl> [--speed N]   send a recorded session's driver messages again
 
-  say, cancel and replay talk to a running \`vikaki serve\`: add [--port N | --url ws://host:port/ws] [--token <secret>].
+  say, cancel, replay and mcp talk to a running \`vikaki serve\`: add [--port N | --url ws://host:port/ws] [--token <secret>].
 
   --port N   exact port, fails if busy. Without it, starts at 8787 and takes the next free port.
   --demo     the demo page: avatar plus mic, audio-file and mouth-shape controls
@@ -172,6 +174,11 @@ async function clientCommand(command: string, argv: string[]): Promise<number> {
     process.on("SIGINT", () => (ac.signal.aborted ? process.exit(130) : ac.abort()));
     return say({ ...targetOf(values), text, persona: values.persona, emotion: values.emotion, seat: values.seat, signal: ac.signal }, consoleIo);
   }
+  if (command === "mcp") {
+    const { values } = parseArgs({ args: argv, options: TARGET_OPTIONS });
+    await runMcp(targetOf(values)); // stdout belongs to the protocol: anything human goes to stderr
+    return 0;
+  }
   if (command === "cancel") {
     const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: TARGET_OPTIONS });
     return cancel({ ...targetOf(values), utteranceId: positionals[0] }, consoleIo);
@@ -188,7 +195,7 @@ async function clientCommand(command: string, argv: string[]): Promise<number> {
 const [command, ...rest] = process.argv.slice(2);
 if (command === "serve") {
   await serve(rest);
-} else if (command === "say" || command === "cancel" || command === "replay") {
+} else if (command === "say" || command === "cancel" || command === "replay" || command === "mcp") {
   process.exit(await clientCommand(command, rest));
 } else if (command === "doctor") {
   const checks = await runDoctor(await realDoctorEnv());
