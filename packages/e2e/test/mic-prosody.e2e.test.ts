@@ -77,19 +77,23 @@ describe("mic mode answers the way the voice goes", () => {
   });
 
   it("finds nothing in a quiet room", { timeout: 60_000 }, async () => {
+    // Genuine silence: Chromium's default fake microphone plays periodic beeps, which is not a quiet room.
+    const dir = await mkdtemp(join(tmpdir(), "vikaki-quiet-"));
+    const silent = join(dir, "silence.wav");
+    await writeFile(silent, encodeWav(new Float32Array(RATE * 4), RATE));
     const quiet = await chromium.launch({
-      args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+      args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-audio-capture=${silent}`, "--autoplay-policy=no-user-gesture-required"],
     });
     try {
       const page = await quiet.newPage({ viewport: { width: 640, height: 480 } });
       await page.goto(`${server.url}?mode=mic&hud=0&seed=3`);
       await page.waitForFunction(() => window.__vikaki?.mic === "listening", null, { timeout: 30_000 });
-      await page.waitForTimeout(4000);
-      // Chromium's default fake mic beeps; a beep is a steady tone, not a voice getting louder or rising, so no cue
-      const cues = await page.evaluate(() => window.__vikaki!.prosody!.cues.map((c) => c.cue));
-      expect(cues.filter((c) => c !== "pause")).toEqual([]);
+      await page.waitForTimeout(6000); // longer than the file, so it loops at least once
+      expect(await page.evaluate(() => window.__vikaki!.prosody!.cues)).toEqual([]);
+      expect(await page.evaluate(() => window.__vikaki!.gesturePeak)).toEqual({ pitch: 0, roll: 0 });
     } finally {
       await quiet.close();
     }
   });
+
 });
