@@ -38,6 +38,27 @@ describe("WorkerTts", () => {
     expect((await collect(tts.synthesize({ text: "chunks:1" }))).length).toBe(1);
   });
 
+  it("makes one request at a time: two sent together never overlap inside the engine (a native engine on two at once slows both)", async () => {
+    const tts = await start();
+    await Promise.all([collect(tts.synthesize({ text: "overlap:120" })), collect(tts.synthesize({ text: "overlap:120" })), collect(tts.synthesize({ text: "overlap:30" }))]);
+    const [most, started] = (await collect(tts.synthesize({ text: "overlap-stats" })))[0]!.samples;
+    expect(most).toBe(1);
+    expect(started).toBe(3);
+  });
+
+  it("never gives the engine a request that was aborted while it waited its turn", async () => {
+    const tts = await start();
+    const controller = new AbortController();
+    const front = collect(tts.synthesize({ text: "overlap:200" }));
+    await new Promise((r) => setTimeout(r, 30)); // it is inside the engine
+    const waiting = collect(tts.synthesize({ text: "overlap:50", signal: controller.signal }));
+    controller.abort(); // nobody wants it any more, and it has not started
+    expect(await waiting).toEqual([]);
+    await front;
+    const [, started] = (await collect(tts.synthesize({ text: "overlap-stats" })))[0]!.samples;
+    expect(started).toBe(1); // only the one in front ever ran
+  });
+
   it("reports an engine failure as a TtsError and carries on afterwards", async () => {
     const tts = await start();
     const err = await collect(tts.synthesize({ text: "fail" })).catch((e) => e);
