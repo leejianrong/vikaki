@@ -67,7 +67,9 @@ describe("mic mode answers the way the voice goes", () => {
       null,
       { timeout: 40_000 },
     );
-    // The page keeps the largest tilt and nod any frame showed (the idle sway is not in these), so a busy page cannot miss the peak between samples.
+    // The page keeps the largest tilt and nod any frame showed (the idle sway is not in these). On a slow page a gesture advances at
+    // most 50 ms of animation per frame, so give it time to develop rather than measuring the instant the last cue arrives.
+    await page.waitForFunction(() => window.__vikaki!.gesturePeak!.roll > 0.05 && window.__vikaki!.gesturePeak!.pitch > 0.05, null, { timeout: 40_000 });
     const { pitch: nod, roll: tilt } = (await page.evaluate(() => window.__vikaki!.gesturePeak))!;
     expect(tilt).toBeGreaterThan(0.05); // the head tipped for the rising ending
     expect(nod).toBeGreaterThan(0.05); // and nodded for the stress
