@@ -115,3 +115,25 @@ describe("Puppet with voice gestures", () => {
     expect(p.blinks).toBe(blinks + 1);
   });
 });
+
+describe("Puppet with sway off", () => {
+  it("holds the head perfectly still at rest, so pictures taken at different moments match", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1, false);
+    const poses: HeadPose[] = [];
+    for (let t = 0; t < 3; t += 1 / 60) {
+      p.update(1 / 60, {});
+      poses.push({ ...a.head });
+    }
+    expect(new Set(poses.map((h) => `${h.pitch},${h.yaw},${h.roll}`)).size).toBe(1);
+    expect(poses[0]).toEqual({ pitch: 0, yaw: 0, roll: 0 });
+  });
+
+  it("still lets an emotion move the head", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1, false);
+    p.emotion.set("sad", 1);
+    run(p, 1.5);
+    expect(a.head.pitch).toBeGreaterThan(0.1);
+  });
+});

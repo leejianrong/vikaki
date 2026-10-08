@@ -146,13 +146,13 @@ describe("speech, from driver to avatar and back", () => {
     expect(done.timing?.frame_ms).toBeGreaterThanOrEqual(done.timing!.audio_ms);
   });
 
-  it("shows each emotion a line asks for, scaled by its intensity, and relaxes after it", { timeout: 120_000 }, async () => {
+  it("shows each of the seven emotions a line asks for, scaled by its intensity, and relaxes after it", { timeout: 150_000 }, async () => {
     const { driver, page } = await setup({ msPerChar: 60 });
     // What the preset says at full strength, read from the page's own model so the test follows the presets.
     const want = (e: string, k: number) =>
       page.evaluate(([name, i]) => window.__vikaki!.presetPose!(name as string, i as number), [e, k] as const);
     let n = 0;
-    for (const emotion of ["happy", "smug", "worried", "surprised", "sad", "angry"]) {
+    for (const emotion of ["neutral", "happy", "smug", "worried", "surprised", "sad", "angry"]) {
       const id = `e${++n}`;
       driver.say("x".repeat(30), id, { emotion, intensity: n % 2 === 0 ? 1 : 0.6 }); // 1.8 s
       const at = await driver.waitFor(started(id), 40_000); // patient: no millisecond budget here, and CI is slow
