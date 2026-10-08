@@ -98,6 +98,18 @@ async function setup(tts: FakeTtsOptions = {}, pageCount = 1) {
     pages.push(page);
     await page.goto(`${server.url}?live=1&timeline=1&hud=0&seed=3`);
     await page.waitForFunction(() => window.__vikaki?.live?.state === "connected" && window.__vikaki.live.soundBlocked === false, null, { timeout: 30_000 });
+    // Note every time the page goes without running a timer for a while, on the timeline's clock: software WebGL can freeze it for
+    // most of a second at the first speech, and audio scheduled during a freeze lands late. Tests use it to tell that from a bug.
+    await page.evaluate(() => {
+      const g = window as unknown as { __freezes: [number, number][] };
+      g.__freezes = [];
+      let last = performance.now();
+      window.setInterval(() => {
+        const n = performance.now();
+        if (n - last > 60) g.__freezes.push([(window.__vikaki!.timeline as { now(): number }).now(), n - last]);
+        last = n;
+      }, 20);
+    });
     viewers.push(page);
   }
   const driver = await Driver.connect(server.wsUrl);
@@ -286,6 +298,11 @@ type Recorded = {
   events: { t: number; kind: string; utteranceId?: string }[];
   utterances: { id: string; startMs: number; endMs: number; interruptedAtMs?: number; pieces: { index: number; text: string; startMs: number; endMs: number }[] }[];
 };
+/** How long the page was frozen (ms) during `[fromMs, toMs]` on the timeline's clock. */
+const frozenDuring = async (page: Page, fromMs: number, toMs: number) => {
+  const freezes = await page.evaluate(() => (window as unknown as { __freezes: [number, number][] }).__freezes);
+  return freezes.filter(([end, length]) => end - length < toMs && end > fromMs).reduce((sum, [, length]) => sum + length, 0);
+};
 const recorded = (page: Page) => page.evaluate(() => (window.__vikaki!.timeline as { toJSON(): unknown }).toJSON()) as Promise<Recorded>;
 
 describe("the page's timeline of what happened", () => {
@@ -299,7 +316,9 @@ describe("the page's timeline of what happened", () => {
     expect(u.pieces.map((p) => p.text)).toEqual(["Hello there.", "How are you?"]);
     const [a, b] = u.pieces as [typeof u.pieces[0], typeof u.pieces[0]];
     expect(a.endMs - a.startMs).toBeGreaterThan(400); // 12 characters at 50 ms each
-    expect(Math.abs(b.startMs - a.endMs)).toBeLessThan(60); // the second sentence follows the first with no gap
+    // The second sentence follows the first with no gap, unless the page was frozen while it should have been scheduled.
+    const frozen = await frozenDuring(page, a.endMs - 1000, b.startMs);
+    expect(Math.abs(b.startMs - a.endMs), `a gap of ${Math.round(b.startMs - a.endMs)} ms with the page frozen for ${Math.round(frozen)} ms around it`).toBeLessThan(60 + frozen);
 
     // the page's own events, in order, and the first one lands where the audio was scheduled to begin
     const kinds = t.events.filter((e) => e.utteranceId === "u1").map((e) => e.kind);
