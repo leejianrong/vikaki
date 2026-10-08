@@ -1,6 +1,7 @@
 import { decodePcm16, make, parseMessage, type Message } from "@vikaki/protocol";
 import type { AudioSession } from "./audio-session.ts";
 import { Playback, type Output, type ScheduledSlice } from "./playback.ts";
+import { SentenceAssembler, type CompleteSentence } from "./sentences.ts";
 
 export type LiveState = "connecting" | "connected" | "disconnected";
 
@@ -14,6 +15,8 @@ export interface SpeechPlayerOptions {
   onReport?: (what: string) => void;
   /** Called for every slice of audio as it is handed to the speakers, with when it will be heard. */
   onScheduled?: (slice: ScheduledSlice) => void;
+  /** Called when all the audio of a spoken sentence has arrived, which is before it is heard. */
+  onSentence?: (sentence: CompleteSentence) => void;
 }
 
 /** Counts time without making sound, for when the browser has not allowed audio yet. */
@@ -32,6 +35,7 @@ export class SpeechPlayer {
   private stopped = false;
   private retry = 1000;
   private readonly playback: Playback;
+  private readonly sentences = new SentenceAssembler();
   private readonly timer: ReturnType<typeof setInterval>;
   private web?: Output;
   private current: LiveState = "connecting";
@@ -112,18 +116,22 @@ export class SpeechPlayer {
       case "welcome":
         this.state("connected");
         break;
-      case "audio":
+      case "audio": {
+        const samples = decodePcm16(m.pcm);
         this.playback.push({
           utteranceId: m.utterance_id,
           seatId: m.seat_id,
-          samples: decodePcm16(m.pcm),
+          samples,
           sampleRate: m.sample_rate,
           final: m.final,
           sentenceIndex: m.sentence_index,
           sentenceText: m.sentence_text,
         });
+        for (const done of this.sentences.push({ utteranceId: m.utterance_id, sentenceIndex: m.sentence_index, sentenceText: m.sentence_text, sentenceEnd: m.sentence_end, samples, sampleRate: m.sample_rate, final: m.final })) this.o.onSentence?.(done);
         break;
+      }
       case "cancel":
+        this.sentences.cancel(m.utterance_id);
         this.playback.cancel(m.utterance_id);
         break;
       default:

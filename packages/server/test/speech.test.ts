@@ -99,7 +99,7 @@ describe("speaking to avatar pages", () => {
   it("sends long audio in slices no longer than the limit", async () => {
     const { viewer, driver } = await setup({ tts: { chunkMs: 5000 }, speech: { maxSliceSeconds: 1 } });
     driver.send(utterance({ text: x(100) })); // 5 s in one engine chunk
-    const audio = audioOf(await readUntil(viewer, isFinal)).slice(0, -1);
+    const audio = audioOf(await readUntil(viewer, isFinal)).slice(0, -1).filter((m) => m.sentence_end !== true); // the audio itself, not the end-of-sentence marker
     expect(audio.length).toBe(5);
     expect(audio.every((m) => decodePcm16(String(m.pcm)).length <= 16000)).toBe(true);
   });
@@ -192,6 +192,22 @@ describe("which sentence a slice belongs to", () => {
     const end = seen.at(-1)!;
     expect(end.sentence_index).toBeUndefined();
     expect(end.sentence_text).toBeUndefined();
+  });
+
+  it("says when each sentence's audio is complete, with an empty marker straight after its last slice", async () => {
+    const { viewer, driver } = await setup({ tts: { msPerChar: 100, chunkMs: 100 } });
+    driver.send(utterance({ utterance_id: "s", text: "Hello there. How are you?" }));
+    const seen = await readUntil(viewer, isFinal);
+    const audio = audioOf(seen).filter((m) => m.final === false);
+    const ends = audio.filter((m) => m.sentence_end === true);
+    expect(ends.map((m) => [m.sentence_index, m.pcm])).toEqual([[0, ""], [1, ""]]);
+    // each marker follows the last slice of its own sentence
+    ends.forEach((marker) => {
+      const mine = audio.filter((m) => m.sentence_index === marker.sentence_index);
+      expect(mine.at(-1)).toBe(marker);
+      expect(mine.length).toBeGreaterThan(2);
+    });
+    expect(audio.filter((m) => m.sentence_end !== true).every((m) => String(m.pcm).length > 0)).toBe(true);
   });
 });
 

@@ -1,3 +1,4 @@
+import { mountKaraoke } from "./karaoke.ts";
 import type { TimelineRecorder } from "./timeline.ts";
 import type { Message } from "@vikaki/protocol";
 import type { MdOutlinedTextField } from "@material/web/textfield/outlined-text-field.js";
@@ -105,6 +106,7 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
       banner,
       el("div", { className: "chips" }, chipDriver, chipSound),
       el("section", {}, text, presets, el("div", { className: "actions" }, speak, streamBtn, queue, cancel)),
+      ...(o.timeline ? [mountKaraoke(o.timeline)] : []),
       el("section", {}, el("h2", { className: "title-small", textContent: "Measured here" }), el("div", { className: "tiles" }, tile(statFirst, "to first sound"), tile(statSpeech, "speech length"), tile(statStop, "cancel to stop"))),
       el("section", { style: "flex:1;min-height:0" }, el("h2", { className: "title-small", textContent: "What the hub reports" }), log),
     ),

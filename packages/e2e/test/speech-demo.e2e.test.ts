@@ -236,6 +236,96 @@ const laneRolePixels = (page: Page, png: string, lane: string, roleName: string)
     [png, lane, roleName] as const,
   );
 
+describe("karaoke: the words follow along with a red dot", () => {
+  const LINE = "Good morning everyone. Shall we begin today?";
+  const WORDS = ["Good", "morning", "everyone.", "Shall", "we", "begin", "today?"];
+
+  async function speakWatching(page: Page) {
+    await speakReady(page);
+    await sayBox(page).fill(LINE);
+    // note every time a word gets the dot (an observer, not frame sampling, so a slow renderer cannot make it miss one)
+    await page.evaluate(() => {
+      const w = window as unknown as { __k: [number, string | null, number][]; __obs?: MutationObserver };
+      w.__k = [];
+      w.__obs?.disconnect();
+      w.__obs = new MutationObserver(() => {
+        const now = document.querySelectorAll(".karaoke .w.now");
+        w.__k.push([(window.__vikaki!.timeline as { now(): number }).now(), now[0]?.textContent ?? null, now.length]);
+      });
+      w.__obs.observe(document.querySelector(".karaoke")!, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+    });
+    await button(page, "Speak").click();
+    await logHas(page, "speech finished", 30_000);
+    await expect.poll(() => page.locator(".karaoke .w.done").count(), { timeout: 10_000 }).toBe(WORDS.length); // the last word has been seen finishing
+    return page.evaluate(() => (window as unknown as { __k: [number, string | null, number][] }).__k);
+  }
+
+  it("puts the dot on each word in turn, in order, never on two at once, and on the word being heard", { tags: ["smoke"], timeout: 90_000 }, async () => {
+    const page = await open();
+    const samples = await speakWatching(page);
+    const json = JSON.parse(await page.evaluate(() => (window.__vikaki!.timelineUi!.select("demo-1"), window.__vikaki!.timelineUi!.exportJson()))) as { utterances: { pieces: { words?: { word: string; startMs: number }[] }[] }[] };
+    const timed = json.utterances[0]!.pieces.flatMap((p) => p.words ?? []);
+    expect(timed.map((w) => w.word)).toEqual(WORDS); // every word was timed
+
+    const shown = samples.map((x) => x[1]).filter((w): w is string => w !== null);
+    const order = shown.filter((w, i) => w !== shown[i - 1]);
+    // Each word got the dot once, in the order spoken. On a normal machine none is missed; on CI's two shared cores the
+    // page can tick late enough for a 150 ms word to pass between two ticks, so there it may skip some but never go out of order.
+    const positions = order.map((w) => WORDS.indexOf(w));
+    expect(positions.every((p, i) => p >= 0 && (i === 0 || p > positions[i - 1]!)), `visited: ${order.join(" ")}`).toBe(true);
+    if (STRICT_TIMING) expect(order).toEqual(WORDS);
+    else expect(order.length).toBeGreaterThanOrEqual(2);
+    expect(Math.max(...samples.map((x) => x[2]))).toBe(1); // and never two at once
+
+    // the dot is on the word the recorder says is being heard (allowing for the 50 ms tick and a frame)
+    const wordAt = (t: number) => [...timed].reverse().find((w) => w.startMs <= t)?.word;
+    const slack = process.env.CI ? 300 : 150;
+    for (const [t, word] of samples) if (word !== null) expect([wordAt(t), wordAt(t - slack)], `at ${Math.round(t)} ms`).toContain(word);
+  });
+
+  it("marks every word as done afterwards, with no dot left", async () => {
+    const page = await open();
+    await speakWatching(page);
+    await expect.poll(() => page.locator(".karaoke .w.done").count()).toBe(WORDS.length);
+    expect(await page.locator(".karaoke .w.now").count()).toBe(0);
+    expect(await page.locator(".karaoke").innerText()).toBe(LINE);
+  }, 90_000);
+
+  it("shows the words in the timeline too, one pill each, in the exported picture", async () => {
+    const page = await open();
+    await speakWatching(page);
+    await page.evaluate(() => window.__vikaki!.timelineUi!.select("demo-1"));
+    const png = await page.evaluate(() => window.__vikaki!.timelineUi!.exportPng());
+    const pills = await page.evaluate(
+      async ([url]) => {
+        const layout = window.__vikaki!.timelineUi!.exportLayout();
+        const img = new Image();
+        img.src = url as string;
+        await img.decode();
+        const c = document.createElement("canvas");
+        c.width = img.width;
+        c.height = img.height;
+        const g = c.getContext("2d")!;
+        g.drawImage(img, 0, 0);
+        const lane = layout.lanes.find((l) => l.id === "words")!;
+        const row = g.getImageData(layout.gutter, lane.top + 4, layout.width - layout.gutter, 1).data; // near the top edge of the pills, above the text
+        const hex = getComputedStyle(document.documentElement).getPropertyValue("--md-sys-color-secondary-container").trim();
+        const want = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+        let runs = 0;
+        let inside = false;
+        for (let i = 0; i < row.length; i += 4) {
+          const near = Math.abs(row[i]! - want[0]!) + Math.abs(row[i + 1]! - want[1]!) + Math.abs(row[i + 2]! - want[2]!) <= 12;
+          if (near && !inside) runs++;
+          inside = near;
+        }
+        return runs;
+      },
+      [png] as const,
+    );
+    expect(pills).toBeGreaterThanOrEqual(WORDS.length); // one pill per word (a sentence pill alone would give 2)
+  }, 90_000);
+});
+
 describe("reloading the page", () => {
   it("still hears the avatar report back when the same demo ids come round again", async () => {
     const page = await open();

@@ -66,6 +66,19 @@ body.has-panel #hud { color: var(--md-sys-color-on-surface-variant); font: 500 0
   .side-sheet { height: auto; border-inline-start: 0; border-block-start: 1px solid var(--md-sys-color-outline-variant); }
 }
 
+/* ---- karaoke: the words being spoken, with a red dot on the current one ---- */
+.karaoke-block { gap: 6px; }
+.karaoke { margin: 0; min-height: 4.2em; line-height: 2.1; }
+.karaoke .w { position: relative; display: inline-block; color: var(--md-sys-color-on-surface-variant); }
+.karaoke .w.done { color: var(--md-sys-color-on-surface); }
+.karaoke .w.now { color: var(--md-sys-color-on-surface); font-weight: 600; }
+.karaoke .w.now::before {
+  content: ""; position: absolute; top: 0.1em; left: 50%; width: 0.5em; height: 0.5em; border-radius: 50%;
+  background: var(--md-sys-color-error); transform: translateX(-50%);
+}
+.karaoke-empty, .karaoke-note { color: var(--md-sys-color-on-surface-variant); }
+.karaoke-note { margin: 0; }
+
 /* ---- the timeline dock: a wide strip under the avatar and the side sheet ---- */
 body.has-timeline { grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "stage panel" "dock panel"; }
 body.has-timeline > canvas { grid-area: stage; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FRAME_FIELDS, MOUTH_SHAPES, TimelineRecorder } from "./timeline.ts";
+import { currentWord, FRAME_FIELDS, MOUTH_SHAPES, pieceWords, TimelineRecorder } from "./timeline.ts";
 
 /** A recorder whose clock the test moves. The clock starts at 1000 so timeline time 0 is not the raw reading. */
 function make(options: ConstructorParameters<typeof TimelineRecorder>[0] = {}) {
@@ -113,5 +113,86 @@ describe("export", () => {
     expect(plain.utterances[0]!.audio[0]).toEqual({ startMs: 10, sampleRate: 1000, seconds: 0.5 });
     expect(rec.toJSON({ includeAudio: true }).utterances[0]!.audio[0]).toHaveProperty("pcm");
     expect(rec.toJSON({ fromMs: 1000 }).frames).toEqual([]);
+  });
+});
+
+describe("words", () => {
+  const words = (...w: [string, number, number][]) => w.map(([word, start, end]) => ({ word, start, end }));
+  const setup = () => {
+    const { rec, at } = make({ wordTimer: (text) => words(...text.split(" ").map((w, i): [string, number, number] => [w, i * 0.25, i * 0.25 + 0.2])) });
+    rec.scheduled({ utteranceId: "u", sentenceIndex: 0, sentenceText: "one two three", startPerfMs: 2000, samples: samples(1), sampleRate: 1000 }); // heard from 1000 ms
+    rec.sentence("u", 0, "one two three", samples(1), 1000);
+    return { rec, at };
+  };
+
+  it("places a piece's estimated words on the timeline clock", () => {
+    const { rec } = setup();
+    const piece = rec.utterance("u")!.pieces[0]!;
+    expect(pieceWords(piece)).toEqual([
+      { word: "one", startMs: 1000, endMs: 1200 },
+      { word: "two", startMs: 1250, endMs: 1450 },
+      { word: "three", startMs: 1500, endMs: 1700 },
+    ]);
+  });
+
+  it("keeps words that arrive before their piece is scheduled, and attaches them when it is", () => {
+    const { rec } = make({ wordTimer: () => words(["hi", 0, 0.5]) });
+    rec.sentence("late", 0, "hi", samples(1), 1000);
+    expect(rec.utterance("late")).toBeUndefined();
+    rec.scheduled({ utteranceId: "late", sentenceIndex: 0, sentenceText: "hi", startPerfMs: 1000, samples: samples(1), sampleRate: 1000 });
+    expect(pieceWords(rec.utterance("late")!.pieces[0]!)).toEqual([{ word: "hi", startMs: 0, endMs: 500 }]);
+  });
+
+  it("does not time a sentence that has no text or no audio", () => {
+    const { rec } = make({ wordTimer: () => { throw new Error("should not be asked"); } });
+    rec.sentence("u", 0, "  ", samples(1), 1000);
+    rec.sentence("u", 0, "hello", new Float32Array(0), 1000);
+  });
+
+  it("drops words that were never heard when playback is cut off, and clips the one in progress", () => {
+    const { rec, at } = setup();
+    at(1300); // cut 300 ms into the piece: "one" is done, "two" is in progress, "three" never starts
+    rec.event("interrupted", "u");
+    const w = pieceWords(rec.utterance("u")!.pieces[0]!);
+    expect(w.map((x) => x.word)).toEqual(["one", "two"]);
+    expect(w[1]!.endMs).toBeCloseTo(1300);
+  });
+
+  it("exports words in timeline milliseconds", () => {
+    const { rec } = setup();
+    expect(rec.toJSON().utterances[0]!.pieces[0]!.words).toEqual([
+      { word: "one", startMs: 1000, endMs: 1200 },
+      { word: "two", startMs: 1250, endMs: 1450 },
+      { word: "three", startMs: 1500, endMs: 1700 },
+    ]);
+  });
+
+  describe("which word is current", () => {
+    it("is the latest word that has started, held through the pause until the next one begins", () => {
+      const { rec } = setup();
+      const at = (t: number) => currentWord(rec.utterances(), t);
+      expect(at(900)).toBeUndefined(); // before it is heard
+      expect(at(1000)).toEqual({ utteranceId: "u", pieceIndex: 0, wordIndex: 0 });
+      expect(at(1230)).toEqual({ utteranceId: "u", pieceIndex: 0, wordIndex: 0 }); // the pause after "one"
+      expect(at(1250)).toMatchObject({ wordIndex: 1 });
+      expect(at(1600)).toMatchObject({ wordIndex: 2 });
+      expect(at(2100)).toBeUndefined(); // after it
+    });
+
+    it("says -1 while a piece has begun but its first word has not", () => {
+      const { rec } = make({ wordTimer: () => words(["late", 0.3, 0.6]) });
+      rec.scheduled({ utteranceId: "u", sentenceIndex: 0, sentenceText: "late", startPerfMs: 1000, samples: samples(1), sampleRate: 1000 });
+      rec.sentence("u", 0, "late", samples(1), 1000);
+      expect(currentWord(rec.utterances(), 100)).toMatchObject({ wordIndex: -1 });
+    });
+
+    it("picks the right piece of several", () => {
+      const { rec } = make({ wordTimer: (t) => words([t, 0, 0.4]) });
+      rec.scheduled({ utteranceId: "u", sentenceIndex: 0, sentenceText: "a", startPerfMs: 1000, samples: samples(0.5), sampleRate: 1000 });
+      rec.scheduled({ utteranceId: "u", sentenceIndex: 1, sentenceText: "b", startPerfMs: 1500, samples: samples(0.5), sampleRate: 1000 });
+      rec.sentence("u", 0, "a", samples(0.5), 1000);
+      rec.sentence("u", 1, "b", samples(0.5), 1000);
+      expect(currentWord(rec.utterances(), 700)).toEqual({ utteranceId: "u", pieceIndex: 1, wordIndex: 0 });
+    });
   });
 });
