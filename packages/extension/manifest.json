@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Vikaki Avatar Camera",
+  "version": "0.0.1",
+  "description": "Replaces your camera in browser meetings with a cartoon avatar that lip-syncs to your microphone. The physical camera is never opened and your audio never leaves the page.",
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["main-world.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    },
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    { "resources": ["assets/*"], "matches": ["https://meet.google.com/*"] }
+  ]
+}

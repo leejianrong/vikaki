@@ -1,4 +1,4 @@
-import { LipSync } from "./lipsync.ts";
+import { createMouthDriver, type MouthDriver } from "./mouth.ts";
 import { openMic } from "./mic.ts";
 
 /**
@@ -7,14 +7,16 @@ import { openMic } from "./mic.ts";
  */
 export class AudioSession {
   private ctx?: AudioContext;
-  private ls?: LipSync;
+  private ls?: MouthDriver;
   private mic?: { stop(): void };
+  /** Which mouth driver is running, once audio has started. */
+  mouthKind?: "wlipsync" | "amplitude";
   private fileSource?: AudioBufferSourceNode;
 
   constructor(private readonly profileUrl: string) {}
 
   /** Current mouth weights, or undefined if nothing has been started yet. */
-  get lipsync(): LipSync | undefined {
+  get lipsync(): MouthDriver | undefined {
     return this.ls;
   }
 
@@ -22,10 +24,12 @@ export class AudioSession {
     return this.ctx?.state ?? "none";
   }
 
-  private async ensure(): Promise<{ ctx: AudioContext; ls: LipSync }> {
+  private async ensure(): Promise<{ ctx: AudioContext; ls: MouthDriver }> {
     if (!this.ctx || !this.ls) {
       this.ctx = new AudioContext();
-      this.ls = await LipSync.create(this.ctx, this.profileUrl);
+      const mouth = await createMouthDriver(this.ctx, this.profileUrl);
+      this.ls = mouth.driver;
+      this.mouthKind = mouth.kind;
     }
     await this.ctx.resume();
     return { ctx: this.ctx, ls: this.ls };

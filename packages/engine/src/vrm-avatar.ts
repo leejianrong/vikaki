@@ -8,12 +8,13 @@ const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 export class VrmAvatar implements AvatarRenderer {
   private constructor(readonly vrm: VRM) {}
 
-  static async load(url: string): Promise<VrmAvatar> {
+  /** `source` is a URL to fetch or the VRM file's bytes (when a page cannot fetch). */
+  static async load(source: string | ArrayBuffer): Promise<VrmAvatar> {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
-    const gltf = await loader.loadAsync(url);
+    const gltf = typeof source === "string" ? await loader.loadAsync(source) : await loader.parseAsync(source, "");
     const vrm = gltf.userData.vrm as VRM | undefined;
-    if (!vrm) throw new Error(`${url} is not a VRM file`);
+    if (!vrm) throw new Error(`${typeof source === "string" ? source : "the given data"} is not a VRM file`);
     VRMUtils.removeUnnecessaryVertices(gltf.scene);
     VRMUtils.rotateVRM0(vrm); // VRM 0.x faces -Z; turn it to face the camera
     return new VrmAvatar(vrm);

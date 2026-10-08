@@ -29,6 +29,7 @@ None. Round 1 closed 2026-10-07.
 | Q15 | Stack and delivery | ASSUMED | TypeScript monorepo, Node, Vite, no Electron. Browser extension for web meetings, OBS then window share as fallbacks. Language rationale recorded after Jian asked why not Python or Go | ADR-0003, ADR-0006 |
 | Q32 | Visual direction | DECIDED | Cartoon-first, cute. No realism or human mimicry. Photoreal renderers are non-goals | ADR-0005 |
 | Q34 | 2D renderers | DECIDED | Allowed alongside VRM. VRM stays the default and the board order is unchanged | ADR-0008 |
+| Q35 | Mouth fallback under strict CSP | DECIDED | Amplitude-only mouth when wLipSync is blocked; reported as `mouthKind` | ADR-0009 |
 | Q33 | Doodle avatars | DEFERRED | User-drawn face plus a mouth doodle per vowel, animated by a 2D sprite renderer. Post-M1 idea, needs the renderer interface seam | PLAN §Deferred and recorded |
 | Q16 | Measurable targets | ASSUMED | Mouth-to-audio offset under 100 ms, 30 fps on a mid laptop, time to first audio and first frame reported with 1.5 s as a local target | SLICES V1, V2 |
 | Q17 | Versioning | ASSUMED | `protocol_version` on every message, migrations deferred | ADR-0001 |

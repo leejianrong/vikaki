@@ -1,0 +1,18 @@
+{
+  "name": "@vikaki/extension",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@vikaki/engine": "workspace:*"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'extension is covered by packages/e2e (pnpm test:e2e)'"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.4"
+  }
+}
