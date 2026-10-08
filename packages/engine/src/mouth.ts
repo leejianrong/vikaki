@@ -1,5 +1,6 @@
 import { LipSync } from "./lipsync.ts";
 import { rmsToVolume } from "./volume.ts";
+import { scaleWeights } from "./viseme-map.ts";
 import type { VisemeWeights } from "./renderer.ts";
 
 /** Anything that turns audio into mouth weights. */
@@ -8,6 +9,9 @@ export interface MouthDriver {
   /** Smoothed loudness in [0, 1]. */
   readonly volume: number;
   connect(source: AudioNode): void;
+  /** Shut the mouth at once, ignoring the audio, until `unmute`. Used when speech is cut off. */
+  mute(): void;
+  unmute(): void;
 }
 
 /**
@@ -19,6 +23,7 @@ export class AmplitudeMouth implements MouthDriver {
   private readonly buf: Float32Array<ArrayBuffer>;
   private smoothed = 0;
   private last = 0;
+  private gate = 1;
 
   constructor(ctx: BaseAudioContext) {
     this.analyser = ctx.createAnalyser();
@@ -43,13 +48,22 @@ export class AmplitudeMouth implements MouthDriver {
     this.smoothed += (target - this.smoothed) * Math.min(1, rate * dt);
   }
 
+  mute(): void {
+    this.gate = 0;
+  }
+
+  unmute(): void {
+    this.gate = 1;
+  }
+
   get volume(): number {
     this.read();
-    return this.smoothed;
+    return this.smoothed * this.gate;
   }
 
   get weights(): VisemeWeights {
-    return { aa: this.volume };
+    this.read(); // refresh from the analyser first; reading `smoothed` alone would never update
+    return scaleWeights({ aa: this.smoothed }, this.gate);
   }
 }
 

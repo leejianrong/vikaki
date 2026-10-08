@@ -31,17 +31,31 @@ export class SpeechPlayer {
   private readonly playback: Playback;
   private readonly timer: ReturnType<typeof setInterval>;
   private web?: Output;
+  private current: LiveState = "connecting";
+  private lastBlocked = true;
 
   constructor(private readonly o: SpeechPlayerOptions) {
     this.playback = new Playback(
       () => (o.session.running ? (this.web ??= o.session.webOutput()) : silent),
       {
-        started: (id, seat) => this.report(make("speech_started", { utterance_id: id, ...(seat ? { seat_id: seat } : {}) }), `started:${id}`),
+        started: (id, seat) => {
+          o.session.lipsync?.unmute();
+          this.report(make("speech_started", { utterance_id: id, ...(seat ? { seat_id: seat } : {}) }), `started:${id}`);
+        },
         finished: (id) => this.report(make("speech_finished", { utterance_id: id }), `finished:${id}`),
-        interrupted: (id, reason) => this.report(make("speech_interrupted", { utterance_id: id, reason }), `interrupted:${id}`),
+        interrupted: (id, reason) => {
+          o.session.lipsync?.mute(); // the node's own smoothing takes ~200 ms to close the mouth; a cut-off should look instant
+          this.report(make("speech_interrupted", { utterance_id: id, reason }), `interrupted:${id}`);
+        },
       },
     );
-    this.timer = setInterval(() => this.playback.tick(), 30);
+    this.timer = setInterval(() => {
+      this.playback.tick();
+      // The browser can start allowing sound at any moment (a click, or autoplay settings, or the
+      // audio setup finishing), with no event. Say so when it changes.
+      const blocked = !o.session.running;
+      if (blocked !== this.lastBlocked) this.state(this.current);
+    }, 30);
   }
 
   start(): void {
@@ -63,7 +77,9 @@ export class SpeechPlayer {
   }
 
   private state(s: LiveState): void {
-    this.o.onState?.(s, !this.o.session.running);
+    this.current = s;
+    this.lastBlocked = !this.o.session.running;
+    this.o.onState?.(s, this.lastBlocked);
   }
 
   private connect(): void {

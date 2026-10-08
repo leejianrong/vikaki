@@ -28,7 +28,8 @@ export function createStage(canvas: HTMLCanvasElement, opts: { pixelRatio?: numb
   const resize = (width?: number, height?: number) => {
     const w = width ?? (canvas.clientWidth || window.innerWidth);
     const h = height ?? (canvas.clientHeight || window.innerHeight);
-    renderer.setSize(w, h, width === undefined); // only touch CSS size when following the canvas's own
+    // Never write an inline CSS size: it would beat the stylesheet and stop the canvas shrinking beside a side panel.
+    renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };

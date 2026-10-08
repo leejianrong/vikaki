@@ -25,6 +25,7 @@ pnpm typecheck                   # tsc --noEmit in every package
 pnpm test                        # vitest unit and integration, no network or GPU needed
 pnpm test:e2e                    # builds, then runs Playwright against the page (needs: pnpm exec playwright install chromium)
 make demo                        # build, serve on a free port and open the demo page to judge the avatar by eye
+make demo-speech                 # the speech demo: type text, hear the avatar say it, see latencies
 make extension                   # build the browser extension into packages/extension/dist (see its README to load it)
 make check                       # typecheck + test: the fast gate, same as the pre-push hook
 ```
@@ -48,6 +49,7 @@ make check                       # typecheck + test: the fast gate, same as the 
 - Branch per slice off fresh `main`, PR-only, CI green before merge. Do not push to `main`.
 - Run `make check` before every push. Install the hook once: `make hooks`.
 - Direction is cartoon-first, cute, friendly and approachable. Do not add realistic or human-mimicking avatar options (ADR-0005). Look at screenshots of any avatar or visual change yourself before calling it done (`node scripts/screenshot.mjs`, see also `make demo`).
+- Never write an inline CSS size on the canvas (`renderer.setSize(w, h, true)`): it beats the stylesheet and the avatar draws under the side panels. A layout test guards this.
 - Never add `kokoro-js` to the workspace (410 MB); it is an optional runtime install (ADR-0010).
 - Tests never call a paid or non-deterministic service. Use fakes (`FakeTts`, fake mic WAV).
 - Every bug gets a failing test first.

@@ -3,6 +3,8 @@ import { VrmAvatar } from "./vrm-avatar.ts";
 import { AudioSession } from "./audio-session.ts";
 import { mountDemoPanel } from "./demo-panel.ts";
 import { SpeechPlayer, type LiveState } from "./speech-player.ts";
+import { DriverConsole } from "./driver-console.ts";
+import { mountSpeechDemo } from "./speech-demo.ts";
 import { createStage, frameAvatar, Puppet } from "./stage.ts";
 import type { VisemeWeights } from "./renderer.ts";
 
@@ -102,7 +104,8 @@ try {
       })
     : undefined;
 
-  if (params.get("live") === "1") {
+  const speechDemo = params.get("demo") === "speech";
+  if (params.get("live") === "1" || speechDemo) {
     const live = { state: "connecting" as LiveState, soundBlocked: true, events: [] as string[] };
     api.live = live;
     const url = new URL("/ws", location.href);
@@ -115,13 +118,28 @@ try {
       onState: (state, soundBlocked) => {
         live.state = state;
         live.soundBlocked = soundBlocked;
-        say(state !== "connected" ? `vikaki · ${state}` : soundBlocked ? "vikaki · click the page to hear the avatar" : "vikaki · live");
+        hud();
       },
     });
-    const unblock = () => void session.resume().then(() => live.soundBlocked = !session.running);
+    const hud = () => say(live.state !== "connected" ? `vikaki · ${live.state}` : live.soundBlocked ? "vikaki · click the page to hear the avatar" : "vikaki · live");
+    const unblock = () =>
+      void session.resume().then(() => {
+        live.soundBlocked = !session.running;
+        hud();
+      });
     window.addEventListener("pointerdown", unblock);
     window.addEventListener("keydown", unblock);
     player.start();
+
+    if (speechDemo) {
+      // This page is also the driver, so you can type text and watch the whole round trip.
+      const driver = new DriverConsole(url.href, {
+        state: (state, info) => ui.onState(state, info),
+        message: (message) => ui.onMessage(message),
+      });
+      const ui = mountSpeechDemo({ driver, unlockSound: unblock, soundBlocked: () => !session.running });
+      driver.connect();
+    }
   }
 
   api.ready = true;

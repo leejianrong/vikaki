@@ -57,6 +57,25 @@ const seconds = (msgs: Msg[]) => msgs.reduce((s, m) => s + decodePcm16(String(m.
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const x = (n: number) => "x".repeat(n);
 
+describe("welcome", () => {
+  it("tells clients which speech engine is in use", async () => {
+    const { driver, viewer } = await setup();
+    // setup() already consumed each welcome; join fresh clients to read it.
+    const c = await Client.join(server!.wsUrl, "viewer");
+    clients.push(c);
+    expect(await c.next()).toMatchObject({ type: "welcome", speech: "fake" });
+    void driver;
+    void viewer;
+  });
+
+  it("says the speech is off when there is no engine", async () => {
+    server = await startServer({ staticDir: dir });
+    const c = await Client.join(server.wsUrl, "driver");
+    clients.push(c);
+    expect(await c.next()).toMatchObject({ type: "welcome", speech: "off" });
+  });
+});
+
 describe("speaking to avatar pages", () => {
   it("relays the line, then audio in order, then a final marker", async () => {
     const { viewer, driver } = await setup();

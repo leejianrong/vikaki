@@ -22,3 +22,10 @@ export function toVisemeWeights(phonemes: Record<string, number>, volume: number
 export function openness(w: VisemeWeights): number {
   return Math.max(0, ...Object.values(w).map((x) => x ?? 0));
 }
+
+/** Scale every weight by `k` (0 shuts the mouth, 1 leaves it alone). */
+export function scaleWeights(w: VisemeWeights, k: number): VisemeWeights {
+  const out: VisemeWeights = {};
+  for (const [name, value] of Object.entries(w) as [keyof VisemeWeights, number][]) out[name] = clamp01(value * k);
+  return out;
+}

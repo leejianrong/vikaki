@@ -1,7 +1,7 @@
 import type { WLipSyncAudioNode } from "wlipsync";
 import type { MouthDriver } from "./mouth.ts";
 import type { VisemeWeights } from "./renderer.ts";
-import { toVisemeWeights } from "./viseme-map.ts";
+import { scaleWeights, toVisemeWeights } from "./viseme-map.ts";
 
 /**
  * Audio in, mouth shape weights out (ADR-0007). Connect any audio source (mic or TTS
@@ -31,12 +31,22 @@ export class LipSync implements MouthDriver {
     source.connect(this.node);
   }
 
+  private gate = 1;
+
+  mute(): void {
+    this.gate = 0;
+  }
+
+  unmute(): void {
+    this.gate = 1;
+  }
+
   /** Smoothed loudness in [0, 1]. */
   get volume(): number {
-    return this.node.volume;
+    return this.node.volume * this.gate;
   }
 
   get weights(): VisemeWeights {
-    return toVisemeWeights(this.node.weights, this.node.volume);
+    return scaleWeights(toVisemeWeights(this.node.weights, this.node.volume), this.gate);
   }
 }

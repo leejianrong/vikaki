@@ -6,11 +6,12 @@ import { parseArgs } from "node:util";
 import { findFreePort, startServer } from "@vikaki/server";
 import { FakeTts, KokoroTts, TtsError, type Tts } from "@vikaki/tts";
 
-const USAGE = `usage: vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo] [--open]
+const USAGE = `usage: vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
                     [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>]
 
   --port N   exact port, fails if busy. Without it, starts at 8787 and takes the next free port.
-  --demo     print and open the demo page (avatar plus controls and meters)
+  --demo     the demo page: avatar plus mic, audio-file and mouth-shape controls
+  --speech-demo  the speech demo: type text, press Speak, watch and hear the avatar say it
   --open     open the page in your browser (works from WSL, macOS and Linux)
   --tts      speech engine. auto uses Kokoro if installed, else a test voice. none turns speech off.
   --voice    default Kokoro voice, such as af_heart
@@ -64,6 +65,7 @@ async function serve(argv: string[]): Promise<void> {
       host: { type: "string", default: "127.0.0.1" },
       static: { type: "string", default: defaultStatic },
       demo: { type: "boolean", default: false },
+      "speech-demo": { type: "boolean", default: false },
       open: { type: "boolean", default: false },
       tts: { type: "string", default: "auto" },
       voice: { type: "string" },
@@ -92,7 +94,7 @@ async function serve(argv: string[]): Promise<void> {
     hub: token ? { token } : undefined,
     speech: tts ? { tts } : undefined,
   });
-  const url = values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
+  const url = values["speech-demo"] ? `${server.url}?demo=speech&live=1` : values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
   console.log(`vikaki serving ${url}`);
   console.log(`  drivers connect to ${server.wsUrl}${token ? " (token required)" : ""}; speech: ${tts ? tts.name : "off"}`);
   if (values.port === undefined && port !== 8787) console.log(`(8787 was busy, using ${port})`);

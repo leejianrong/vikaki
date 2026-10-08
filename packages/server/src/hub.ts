@@ -12,6 +12,8 @@ export interface HubOptions {
   onEvent?: (event: HubEvent) => void;
   /** Close a connection that has not said hello after this long. */
   helloTimeoutMs?: number;
+  /** Shown to clients in `welcome`. */
+  speechName?: string;
   /** Called with each valid message the driver sends, after it has been relayed. */
   onDriverMessage?: (message: Message) => void;
   /** Called when the driver disconnects. */
@@ -180,7 +182,14 @@ export class Hub {
       this.viewers.add(ws);
     }
     this.roles.set(ws, hello.role);
-    this.send(ws, make("welcome", { role: hello.role, ...(hello.session_id ? { session_id: hello.session_id } : {}) }));
+    this.send(
+      ws,
+      make("welcome", {
+        role: hello.role,
+        ...(hello.session_id ? { session_id: hello.session_id } : {}),
+        ...(this.opts.speechName ? { speech: this.opts.speechName } : {}),
+      }),
+    );
   }
 
   private tokenMatches(given: string | undefined): boolean {

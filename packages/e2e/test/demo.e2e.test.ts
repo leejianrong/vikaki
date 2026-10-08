@@ -148,3 +148,33 @@ describe("demo panel", () => {
     await page.close();
   });
 });
+
+describe("layout", () => {
+  const canvasBox = (page: Page) =>
+    page.evaluate(() => {
+      const c = document.getElementById("stage") as HTMLCanvasElement;
+      const r = c.getBoundingClientRect();
+      return { x: r.x, width: Math.round(r.width), height: Math.round(r.height), bufferWidth: c.width, inlineStyle: c.getAttribute("style") };
+    });
+
+  it.each([
+    ["the demo page", "?demo=1&seed=7", "#demo"],
+    ["the speech demo", "?demo=speech&live=1&seed=7", "#speech"],
+  ])("%s: the canvas sits beside the panel, not under it, and follows the window size", async (_name, query, panelSel) => {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 700 } });
+    await page.goto(`${server.url}${query}`);
+    await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 30_000 });
+    const panel = await page.locator(panelSel).boundingBox();
+    const box = await canvasBox(page);
+    expect(box.inlineStyle ?? "").not.toContain("width"); // the stylesheet decides the size
+    expect(box.x + box.width).toBeLessThanOrEqual(panel!.x + 1); // ends where the panel begins
+    expect(box.bufferWidth).toBeGreaterThanOrEqual(box.width); // drawing buffer matches (pixel ratio 1 or more)
+
+    await page.setViewportSize({ width: 900, height: 600 });
+    await page.waitForFunction((w) => (document.getElementById("stage") as HTMLCanvasElement).width !== w, box.bufferWidth, { timeout: 5000 });
+    const after = await canvasBox(page);
+    expect(after.width).toBeLessThan(box.width);
+    expect(after.x + after.width).toBeLessThanOrEqual((await page.locator(panelSel).boundingBox())!.x + 1);
+    await page.close();
+  }, 60_000);
+});

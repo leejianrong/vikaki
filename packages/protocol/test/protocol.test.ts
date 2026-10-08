@@ -119,6 +119,13 @@ describe("audio message and PCM encoding", () => {
   });
 });
 
+describe("welcome", () => {
+  it("may say which speech engine the hub uses", () => {
+    expect(parseMessage({ protocol_version: v, type: "welcome", role: "viewer", speech: "kokoro" }).ok).toBe(true);
+    expect(parseMessage({ protocol_version: v, type: "welcome", role: "viewer" }).ok).toBe(true);
+  });
+});
+
 describe("published JSON Schema", () => {
   it("matches docs/protocol.schema.json (run `pnpm --filter @vikaki/protocol schema` after changing the protocol)", () => {
     const committed = readFileSync(fileURLToPath(new URL("../../../docs/protocol.schema.json", import.meta.url)), "utf8");

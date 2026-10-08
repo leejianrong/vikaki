@@ -136,8 +136,11 @@ describe("speech, from driver to avatar and back", () => {
     const at = await driver.waitFor(interrupted("long"), 3000);
     expect(at - sentAt).toBeLessThan(400);
     expect(driver.count(finished("long"))).toBe(0);
-    await page.waitForTimeout(300);
-    expect((await mouth(page, 500)).max).toBeLessThan(0.05); // silent and still after the cancel
+    // The mouth shuts at once when speech is cut off. Without that, the lip-sync node's own smoothing
+    // takes about 190 ms to close it, so 100 ms after the interruption is reported it would still be open.
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => Math.max(0, ...Object.values(window.__vikaki!.visemes)))).toBeLessThan(0.05);
+    expect((await mouth(page, 500)).max).toBeLessThan(0.05); // and stays shut
     driver.say("x".repeat(10), "next");
     await driver.waitFor(finished("next"));
   }, 60_000);
