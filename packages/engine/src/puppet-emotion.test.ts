@@ -1,0 +1,90 @@
+import { describe, expect, it } from "vitest";
+import { idlePose } from "./behaviour.ts";
+import { poseFor } from "./emotion.ts";
+import type { AvatarRenderer, HeadPose, VisemeWeights } from "./renderer.ts";
+import { Puppet } from "./stage.ts";
+
+class FakeAvatar implements AvatarRenderer {
+  visemes: VisemeWeights = {};
+  blink = 0;
+  head: HeadPose = { yaw: 0, pitch: 0, roll: 0 };
+  setVisemes(w: VisemeWeights) {
+    this.visemes = w;
+  }
+  setBlink(a: number) {
+    this.blink = a;
+  }
+  setHeadPose(p: HeadPose) {
+    this.head = p;
+  }
+  update() {}
+}
+
+/** Run a puppet for `seconds` at 60 fps. */
+function run(p: Puppet, seconds: number, mouth: VisemeWeights = {}) {
+  for (let t = 0; t < seconds; t += 1 / 60) p.update(1 / 60, mouth);
+}
+
+describe("Puppet with an emotion", () => {
+  it("holds the mouth's rest shape while silent, and lets lip sync win while it speaks", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1);
+    p.emotion.set("happy", 1);
+    run(p, 1.5);
+    expect(a.visemes.ee).toBeGreaterThan(0.4); // a smile at rest
+    run(p, 0.2, { aa: 1 });
+    expect(a.visemes.aa).toBe(1);
+    expect(a.visemes.ee ?? 0).toBeLessThan(0.01); // no smile stacked on a wide-open "aa"
+  });
+
+  it("does not change what lip sync asked for, as far as the page's own record goes", () => {
+    const p = new Puppet(new FakeAvatar(), 1);
+    p.emotion.set("surprised", 1);
+    const asked = { ih: 0.2 };
+    run(p, 1, asked);
+    expect(p.visemes).toEqual(asked);
+  });
+
+  it("keeps the lids part-closed for a squint, whatever the blinker is doing", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1);
+    p.emotion.set("smug", 1);
+    run(p, 1.5);
+    const squint = poseFor("smug", 1).squint;
+    let min = 1;
+    for (let t = 0; t < 8; t += 1 / 60) {
+      p.update(1 / 60, {});
+      min = Math.min(min, a.blink);
+    }
+    expect(min).toBeGreaterThanOrEqual(squint - 0.02);
+  });
+
+  it("still blinks fully over a squint", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1);
+    p.emotion.set("happy", 1);
+    let max = 0;
+    for (let t = 0; t < 8; t += 1 / 60) {
+      p.update(1 / 60, {});
+      max = Math.max(max, a.blink);
+    }
+    expect(max).toBe(1);
+  });
+
+  it("adds the emotion's head tilt to the idle sway", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1);
+    p.emotion.set("sad", 1);
+    run(p, 3);
+    const idle = idlePose(3 + 0); // the sway is small; the sad droop is bigger
+    expect(a.head.pitch).toBeGreaterThan(idle.pitch + 0.08);
+  });
+
+  it("with no emotion set, behaves as before: no rest mouth, blinker alone", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1);
+    run(p, 1);
+    expect(a.visemes).toEqual({});
+    expect(p.emotion.pose.symbol).toBeNull();
+  });
+});

@@ -256,3 +256,33 @@ describe("event log hook", () => {
     expect(events.every((e, i) => i === 0 || e.at >= events[i - 1]!.at)).toBe(true);
   });
 });
+
+describe("emotions", () => {
+  it("passes an unknown emotion through with a logged warning, not an error", async () => {
+    const warnings: string[] = [];
+    server = await startServer({ staticDir: dir, hub: { warn: (m) => warnings.push(m) } });
+    const viewer = track(await Client.join(server.wsUrl, "viewer"));
+    await viewer.next();
+    const driver = track(await Client.join(server.wsUrl, "driver"));
+    await driver.next();
+    driver.send(utterance({ utterance_id: "u1", text: "Hi.", emotion: "blorp" }));
+    expect(await viewer.next()).toMatchObject({ type: "utterance", emotion: "blorp" }); // the page decides; it shows neutral
+    await driver.quiet(200); // no error for the driver
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/blorp/);
+  });
+
+  it("does not warn for the seven known emotions or none", async () => {
+    const warnings: string[] = [];
+    server = await startServer({ staticDir: dir, hub: { warn: (m) => warnings.push(m) } });
+    const viewer = track(await Client.join(server.wsUrl, "viewer"));
+    await viewer.next();
+    const driver = track(await Client.join(server.wsUrl, "driver"));
+    await driver.next();
+    for (const emotion of [undefined, "neutral", "happy", "smug", "worried", "surprised", "sad", "angry"]) {
+      driver.send(utterance({ utterance_id: `u-${emotion}`, text: "Hi.", ...(emotion ? { emotion } : {}) }));
+      await viewer.next();
+    }
+    expect(warnings).toEqual([]);
+  });
+});

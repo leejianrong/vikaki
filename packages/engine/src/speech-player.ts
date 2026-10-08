@@ -16,6 +16,8 @@ export interface SpeechPlayerOptions {
   onReport?: (what: string) => void;
   /** Called for every slice of audio as it is handed to the speakers, with when it will be heard. */
   onScheduled?: (slice: ScheduledSlice) => void;
+  /** A line with this emotion has begun to be heard (`phase: "start"`), or has ended or been cut off (`"end"`). */
+  onEmotion?: (emotion: string | undefined, intensity: number | undefined, phase: "start" | "end") => void;
   /** Times lines for the `timing` of `speech_finished`. The page's render loop feeds it frames. */
   timer?: FirstFrameTimer;
   /** Called when all the audio of a spoken sentence has arrived, which is before it is heard. */
@@ -43,6 +45,8 @@ export class SpeechPlayer {
   private web?: Output;
   private current: LiveState = "connecting";
   private lastBlocked = true;
+  /** The emotion each line asked for, until it ends. */
+  private readonly feelings = new Map<string, { emotion?: string; intensity?: number }>();
 
   constructor(private readonly o: SpeechPlayerOptions) {
     this.playback = new Playback(
@@ -51,13 +55,17 @@ export class SpeechPlayer {
         started: (id, seat) => {
           o.session.lipsync?.unmute();
           o.timer?.heard(id, performance.now());
+          const f = this.feelings.get(id);
+          o.onEmotion?.(f?.emotion, f?.intensity, "start");
           this.report(make("speech_started", { utterance_id: id, ...(seat ? { seat_id: seat } : {}) }), `started:${id}`);
         },
         finished: (id) => {
+          this.endFeeling(id);
           const timing = o.timer?.take(id);
           this.report(make("speech_finished", { utterance_id: id, ...(timing ? { timing } : {}) }), `finished:${id}`);
         },
         interrupted: (id, reason) => {
+          this.endFeeling(id);
           o.session.lipsync?.mute(); // the node's own smoothing takes ~200 ms to close the mouth; a cut-off should look instant
           this.report(make("speech_interrupted", { utterance_id: id, reason }), `interrupted:${id}`);
         },
@@ -125,6 +133,7 @@ export class SpeechPlayer {
         break;
       case "utterance":
         this.o.timer?.received(m.utterance_id, performance.now());
+        if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity }); // the first message of a streamed line carries it
         break;
       case "audio": {
         const samples = decodePcm16(m.pcm);
@@ -148,6 +157,12 @@ export class SpeechPlayer {
       default:
         break; // emotions, turns and the like are for later slices
     }
+  }
+
+  private endFeeling(id: string): void {
+    const f = this.feelings.get(id);
+    this.feelings.delete(id);
+    if (f) this.o.onEmotion?.(f.emotion, f.intensity, "end");
   }
 
   private report(message: Message, what: string): void {

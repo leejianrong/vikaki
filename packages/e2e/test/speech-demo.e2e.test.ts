@@ -253,6 +253,17 @@ describe("karaoke: the words follow along with a red dot", () => {
         w.__k.push([(window.__vikaki!.timeline as { now(): number }).now(), now[0]?.textContent ?? null, now.length]);
       });
       w.__obs.observe(document.querySelector(".karaoke")!, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+      // Every time the page went without running a timer for a while, on the timeline's clock: software WebGL can freeze it for
+      // most of a second at the first speech, and a word that passes during a freeze cannot get the dot on time.
+      const g = window as unknown as { __freezes: [number, number][]; __gapTimer?: number };
+      g.__freezes = [];
+      clearInterval(g.__gapTimer);
+      let last = performance.now();
+      g.__gapTimer = window.setInterval(() => {
+        const n = performance.now();
+        if (n - last > 60) g.__freezes.push([(window.__vikaki!.timeline as { now(): number }).now(), n - last]);
+        last = n;
+      }, 20);
     });
     await button(page, "Speak").click();
     await logHas(page, "speech finished", 30_000);
@@ -273,8 +284,17 @@ describe("karaoke: the words follow along with a red dot", () => {
     // page can tick late enough for a 150 ms word to pass between two ticks, so there it may skip some but never go out of order.
     const positions = order.map((w) => WORDS.indexOf(w));
     expect(positions.every((p, i) => p >= 0 && (i === 0 || p > positions[i - 1]!)), `visited: ${order.join(" ")}`).toBe(true);
-    if (STRICT_TIMING) expect(order).toEqual(WORDS);
-    else expect(order.length).toBeGreaterThanOrEqual(2);
+    // A word may only go without the dot if the page was frozen while it passed (software WebGL freezes it for most of a second
+    // at the first speech); a miss with the page running is the karaoke's fault.
+    const freezes = await page.evaluate(() => (window as unknown as { __freezes: [number, number][] }).__freezes);
+    if (STRICT_TIMING) {
+      timed.forEach((w, i) => {
+        if (order.includes(w.word)) return;
+        const from = w.startMs;
+        const to = timed[i + 1]?.startMs ?? from + 150;
+        expect(freezes.some(([endMs, lengthMs]) => endMs - lengthMs < to && endMs > from), `"${w.word}" never got the dot and the page was not frozen over it (freezes: ${JSON.stringify(freezes)})`).toBe(true);
+      });
+    } else expect(order.length).toBeGreaterThanOrEqual(2);
     expect(Math.max(...samples.map((x) => x[2]))).toBe(1); // and never two at once
 
     // the dot is on the word the recorder says is being heard (allowing for the 50 ms tick and a frame)

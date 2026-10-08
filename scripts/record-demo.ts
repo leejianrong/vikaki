@@ -61,6 +61,7 @@ const video = await page.video()!.path();
 await context.close();
 await browser.close();
 await server.close();
+await tts.close?.(); // lets the voice worker finish and exit; without it the process never ends
 renameSync(video, `${out}/demo.webm`);
 // cues were measured from `started`, after the page loaded; the file began earlier, so shift everything by the lead.
 const shift = (t: number) => +(t + lead).toFixed(2);

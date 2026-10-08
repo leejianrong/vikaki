@@ -1,7 +1,8 @@
 import { AmbientLight, Box3, DirectionalLight, PerspectiveCamera, Scene, WebGLRenderer } from "three";
 import { Blinker, idlePose, mulberry32 } from "./behaviour.ts";
+import { EmotionState } from "./emotion.ts";
 import { frameFromEyeLevel } from "./framing.ts";
-import type { AvatarRenderer, VisemeWeights } from "./renderer.ts";
+import { VISEMES, type AvatarRenderer, type VisemeWeights } from "./renderer.ts";
 import type { VrmAvatar } from "./vrm-avatar.ts";
 
 export interface Stage {
@@ -51,6 +52,8 @@ export function frameAvatar(camera: PerspectiveCamera, avatar: VrmAvatar): { eye
 export class Puppet {
   private readonly blinker: Blinker;
   private elapsed = 0;
+  /** The feeling on show. Set it from the driver's `emotion`; it eases in and out by itself. */
+  readonly emotion = new EmotionState();
   /** Eyelid closure and mouth weights applied on the last update. */
   blink = 0;
   visemes: VisemeWeights = {};
@@ -74,12 +77,28 @@ export class Puppet {
 
   update(dt: number, mouth: VisemeWeights): void {
     this.elapsed += dt;
-    this.visemes = mouth;
-    this.avatar.setVisemes(mouth);
-    this.blink = this.blinker.update(dt);
+    const pose = this.emotion.update(dt);
+    this.visemes = mouth; // what lip sync asked for; the resting mouth is layered on below
+    this.avatar.setVisemes(withRestMouth(mouth, pose.rest));
+    this.blink = Math.max(this.blinker.update(dt), pose.squint);
     this.avatar.setBlink(this.blink);
-    this.avatar.setHeadPose(idlePose(this.elapsed));
+    const idle = idlePose(this.elapsed);
+    const tau = Math.PI * 2;
+    this.avatar.setHeadPose({
+      pitch: idle.pitch + pose.pitch + pose.bob * 0.05 * Math.sin(tau * 1.8 * this.elapsed),
+      yaw: idle.yaw + pose.yaw + pose.shake * 0.03 * Math.sin(tau * 9 * this.elapsed),
+      roll: idle.roll + pose.roll,
+    });
     this.avatar.update(dt);
     this.applied = this.avatar.appliedVisemes?.() ?? mouth;
   }
+}
+
+/** The emotion's resting mouth, faded out as lip sync opens the mouth, so a smile never stacks on a spoken vowel. */
+function withRestMouth(mouth: VisemeWeights, rest: VisemeWeights): VisemeWeights {
+  const speaking = Math.min(1, Math.max(0, ...VISEMES.map((v) => mouth[v] ?? 0)));
+  if (speaking >= 1 || Object.keys(rest).length === 0) return mouth;
+  const out: VisemeWeights = { ...mouth };
+  for (const v of VISEMES) if (rest[v]) out[v] = Math.min(1, (mouth[v] ?? 0) + rest[v]! * (1 - speaking));
+  return out;
 }

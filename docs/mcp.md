@@ -18,7 +18,7 @@ claude mcp add vikaki -- pnpm --silent --dir /path/to/vikaki vikaki mcp --port 8
 | tool | arguments | what it does |
 | --- | --- | --- |
 | `say` | `text`, optional `emotion`, `intensity`, `persona`, `wait` | Speaks a line. Waits until it is over (or interrupted) and returns `{ utterance_id, outcome: completed \| interrupted \| failed, reason?, first_audio_ms, first_frame_ms? }`. With `wait: false` it returns `{ utterance_id, outcome: "queued" }` at once. Lines are spoken one at a time, in order. |
-| `set_emotion` | `emotion` | Default emotion for later lines: `neutral`, `happy`, `smug`, `worried`, `surprised`, `sad`, `angry`. Anything else becomes `neutral`; it is never an error. Returns the one used. Only `persona` changes the sound today; faces for emotions arrive with V3. |
+| `set_emotion` | `emotion` | Default emotion for later lines: `neutral`, `happy`, `smug`, `worried`, `surprised`, `sad`, `angry`. Anything else becomes `neutral`; it is never an error. Returns the one used. The avatar shows it while the line is spoken. |
 | `set_persona` | `persona` | Default persona (the voice name today) for later lines. |
 | `cancel` | optional `utterance_id` | Stops that line, or everything speaking or queued. The avatar returns to idle. |
 

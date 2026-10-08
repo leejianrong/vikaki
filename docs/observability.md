@@ -93,3 +93,5 @@ It sits behind the `WordTimer` type (`(text, samples, rate) => {word, start, end
 ## What this cannot tell you
 
 It cannot say whether speech sounds good or is the right words, only that it is speech-like. Whether the mouth follows the voice is Phase 3's scorecard.
+
+**First-speech freeze under software WebGL.** In headless Chromium with software WebGL (what CI and the e2e suite use), the page freezes for about 0.7 to 1 s shortly after the first speech starts: a trace (`scripts/probe-trace.ts`) shows one main-thread task of about 800 ms with 4 ms of JavaScript in it and a 714 ms GPU task beside it, plus about 200 ms of timeline-dock drawing. On a real GPU the same work is a few milliseconds. The karaoke dot and the display of a short word can skip during that freeze, so the karaoke e2e only excuses a missed word when a freeze overlaps that word (`scripts/probe-jank.ts` measures the gaps). Related: KAN-1963 (long spectrograms are drawn in one go).

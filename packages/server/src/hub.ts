@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import { CONTROLLER_MAY_SEND, DRIVER_MAY_SEND, make, parseMessage, VIEWER_MAY_SEND, type ErrorCode, type Message } from "@vikaki/protocol";
+import { CONTROLLER_MAY_SEND, DRIVER_MAY_SEND, EMOTIONS, make, parseMessage, VIEWER_MAY_SEND, type ErrorCode, type Message } from "@vikaki/protocol";
 
 export interface HubOptions {
   /** If set, a driver must send this token in `hello`. Viewers never need one. */
@@ -18,6 +18,8 @@ export interface HubOptions {
   speechVoice?: string;
   /** Called with each valid message the driver sends, after it has been relayed. */
   onDriverMessage?: (message: Message) => void;
+  /** Where warnings go, such as an emotion the avatar does not know. Defaults to the console. */
+  warn?: (message: string) => void;
   /** Called when the driver disconnects. */
   onDriverGone?: () => void;
 }
@@ -178,6 +180,9 @@ export class Hub {
 
   private relayFromDriver(from: "driver" | "controller", message: Message): void {
     if (message.type === "utterance") {
+      if (message.emotion !== undefined && !(EMOTIONS as readonly string[]).includes(message.emotion)) {
+        (this.opts.warn ?? console.warn)(`utterance ${message.utterance_id}: unknown emotion "${message.emotion}", showing neutral`);
+      }
       this.inFlight.add(message.utterance_id);
       if (this.inFlight.size > DEDUP_LIMIT) this.inFlight.delete(this.inFlight.values().next().value as string);
     } else if (message.type === "cancel" && message.utterance_id !== undefined) {

@@ -11,6 +11,22 @@ interface Window {
     blink: number;
     blinks: number;
     setVisemes(w: Record<string, number>): void;
+    setEmotion(emotion: string | undefined, intensity?: number): void;
+    /** The emotion pose on show after the last frame, and what the preset for an emotion at an intensity says. */
+    emotionPose?: EmotionPose;
+    presetPose?: (emotion: string, intensity: number) => EmotionPose;
     live?: { state: string; soundBlocked: boolean; events: string[] };
   };
+}
+
+interface EmotionPose {
+  squint: number;
+  pitch: number;
+  roll: number;
+  yaw: number;
+  shake: number;
+  bob: number;
+  rest: Record<string, number>;
+  symbol: string | null;
+  symbolAmount: number;
 }

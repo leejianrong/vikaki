@@ -83,19 +83,19 @@ export class DriverConsole {
   }
 
   /** Send a whole line. */
-  say(text: string, id: string): void {
-    this.send({ protocol_version: PROTOCOL_VERSION, type: "utterance", seat_id: "demo", utterance_id: id, text });
+  say(text: string, id: string, emotion?: string): void {
+    this.send({ protocol_version: PROTOCOL_VERSION, type: "utterance", seat_id: "demo", utterance_id: id, text, ...(emotion ? { emotion } : {}) });
   }
 
   /** Send a line a word at a time, as a streaming LLM would. */
-  stream(text: string, id: string, wordsPerSecond: number): void {
+  stream(text: string, id: string, wordsPerSecond: number, emotion?: string): void {
     const pieces = wordPieces(text);
     const timers: ReturnType<typeof setTimeout>[] = [];
     pieces.forEach((delta, i) => {
       const last = i === pieces.length - 1;
       timers.push(
         setTimeout(() => {
-          this.send({ protocol_version: PROTOCOL_VERSION, type: "utterance", seat_id: "demo", utterance_id: id, delta, ...(last ? { final: true } : {}) });
+          this.send({ protocol_version: PROTOCOL_VERSION, type: "utterance", seat_id: "demo", utterance_id: id, delta, ...(last ? { final: true } : {}), ...(i === 0 && emotion ? { emotion } : {}) });
           if (last) this.streams.delete(id);
         }, (i * 1000) / wordsPerSecond),
       );
