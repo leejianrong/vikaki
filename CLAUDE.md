@@ -65,3 +65,12 @@ make check                       # typecheck + test: the fast gate, same as the 
 - Third-party assets (avatars, voices, libraries) must have their licence recorded before they are committed. Avatars go in `packages/engine/ASSETS.md`.
 - Move the Pandan card to `in_progress` when you start and to `done` only after the PR is merged.
 - pnpm 11 blocks dependency build scripts. Approved: `esbuild` only (`pnpm-workspace.yaml`).
+
+## Context budget
+
+Long sessions here hit the limit because of big tool results, not long chats.
+
+- Pipe noisy commands (`pnpm test`, `pnpm build`, `make doctor`, `git log`) through `tail -n 40`, `head` or `grep`. Never `cat` a large file.
+- Read big files with `offset` and `limit`, and don't re-read a file you already have. Use `rg` or an Explore agent to find things first.
+- Send wide searches or file sweeps to a subagent so only the conclusion comes back.
+- Suggest `/compact` around 70% full, before autocompact picks what to drop.
