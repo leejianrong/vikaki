@@ -1,6 +1,6 @@
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
-import { Vector3, type Object3D } from "three";
+import { Box3, Vector3, type Object3D } from "three";
 import { VISEMES, type AvatarRenderer, type HeadPose, type VisemeWeights } from "./renderer.ts";
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -28,6 +28,27 @@ export class VrmAvatar implements AvatarRenderer {
     this.vrm.scene.updateMatrixWorld(true);
     const head = this.vrm.humanoid.getNormalizedBoneNode("head");
     return head ? head.getWorldPosition(new Vector3()) : new Vector3(0, 1.4, 0);
+  }
+
+  /**
+   * World height of the eyes: the eye bones if the model has them, otherwise 55% of the way
+   * from the head bone to the top of the model, which is where eyes sit on most characters.
+   */
+  eyeLevel(): number {
+    this.vrm.scene.updateMatrixWorld(true);
+    const eyes = (["leftEye", "rightEye"] as const)
+      .map((n) => this.vrm.humanoid.getNormalizedBoneNode(n))
+      .filter((n): n is NonNullable<typeof n> => n != null)
+      .map((n) => n.getWorldPosition(new Vector3()).y);
+    if (eyes.length > 0) return eyes.reduce((a, b) => a + b, 0) / eyes.length;
+    const headY = this.headPosition().y;
+    const top = new Box3().setFromObject(this.vrm.scene).max.y;
+    return headY + 0.55 * (top - headY);
+  }
+
+  /** Where the eye bones were found, for diagnostics. */
+  hasEyeBones(): boolean {
+    return (["leftEye", "rightEye"] as const).some((n) => this.vrm.humanoid.getNormalizedBoneNode(n) != null);
   }
 
   setVisemes(weights: VisemeWeights): void {
