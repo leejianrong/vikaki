@@ -47,3 +47,21 @@ The hub listens on localhost only. It refuses browser connections from other sit
 ## Limits of the JSON Schema
 
 The schema describes field types and ranges. It cannot express "exactly one of `text` or `delta`" or "`final` only with `delta`"; the hub enforces those. A client in another language should check them too.
+
+## Speech from the hub to viewers
+
+When the hub has a speech engine, it speaks each `utterance` and sends the result to every viewer as `audio` messages. Only the hub sends these.
+
+```json
+{ "protocol_version": 1, "type": "audio", "utterance_id": "u1", "seat_id": "seat-1",
+  "seq": 0, "sample_rate": 24000, "pcm": "<base64 of 16-bit little-endian mono>", "final": false }
+```
+
+- Slices of one utterance arrive in `seq` order, each at most one second long. The last has `final: true` and may carry no samples.
+- Audio is base64 inside JSON. It is simple to debug and costs about a third more bytes, which does not matter on localhost (about 64 KB/s at 24 kHz).
+- A viewer plays slices back to back and reports `speech_started` when the first one actually begins, `speech_finished` when the last one ends, and `speech_interrupted` if it is cut off.
+- Utterances are spoken one at a time, in the order received.
+- `cancel` stops synthesis, drops anything queued for that utterance, and tells viewers to stop. A driver that keeps streaming text for a cancelled utterance is ignored, not scolded.
+- If a speech engine fails, the driver gets `error` with `code: "tts_failed"` and the `utterance_id`, and the utterance is cancelled.
+- **With no viewer connected** the hub plays the speech itself in real time and sends the driver the same `speech_started` and `speech_finished` (or `speech_interrupted`), so a game never waits on a face that is not there.
+- A viewer whose browser has not yet been allowed to make sound (no click yet) does the same: it keeps time silently and reports on schedule.

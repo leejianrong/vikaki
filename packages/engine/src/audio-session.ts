@@ -1,4 +1,5 @@
 import { createMouthDriver, type MouthDriver } from "./mouth.ts";
+import type { Output } from "./playback.ts";
 import { openMic } from "./mic.ts";
 
 /**
@@ -32,6 +33,47 @@ export class AudioSession {
       this.mouthKind = mouth.kind;
     }
     await this.ctx.resume();
+    return { ctx: this.ctx, ls: this.ls };
+  }
+
+  /** True when the browser is letting this page make sound. */
+  get running(): boolean {
+    return this.ctx?.state === "running";
+  }
+
+  /** Create the audio context and lip-sync driver now, so speech can start the moment it arrives. */
+  async prepare(): Promise<void> {
+    await this.ensure();
+  }
+
+  /** Play through the speakers and the lip sync, on the audio clock. Needs `prepare()` first. */
+  webOutput(): Output {
+    const { ctx, ls } = this.require();
+    return {
+      now: () => ctx.currentTime,
+      play: (samples, sampleRate, at) => {
+        const buffer = ctx.createBuffer(1, samples.length, sampleRate);
+        buffer.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        ls.connect(source);
+        source.connect(ctx.destination);
+        source.start(at);
+        return {
+          stop: () => {
+            try {
+              source.stop();
+            } catch {
+              /* already ended */
+            }
+          },
+        };
+      },
+    };
+  }
+
+  private require(): { ctx: AudioContext; ls: MouthDriver } {
+    if (!this.ctx || !this.ls) throw new Error("call prepare() before playing audio");
     return { ctx: this.ctx, ls: this.ls };
   }
 

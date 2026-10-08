@@ -2,6 +2,7 @@ import { Clock } from "three";
 import { VrmAvatar } from "./vrm-avatar.ts";
 import { AudioSession } from "./audio-session.ts";
 import { mountDemoPanel } from "./demo-panel.ts";
+import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, frameAvatar, Puppet } from "./stage.ts";
 import type { VisemeWeights } from "./renderer.ts";
 
@@ -30,6 +31,8 @@ declare global {
       blink: number;
       blinks: number;
       setVisemes(w: VisemeWeights): void;
+      /** Set when the page is connected to a hub (`?live=1`). `events` lists what it reported to the driver. */
+      live?: { state: LiveState; soundBlocked: boolean; events: string[] };
       /** True if the avatar has eye bones; false means eye level is estimated. */
       eyeBones?: boolean;
     };
@@ -99,8 +102,30 @@ try {
       })
     : undefined;
 
+  if (params.get("live") === "1") {
+    const live = { state: "connecting" as LiveState, soundBlocked: true, events: [] as string[] };
+    api.live = live;
+    const url = new URL("/ws", location.href);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    const player = new SpeechPlayer({
+      url: url.href,
+      session,
+      sessionId: params.get("session") ?? undefined,
+      onReport: (what) => live.events.push(what),
+      onState: (state, soundBlocked) => {
+        live.state = state;
+        live.soundBlocked = soundBlocked;
+        say(state !== "connected" ? `vikaki · ${state}` : soundBlocked ? "vikaki · click the page to hear the avatar" : "vikaki · live");
+      },
+    });
+    const unblock = () => void session.resume().then(() => live.soundBlocked = !session.running);
+    window.addEventListener("pointerdown", unblock);
+    window.addEventListener("keydown", unblock);
+    player.start();
+  }
+
   api.ready = true;
-  say("vikaki");
+  say(params.get("live") === "1" ? "vikaki · connecting" : "vikaki");
 
   const clock = new Clock();
   renderer.setAnimationLoop(() => {

@@ -381,6 +381,61 @@
         },
         "type": {
           "type": "string",
+          "const": "audio"
+        },
+        "utterance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sample_rate": {
+          "type": "integer",
+          "minimum": 8000,
+          "maximum": 48000
+        },
+        "pcm": {
+          "type": "string",
+          "maxLength": 2000000
+        },
+        "final": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "utterance_id",
+        "seq",
+        "sample_rate",
+        "pcm",
+        "final"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
           "const": "error"
         },
         "code": {

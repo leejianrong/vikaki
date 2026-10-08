@@ -3,8 +3,10 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer as createNetServer, type AddressInfo } from "node:net";
 import { Hub, type HubOptions } from "./hub.ts";
+import { SpeechEngine, type SpeechOptions } from "./speech.ts";
 
 export { Hub, type HubEvent, type HubOptions } from "./hub.ts";
+export { SpeechEngine, type SpeechOptions, type SpeechTiming } from "./speech.ts";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -25,6 +27,8 @@ export interface VikakiServerOptions {
   host?: string;
   /** Options for the WebSocket hub at /ws. */
   hub?: HubOptions;
+  /** Turn on speech: utterances from the driver are spoken with this engine. */
+  speech?: SpeechOptions;
 }
 
 export interface RunningServer {
@@ -33,6 +37,7 @@ export interface RunningServer {
   wsUrl: string;
   port: number;
   hub: Hub;
+  speech?: SpeechEngine;
   close(): Promise<void>;
 }
 
@@ -70,13 +75,26 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
     server.listen(opts.port ?? 0, host, ok);
   });
   const port = (server.address() as AddressInfo).port;
-  const hub = new Hub(server, opts.hub);
+  const speech = opts.speech ? new SpeechEngine(opts.speech) : undefined;
+  const hub = new Hub(server, {
+    ...opts.hub,
+    onDriverMessage: (m) => {
+      opts.hub?.onDriverMessage?.(m);
+      speech?.handle(m);
+    },
+    onDriverGone: () => {
+      opts.hub?.onDriverGone?.();
+      speech?.driverGone();
+    },
+  });
+  speech?.attach(hub);
 
   return {
     url: `http://${host}:${port}/avatar`,
     wsUrl: `ws://${host}:${port}/ws`,
     port,
     hub,
+    speech,
     close: async () => {
       await hub.close();
       await new Promise<void>((ok, fail) => {

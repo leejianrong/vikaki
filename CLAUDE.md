@@ -9,7 +9,7 @@ Trust the code over the docs where they disagree, then fix the docs.
 | Slice | State |
 |-------|-------|
 | V1 Mic to avatar to a real call | In progress. Done: V1.1 scaffold, V1.2 VRM avatar, V1.3 lip-sync spike (wLipSync, ADR-0007), V1.4 mic to lip sync, V1.5 blink and sway, a demo page, and V1.6 meeting extension for Meet (tested against a stand-in page only). Next: V1.7 test it on the real call machine |
-| V2 LLM text driver and MCP | In progress. Done: V2.1 protocol, V2.2 hub. Next: V2.3 TTS interface |
+| V2 LLM text driver and MCP | In progress. Done: V2.1 protocol, V2.2 hub, V2.3 TTS, V2.4 speech pipeline and page player, V2.5 lifecycle and cancel. Next: V2.6 CLI say/cancel/replay, V2.7 timing, V2.8 MCP |
 | V3 Emotions and personas | Not started |
 | V4 Headless, container, MJPEG feed | Not started |
 
@@ -20,7 +20,7 @@ Node 24, pnpm 11 (via corepack). Run from the repo root.
 ```bash
 pnpm install --frozen-lockfile   # reproducible install
 pnpm build                       # builds the avatar page into packages/engine/dist
-pnpm serve --port 8787           # serves http://127.0.0.1:8787/avatar (needs a build first)
+pnpm serve --port 8787           # serves http://127.0.0.1:8787/avatar (needs a build first); --tts none|fake|kokoro|auto
 pnpm typecheck                   # tsc --noEmit in every package
 pnpm test                        # vitest unit and integration, no network or GPU needed
 pnpm test:e2e                    # builds, then runs Playwright against the page (needs: pnpm exec playwright install chromium)

@@ -8,5 +8,6 @@ interface Window {
     blink: number;
     blinks: number;
     setVisemes(w: Record<string, number>): void;
+    live?: { state: string; soundBlocked: boolean; events: string[] };
   };
 }

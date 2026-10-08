@@ -73,6 +73,8 @@ export class FakeTts implements Tts {
   readonly name = "fake";
   /** Every request received, in order. */
   readonly requests: string[] = [];
+  /** The voice asked for with each request (undefined if none), in the same order. */
+  readonly voices: (string | undefined)[] = [];
   private readonly o: Required<Omit<FakeTtsOptions, "failOn">> & { failOn?: RegExp | string };
 
   constructor(options: FakeTtsOptions = {}) {
@@ -86,6 +88,7 @@ export class FakeTts implements Tts {
 
   async *synthesize(request: SynthesisRequest): AsyncGenerator<AudioChunk> {
     this.requests.push(request.text);
+    this.voices.push(request.voice);
     const { failOn } = this.o;
     if (failOn !== undefined && (typeof failOn === "string" ? request.text.includes(failOn) : failOn.test(request.text))) {
       throw new TtsError(`simulated failure for: ${request.text.slice(0, 40)}`);

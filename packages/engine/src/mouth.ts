@@ -61,11 +61,26 @@ export interface CreatedMouth {
   reason?: string;
 }
 
+/**
+ * A silent source feeding the driver. Without it, the browser stops processing the driver once
+ * its real input ends (a finished audio file or speech), and the last loud reading stays frozen,
+ * leaving the mouth stuck open. With it the driver keeps hearing silence, so the mouth closes.
+ */
+function keepAlive(ctx: AudioContext, driver: MouthDriver): void {
+  const silence = ctx.createConstantSource();
+  silence.offset.value = 0;
+  silence.start();
+  driver.connect(silence);
+}
+
 /** wLipSync if it starts, otherwise the amplitude fallback. Never throws. */
 export async function createMouthDriver(ctx: AudioContext, profile: string | ArrayBuffer): Promise<CreatedMouth> {
+  let created: CreatedMouth;
   try {
-    return { driver: await LipSync.create(ctx, profile), kind: "wlipsync" };
+    created = { driver: await LipSync.create(ctx, profile), kind: "wlipsync" };
   } catch (err) {
-    return { driver: new AmplitudeMouth(ctx), kind: "amplitude", reason: (err as Error).message };
+    created = { driver: new AmplitudeMouth(ctx), kind: "amplitude", reason: (err as Error).message };
   }
+  keepAlive(ctx, created.driver);
+  return created;
 }

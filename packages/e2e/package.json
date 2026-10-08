@@ -4,10 +4,18 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "dependencies": { "@vikaki/server": "workspace:*" },
+  "dependencies": {
+    "@vikaki/protocol": "workspace:*",
+    "@vikaki/server": "workspace:*",
+    "@vikaki/tts": "workspace:*",
+    "ws": "^8.22.0"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "echo 'e2e runs with: pnpm test:e2e (needs a build and Chromium)'",
     "test:e2e": "vitest run"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2"
   }
 }

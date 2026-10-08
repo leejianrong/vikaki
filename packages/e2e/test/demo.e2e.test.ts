@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startServer, type RunningServer } from "@vikaki/server";
+import { synthVowel } from "@vikaki/tts";
 
 const staticDir = fileURLToPath(new URL("../../engine/dist", import.meta.url));
 const fixture = fileURLToPath(new URL("../fixtures/vowel-aa.wav", import.meta.url));
@@ -29,12 +30,39 @@ afterAll(async () => {
   await server?.close();
 });
 
+/** A WAV file of "aah" that stops while still loud, unlike the fixture, which fades into silence. */
+function loudEndingWav(seconds: number, rate = 16000): Buffer {
+  const samples = synthVowel(seconds, rate);
+  const faded = samples.length - 1;
+  samples[faded] = samples[faded - 1]!; // no fade-out: the last sample is as loud as the rest
+  const pcm = Buffer.alloc(samples.length * 2);
+  samples.forEach((v, i) => pcm.writeInt16LE(Math.round(Math.max(-1, Math.min(1, v * 3)) * 32767), i * 2)); // x3: well above the noise floor
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0); header.writeUInt32LE(36 + pcm.length, 4); header.write("WAVEfmt ", 8);
+  header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(rate, 24); header.writeUInt32LE(rate * 2, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
+  header.write("data", 36); header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+
 async function open(): Promise<Page> {
   const page = await browser.newPage({ viewport: { width: 1100, height: 640 } });
   await page.goto(`${server.url}?demo=1&seed=7`);
   await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 30_000 });
   return page;
 }
+
+/** Highest mouth weight seen over `ms` milliseconds. */
+const peakOpen = (page: Page, ms: number) =>
+  page.evaluate(async (t) => {
+    let max = 0;
+    const end = performance.now() + t;
+    while (performance.now() < end) {
+      max = Math.max(max, ...Object.values(window.__vikaki!.visemes), 0);
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return max;
+  }, ms);
 
 /**
  * Highest mouth weight seen while an audio file plays. Waits for the panel to say it is playing,
@@ -88,6 +116,16 @@ describe("demo panel", () => {
     const peak = peakWhilePlaying(page);
     await page.locator('#demo input[type="file"]').setInputFiles(fixture);
     expect(await peak).toBeGreaterThan(0.3);
+    await page.close();
+  }, 90_000);
+
+  it("closes the mouth once an audio file has finished playing, even if it ended on a loud sound", async () => {
+    const page = await open();
+    const peak = peakWhilePlaying(page);
+    await page.locator('#demo input[type="file"]').setInputFiles({ name: "loud-end.wav", mimeType: "audio/wav", buffer: loudEndingWav(1.5) });
+    expect(await peak).toBeGreaterThan(0.3);
+    await page.waitForTimeout(800); // let the smoothing settle
+    expect(await peakOpen(page, 600)).toBeLessThan(0.05); // not frozen open on the last loud sound
     await page.close();
   }, 90_000);
 

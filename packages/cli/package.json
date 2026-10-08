@@ -4,8 +4,13 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "bin": { "vikaki": "./src/index.ts" },
-  "dependencies": { "@vikaki/server": "workspace:*" },
+  "bin": {
+    "vikaki": "./src/index.ts"
+  },
+  "dependencies": {
+    "@vikaki/server": "workspace:*",
+    "@vikaki/tts": "workspace:*"
+  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
