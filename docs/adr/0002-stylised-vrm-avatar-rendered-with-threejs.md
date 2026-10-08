@@ -1,6 +1,6 @@
 # ADR-0002: Stylised VRM avatars rendered in the browser with Three.js and three-vrm
 
-- Status: Accepted
+- Status: Accepted. Scope amended by ADR-0008: VRM stays the default renderer, and 2D renderers are now allowed alongside it
 - Date: 2026-10-07
 - Deciders: Jian
 

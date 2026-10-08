@@ -26,7 +26,7 @@ Separately, Jian is building LLM-driven games and agent teams whose AI seats nee
 
 **In M1**
 
-- Stylised VRM avatar rendered in a browser page with Three.js and three-vrm (ADR-0002).
+- Stylised VRM avatar rendered in a browser page with Three.js and three-vrm (ADR-0002). 2D renderers are allowed alongside it (ADR-0008).
 - Mic-driven lip sync plus idle behaviour, delivered into browser meetings by an extension, with OBS and window share as fallbacks (ADR-0003).
 - An MCP server so an LLM can make the avatar speak, emote and cancel (slice V2).
 - A versioned WebSocket event protocol shaped to match the games brief (ADR-0001).
