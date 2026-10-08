@@ -1,4 +1,7 @@
 .DEFAULT_GOAL := help
+
+# Run the CLI directly, not through pnpm: pnpm reports a clean Ctrl+C stop as a failed command.
+CLI = cd packages/cli && exec ../../node_modules/.bin/tsx src/index.ts
 .PHONY: help install install-voice doctor build serve demo demo-speech extension check hooks
 
 help: ## List available targets
@@ -11,19 +14,19 @@ install-voice: ## Install the real voice (Kokoro, about 410 MB) into .vikaki/voi
 	node scripts/install-voice.mjs
 
 doctor: ## Check that everything the demos need is in place
-	@pnpm --silent --filter @vikaki/cli exec tsx src/index.ts doctor
+	@( $(CLI) doctor ) || true  # the report is the output; `vikaki doctor` itself exits 1 on a problem, for scripts
 
 build: ## Build the avatar page
 	pnpm build
 
 serve: build ## Build, then serve the avatar page on localhost
-	pnpm serve
+	@$(CLI) serve
 
 demo: build ## Build, serve and open the demo page to judge the avatar by eye
-	pnpm --filter @vikaki/cli dev serve --demo --open
+	@$(CLI) serve --demo --open
 
 demo-speech: install-voice build ## Install the real voice if needed, then open the speech demo
-	pnpm --filter @vikaki/cli dev serve --speech-demo --open
+	@$(CLI) serve --speech-demo --open
 
 extension: ## Build the browser extension into packages/extension/dist
 	pnpm --filter @vikaki/extension build

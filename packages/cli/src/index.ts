@@ -106,8 +106,16 @@ async function serve(argv: string[]): Promise<void> {
   console.log("press Ctrl+C to stop");
   if (values.open) openBrowser(url);
 
+  // Stop on purpose: say so, close the server, exit 0. A second Ctrl+C (or a hung close) forces the exit.
+  let stopping = false;
   const stop = async () => {
-    await server.close();
+    if (stopping) process.exit(130);
+    stopping = true;
+    console.log("\nStopping...");
+    const closed = server.close().then(() => true, () => false);
+    const timeout = new Promise<false>((ok) => setTimeout(() => ok(false), 3000));
+    const clean = await Promise.race([closed, timeout]);
+    console.log(clean ? "Stopped." : "Stopped (some connections were still open and were dropped).");
     process.exit(0);
   };
   process.on("SIGINT", stop);
