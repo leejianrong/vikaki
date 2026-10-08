@@ -348,8 +348,19 @@ describe("with no avatar page connected", () => {
     const { driver } = await setup({ viewers: 0 });
     driver.send(utterance({ utterance_id: "a", text: x(10) }));
     driver.send(utterance({ utterance_id: "b", text: x(10) }));
-    const seen = (await Promise.all([1, 2, 3, 4].map(() => driver.next()))).map((m) => `${m.type}:${m.utterance_id}`);
+    // One after another: four concurrent `next()` calls on one queue may take the messages in any order, which says nothing about the engine.
+    const seen: string[] = [];
+    const at: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const m = await driver.next();
+      seen.push(`${m.type}:${m.utterance_id}`);
+      at.push(Date.now());
+    }
     expect(seen).toEqual(["speech_started:a", "speech_finished:a", "speech_started:b", "speech_finished:b"]);
+    // With no page, the hub keeps time: 10 characters at 50 ms each is half a second of speech, so the first line is not
+    // "finished" the instant it was synthesised. (A lower bound only: a slow machine can take longer, never less.)
+    expect(at[1]! - at[0]!, "speech_finished comes after the line's own length").toBeGreaterThanOrEqual(400);
+    expect(at[3]! - at[2]!).toBeGreaterThanOrEqual(400);
   });
 
   it("treats empty text as spoken at once, without calling the engine", async () => {
