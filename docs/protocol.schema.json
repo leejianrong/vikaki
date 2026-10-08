@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "hello"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "driver",
+            "viewer"
+          ]
+        },
+        "token": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "client": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "welcome"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "driver",
+            "viewer"
+          ]
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "utterance"
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "utterance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 5000
+        },
+        "delta": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 5000
+        },
+        "final": {
+          "type": "boolean"
+        },
+        "emotion": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "intensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "persona": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "banter",
+            "clue",
+            "table_talk"
+          ]
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "seat_id",
+        "utterance_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "cancel"
+        },
+        "utterance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "utterance_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "turn_started"
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "seat_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "turn_ended"
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "seat_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "game_over"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "won",
+            "lost",
+            "drew"
+          ]
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "speech_started"
+        },
+        "utterance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "utterance_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "speech_finished"
+        },
+        "utterance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "utterance_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "speech_interrupted"
+        },
+        "utterance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "cancelled",
+            "superseded",
+            "human_spoke",
+            "driver_disconnected"
+          ]
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "utterance_id",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "error"
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "bad_message",
+            "unsupported_protocol_version",
+            "unauthorized",
+            "driver_busy",
+            "not_allowed",
+            "unknown_persona",
+            "tts_failed",
+            "internal"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "utterance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
