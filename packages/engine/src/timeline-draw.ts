@@ -1,5 +1,5 @@
 import { colour, stft, type Stft } from "@vikaki/audio";
-import { FRAME_FIELDS, MOUTH_SHAPES, type TimelineEvent, type TimelineRecorder, type UtteranceTimeline } from "./timeline.ts";
+import { currentWord, FRAME_FIELDS, MOUTH_SHAPES, pieceWords, type TimelineEvent, type TimelineRecorder, type UtteranceTimeline } from "./timeline.ts";
 
 /** A stretch of time to show, in timeline milliseconds. */
 export interface View {
@@ -266,26 +266,38 @@ export function drawTimeline(ctx: CanvasRenderingContext2D, width: number, heigh
 
   const utterances = rec.utterances().filter((u) => u.endMs >= v.fromMs && u.startMs <= v.toMs);
 
-  // words
+  // words: each estimated word as its own pill, or the whole sentence where the words are not timed yet
   const words = lane("words");
   ctx.textAlign = "left";
   ctx.font = plain;
+  const heard = v.nowMs !== undefined ? currentWord(utterances, v.nowMs) : undefined;
+  const pill = (startMs: number, endMs: number, label: string, isNow: boolean) => {
+    const x0 = Math.max(GUTTER, x(startMs));
+    const x1 = Math.min(width, x(endMs));
+    if (x1 - x0 < 1) return;
+    ctx.fillStyle = col("secondary-container");
+    ctx.beginPath();
+    ctx.roundRect(x0, words.top + 2, Math.max(2, x1 - x0 - 1), words.height - 4, 6);
+    ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, words.top, Math.max(0, x1 - x0 - 1), words.height);
+    ctx.clip();
+    ctx.fillStyle = col("on-secondary-container");
+    ctx.fillText(label, x0 + (isNow ? 12 : 6), words.top + words.height / 2);
+    ctx.restore();
+    if (isNow) {
+      ctx.fillStyle = col("error"); // the red dot on the word being said
+      ctx.beginPath();
+      ctx.arc(x0 + 7, words.top + words.height / 2, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
   for (const u of utterances) {
     for (const p of u.pieces) {
-      const x0 = Math.max(GUTTER, x(p.startMs));
-      const x1 = Math.min(width, x(p.endMs));
-      if (x1 - x0 < 1) continue;
-      ctx.fillStyle = col("secondary-container");
-      ctx.beginPath();
-      ctx.roundRect(x0, words.top + 2, Math.max(2, x1 - x0 - 1), words.height - 4, 6);
-      ctx.fill();
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x0, words.top, Math.max(0, x1 - x0 - 1), words.height);
-      ctx.clip();
-      ctx.fillStyle = col("on-secondary-container");
-      ctx.fillText(p.text || `piece ${p.index + 1}`, x0 + 6, words.top + words.height / 2);
-      ctx.restore();
+      const timed = pieceWords(p);
+      if (timed.length === 0) pill(p.startMs, p.endMs, p.text || `piece ${p.index + 1}`, false);
+      else timed.forEach((w, i) => pill(w.startMs, w.endMs, w.word, heard?.utteranceId === u.id && heard.pieceIndex === p.index && heard.wordIndex === i));
     }
   }
 

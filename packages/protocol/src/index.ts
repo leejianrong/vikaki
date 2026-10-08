@@ -107,7 +107,8 @@ export const MAX_SENTENCE_TEXT = 4000;
  * A slice of speech. `pcm` is base64 of 16-bit little-endian mono samples. Slices of one utterance
  * arrive in `seq` order; the last has `final: true` and may carry no samples. `sentence_index` says which
  * spoken piece of the utterance a slice belongs to, and `sentence_text` carries that piece's text on the first
- * slice of each piece only. Both are optional, so a hub without them still works and older pages ignore them.
+ * slice of each piece only. `sentence_end` marks, on an empty slice, that a piece's audio is complete. All are optional,
+ * so a hub without them still works and older pages ignore them.
  */
 export const AudioMessage = z.object({
   ...common,
@@ -120,6 +121,8 @@ export const AudioMessage = z.object({
   final: z.boolean(),
   sentence_index: z.number().int().min(0).optional(),
   sentence_text: z.string().max(MAX_SENTENCE_TEXT).optional(),
+  /** On an empty slice sent after a piece's last audio: that piece is complete, so its words can be timed now. */
+  sentence_end: z.boolean().optional(),
 });
 
 export const Message = z.discriminatedUnion("type", [

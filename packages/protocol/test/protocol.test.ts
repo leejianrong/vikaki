@@ -97,6 +97,8 @@ describe("audio message and PCM encoding", () => {
   it("carries which spoken piece a slice belongs to, optionally", () => {
     expect(parseMessage({ ...audio, sentence_index: 2, sentence_text: "How are you?" }).ok).toBe(true);
     expect(parseMessage({ ...audio, sentence_index: 0 }).ok).toBe(true);
+    expect(parseMessage({ ...audio, sentence_index: 0, sentence_end: true, pcm: "" }).ok).toBe(true); // a marker: this sentence's audio is complete
+    expect(parseMessage({ ...audio, sentence_end: "yes" }).ok).toBe(false);
     expect(parseMessage({ ...audio, sentence_index: -1 }).ok).toBe(false);
     expect(parseMessage({ ...audio, sentence_index: 0.5 }).ok).toBe(false);
     expect(parseMessage({ ...audio, sentence_text: "x".repeat(MAX_SENTENCE_TEXT + 1) }).ok).toBe(false);

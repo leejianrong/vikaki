@@ -14,6 +14,8 @@ export type WordTimer = (text: string, samples: Float32Array, rate: number) => W
 const HOP = 0.01; // seconds per energy frame
 const ACTIVE_DB = 35; // a frame is speech when within this many dB of the loud end of the clip
 const MIN_WORD = 0.03; // no word is shorter than this
+/** How much a dip far from where the syllable count says a boundary belongs is discounted, against a dip right there. */
+const DISTANCE_PENALTY = 1;
 const MIN_GAP_FRAMES = 5; // a quiet stretch this long (50 ms) is a pause between words, not part of either word
 
 /** A rough count of syllables: runs of vowels, a silent final "e" ignored, each CJK character as one. Never less than 1. */
@@ -62,13 +64,15 @@ function energy(samples: Float32Array, rate: number): Float32Array {
  * (a real gap between words if there is one). Good enough to follow along; replace it through `WordTimer` when a
  * source that knows the real durations is available.
  */
-export function estimateWordTimings(text: string, samples: Float32Array, rate: number): WordTiming[] {
+export function estimateWordTimings(text: string, samples: Float32Array, rate: number, options: { distancePenalty?: number } = {}): WordTiming[] {
+  const penalty = options.distancePenalty ?? DISTANCE_PENALTY;
   const words = text.split(/\s+/).filter(Boolean);
   if (words.length === 0) return [];
   const duration = samples.length / rate;
   const e = energy(samples, rate);
 
-  const floor = Math.max(1e-4, percentile(e, 0.95) * 10 ** (-ACTIVE_DB / 20));
+  const loud = Math.max(1e-6, percentile(e, 0.95));
+  const floor = Math.max(1e-4, loud * 10 ** (-ACTIVE_DB / 20));
   const active = Array.from(e, (v) => v > floor);
   const first = active.indexOf(true);
   const last = active.lastIndexOf(true);
@@ -95,11 +99,15 @@ export function estimateWordTimings(text: string, samples: Float32Array, rate: n
       const reach = Math.max(0.02, Math.min(0.15, 0.4 * slotSeconds));
       const lo = Math.max(0, Math.round((boundary - reach) / HOP));
       const hi = Math.min(e.length - 1, Math.round((boundary + reach) / HOP));
+      // A real pause (quiet enough to count as silence) inside the search window wins: take the one nearest the
+      // expected place, and the whole of its quiet stretch. Failing that, the quietest frame, but a dip far from the
+      // expected place must be much quieter than one right there, so a closure inside a word is not mistaken for its end.
       let best = -1;
       let bestScore = Infinity;
       for (let f = lo; f <= hi; f++) {
+        const near = Math.abs(f * HOP - boundary) / reach;
         const smooth = ((e[f - 1] ?? e[f]!) + e[f]! + (e[f + 1] ?? e[f]!)) / 3;
-        const score = smooth + 1e-6 * Math.abs(f * HOP - boundary); // the quietest frame; the nearer one if equally quiet
+        const score = (active[f] ? 1 + smooth / loud : near) + (active[f] ? penalty * near * near : 0);
         if (score < bestScore) {
           bestScore = score;
           best = f;

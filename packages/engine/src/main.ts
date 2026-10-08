@@ -129,6 +129,7 @@ try {
         timeline?.event(kind!, id.join(":"));
       },
       onScheduled: (slice) => timeline?.scheduled(slice),
+      onSentence: (s) => timeline?.sentence(s.utteranceId, s.index, s.text, s.samples, s.sampleRate),
       onState: (state, soundBlocked) => {
         live.state = state;
         live.soundBlocked = soundBlocked;

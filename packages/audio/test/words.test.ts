@@ -51,6 +51,20 @@ describe("estimateWordTimings", () => {
     expect(w[1]!.start).toBeGreaterThanOrEqual(1.25);
   });
 
+  it("does not mistake a dip inside a word for the end of it: a nearer, shallower dip wins over a deeper one far from where the syllables say the boundary is", () => {
+    // 0.1 to 0.9 s of a steady tone: a deep dip at 0.40 s (inside the first word) and a shallow one at 0.52 s
+    const x = new Float32Array(Math.round(1 * RATE));
+    const gauss = (t: number, at: number) => Math.exp(-(((t - at) / 0.015) ** 2));
+    for (let i = Math.round(0.1 * RATE); i < Math.round(0.9 * RATE); i++) {
+      const t = i / RATE;
+      x[i] = 0.5 * (1 - 0.6 * gauss(t, 0.4) - 0.35 * gauss(t, 0.52)) * Math.sin(2 * Math.PI * 220 * t);
+    }
+    const near = estimateWordTimings("banana banana", x, RATE);
+    expect(Math.abs(near[0]!.end - 0.52)).toBeLessThan(0.04);
+    const careless = estimateWordTimings("banana banana", x, RATE, { distancePenalty: 0 });
+    expect(Math.abs(careless[0]!.end - 0.4)).toBeLessThan(0.04); // with no penalty it takes the deepest dip, which is the mistake
+  });
+
   it("does not count leading or trailing silence as speech", () => {
     const w = estimateWordTimings("one two", bursts([[1, 1.4], [1.5, 1.9]], 3), RATE);
     expect(w[0]!.start).toBeGreaterThan(0.95);

@@ -1,3 +1,4 @@
+import { estimateWordTimings, type WordTimer, type WordTiming } from "@vikaki/audio";
 import { encodePcm16 } from "@vikaki/protocol";
 import type { VisemeWeights } from "./renderer.ts";
 
@@ -18,6 +19,15 @@ export interface TimelineEvent {
 export interface Piece {
   index: number;
   text: string;
+  startMs: number;
+  endMs: number;
+  /** Word times estimated from the audio, in seconds from the start of this piece. Use `pieceWords` for timeline time. */
+  words?: WordTiming[];
+}
+
+/** A word placed on the timeline's clock. */
+export interface PlacedWord {
+  word: string;
   startMs: number;
   endMs: number;
 }
@@ -52,6 +62,8 @@ export interface TimelineOptions {
   maxFrames?: number;
   maxUtterances?: number;
   maxEvents?: number;
+  /** Turns a sentence and its audio into word times. Defaults to the estimate; swap in a better source here. */
+  wordTimer?: WordTimer;
 }
 
 const durationMs = (a: AudioPlacement) => (a.samples.length / a.sampleRate) * 1000;
@@ -72,6 +84,9 @@ export class TimelineRecorder {
   private readonly byId = new Map<string, UtteranceTimeline>();
   private readonly maxUtterances: number;
   private readonly maxEvents: number;
+  private readonly wordTimer: WordTimer;
+  /** Word times that arrived before their piece was scheduled, by `utteranceId#index`. */
+  private readonly waiting = new Map<string, WordTiming[]>();
 
   constructor(o: TimelineOptions = {}) {
     this.clock = o.now ?? (() => performance.now());
@@ -81,6 +96,7 @@ export class TimelineRecorder {
     this.values = new Float32Array(this.cap * FRAME_FIELDS);
     this.maxUtterances = o.maxUtterances ?? 30;
     this.maxEvents = o.maxEvents ?? 5000;
+    this.wordTimer = o.wordTimer ?? estimateWordTimings;
   }
 
   /** Milliseconds since the recorder started. */
@@ -161,9 +177,23 @@ export class TimelineRecorder {
       u.pieces.push(piece);
       u.pieces.sort((a, b) => a.index - b.index);
     }
+    piece.words ??= this.waiting.get(`${s.utteranceId}#${index}`);
     if (s.sentenceText !== undefined) piece.text = s.sentenceText;
     piece.startMs = Math.min(piece.startMs, startMs);
     piece.endMs = Math.max(piece.endMs, endMs);
+  }
+
+  /** A whole sentence's audio has arrived (not yet heard): estimate when each of its words falls. */
+  sentence(utteranceId: string, index: number, text: string, samples: Float32Array, sampleRate: number): void {
+    if (!text.trim() || samples.length === 0) return;
+    const words = this.wordTimer(text, samples, sampleRate);
+    const key = `${utteranceId}#${index}`;
+    const piece = this.byId.get(utteranceId)?.pieces.find((p) => p.index === index);
+    if (piece) piece.words = words;
+    else {
+      this.waiting.set(key, words);
+      if (this.waiting.size > this.maxUtterances * 8) this.waiting.delete(this.waiting.keys().next().value as string);
+    }
   }
 
   utterance(id: string): UtteranceTimeline | undefined {
@@ -181,7 +211,10 @@ export class TimelineRecorder {
     if (!u) return;
     u.interruptedAtMs = t;
     u.pieces = u.pieces.filter((p) => p.startMs < t);
-    for (const p of u.pieces) p.endMs = Math.min(p.endMs, t);
+    for (const p of u.pieces) {
+      p.endMs = Math.min(p.endMs, t);
+      if (p.words) p.words = p.words.filter((w) => p.startMs + w.start * 1000 < t).map((w) => ({ ...w, end: Math.min(w.end, (t - p.startMs) / 1000) }));
+    }
     u.audio = u.audio.filter((a) => a.startMs < t);
     for (const a of u.audio) {
       const heard = Math.max(0, Math.floor(((t - a.startMs) / 1000) * a.sampleRate));
@@ -209,9 +242,46 @@ export class TimelineRecorder {
           startMs: round(u.startMs),
           endMs: round(u.endMs),
           ...(u.interruptedAtMs !== undefined ? { interruptedAtMs: round(u.interruptedAtMs) } : {}),
-          pieces: u.pieces.map((p) => ({ ...p, startMs: round(p.startMs), endMs: round(p.endMs) })),
+          pieces: u.pieces.map(({ words, ...p }) => ({
+            ...p,
+            startMs: round(p.startMs),
+            endMs: round(p.endMs),
+            ...(words ? { words: pieceWords({ ...p, words }).map((w) => ({ ...w, startMs: round(w.startMs), endMs: round(w.endMs) })) } : {}),
+          })),
           audio: u.audio.map((a) => ({ startMs: round(a.startMs), sampleRate: a.sampleRate, seconds: round(a.samples.length / a.sampleRate), ...(range.includeAudio ? { pcm: encodePcm16(a.samples) } : {}) })),
         })),
     };
   }
+}
+
+/** The words of a piece on the timeline's clock. Empty until their times have been estimated. */
+export function pieceWords(piece: Piece): PlacedWord[] {
+  return (piece.words ?? []).map((w) => ({ word: w.word, startMs: piece.startMs + w.start * 1000, endMs: piece.startMs + w.end * 1000 }));
+}
+
+export interface CurrentWord {
+  utteranceId: string;
+  pieceIndex: number;
+  /** Position in `pieceWords`; -1 while the piece has begun but its first word has not. */
+  wordIndex: number;
+}
+
+/**
+ * Which word is being spoken at time `t`: inside a sentence, the latest word that has started (it stays current through
+ * a pause until the next begins). Undefined when nothing is being heard.
+ */
+export function currentWord(utterances: readonly UtteranceTimeline[], t: number): CurrentWord | undefined {
+  for (let u = utterances.length - 1; u >= 0; u--) {
+    const utt = utterances[u]!;
+    if (t < utt.startMs || t > utt.endMs) continue;
+    for (const piece of utt.pieces) {
+      if (t < piece.startMs || t >= piece.endMs) continue;
+      let wordIndex = -1;
+      pieceWords(piece).forEach((w, i) => {
+        if (w.startMs <= t) wordIndex = i;
+      });
+      return { utteranceId: utt.id, pieceIndex: piece.index, wordIndex };
+    }
+  }
+  return undefined;
 }

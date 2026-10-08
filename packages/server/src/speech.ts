@@ -219,6 +219,12 @@ export class SpeechEngine {
       if (u.cancelled) return;
       this.emit(u, chunk, text);
     }
+    // Tell the pages this piece's audio is complete, so they can work out its words without waiting for the next piece.
+    if (!u.cancelled && !u.virtual && u.announced === u.sentences - 1) {
+      this.hub?.toViewers(
+        make("audio", { utterance_id: u.id, seat_id: u.seatId, seq: u.seq++, sample_rate: u.rate, pcm: "", final: false, sentence_index: u.sentences - 1, sentence_end: true }),
+      );
+    }
   }
 
   private emit(u: Utterance, chunk: AudioChunk, text: string): void {
