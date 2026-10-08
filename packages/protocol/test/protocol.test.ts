@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { decodePcm16, DRIVER_MAY_SEND, EMOTIONS, encodePcm16, jsonSchema, make, normaliseEmotion, parseMessage, PROTOCOL_VERSION, VIEWER_MAY_SEND } from "../src/index.ts";
+import { decodePcm16, DRIVER_MAY_SEND, EMOTIONS, encodePcm16, jsonSchema, make, MAX_SENTENCE_TEXT, normaliseEmotion, parseMessage, PROTOCOL_VERSION, VIEWER_MAY_SEND } from "../src/index.ts";
 
 const v = PROTOCOL_VERSION;
 
@@ -92,6 +92,14 @@ describe("audio message and PCM encoding", () => {
     expect(parseMessage({ ...audio, seq: -1 }).ok).toBe(false);
     expect(parseMessage({ ...audio, seq: 1.5 }).ok).toBe(false);
     expect(parseMessage({ ...audio, final: undefined }).ok).toBe(false);
+  });
+
+  it("carries which spoken piece a slice belongs to, optionally", () => {
+    expect(parseMessage({ ...audio, sentence_index: 2, sentence_text: "How are you?" }).ok).toBe(true);
+    expect(parseMessage({ ...audio, sentence_index: 0 }).ok).toBe(true);
+    expect(parseMessage({ ...audio, sentence_index: -1 }).ok).toBe(false);
+    expect(parseMessage({ ...audio, sentence_index: 0.5 }).ok).toBe(false);
+    expect(parseMessage({ ...audio, sentence_text: "x".repeat(MAX_SENTENCE_TEXT + 1) }).ok).toBe(false);
   });
 
   it("is not something a driver or a viewer may send", () => {

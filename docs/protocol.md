@@ -54,10 +54,12 @@ When the hub has a speech engine, it speaks each `utterance` and sends the resul
 
 ```json
 { "protocol_version": 1, "type": "audio", "utterance_id": "u1", "seat_id": "seat-1",
-  "seq": 0, "sample_rate": 24000, "pcm": "<base64 of 16-bit little-endian mono>", "final": false }
+  "seq": 0, "sample_rate": 24000, "pcm": "<base64 of 16-bit little-endian mono>", "final": false,
+  "sentence_index": 0, "sentence_text": "Good morning, everyone." }
 ```
 
 - Slices of one utterance arrive in `seq` order, each at most one second long. The last has `final: true` and may carry no samples.
+- `sentence_index` says which spoken piece (a sentence, or a clause of a long one) a slice belongs to, counting from 0. `sentence_text` is that piece's text and appears on its first slice only. Both are optional, absent on the closing `final` marker, and let a page label what it is playing (the timeline and karaoke views use them). Older pages ignore them.
 - Audio is base64 inside JSON. It is simple to debug and costs about a third more bytes, which does not matter on localhost (about 64 KB/s at 24 kHz).
 - A viewer plays slices back to back and reports `speech_started` when the first one actually begins, `speech_finished` when the last one ends, and `speech_interrupted` if it is cut off.
 - Utterances are spoken one at a time, in the order received.

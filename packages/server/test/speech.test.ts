@@ -157,6 +157,24 @@ describe("speaking to avatar pages", () => {
   });
 });
 
+describe("which sentence a slice belongs to", () => {
+  it("numbers the slices by spoken piece, and sends each piece's text once, on its first slice", async () => {
+    const { viewer, driver } = await setup({ tts: { msPerChar: 100, chunkMs: 100 } });
+    driver.send(utterance({ utterance_id: "s", text: "Hello there. How are you?" }));
+    const seen = await readUntil(viewer, isFinal);
+    const slices = audioOf(seen).filter((m) => m.final === false);
+    expect(slices.map((m) => m.sentence_index)).toEqual(slices.map((_, i) => (i < slices.findIndex((m) => m.sentence_index === 1) ? 0 : 1)));
+    expect(slices.filter((m) => m.sentence_text !== undefined).map((m) => [m.sentence_index, m.sentence_text])).toEqual([
+      [0, "Hello there."],
+      [1, "How are you?"],
+    ]);
+    expect(slices.length).toBeGreaterThan(2); // each sentence takes several slices, so "once" means something
+    const end = seen.at(-1)!;
+    expect(end.sentence_index).toBeUndefined();
+    expect(end.sentence_text).toBeUndefined();
+  });
+});
+
 describe("cancelling", () => {
   it("stops an utterance before any audio is made, tells the viewers, and carries on with the next", async () => {
     const { viewer, driver, fake } = await setup({ tts: { firstChunkDelayMs: 400 } });

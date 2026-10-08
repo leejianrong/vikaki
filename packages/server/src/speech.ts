@@ -1,4 +1,4 @@
-import { encodePcm16, make, type Message } from "@vikaki/protocol";
+import { encodePcm16, make, MAX_SENTENCE_TEXT, type Message } from "@vikaki/protocol";
 import { SentenceChunker, type AudioChunk, type ChunkerOptions, type Tts } from "@vikaki/tts";
 import type { Hub } from "./hub.ts";
 
@@ -47,6 +47,8 @@ interface Utterance {
   rate: number;
   spoken: boolean;
   sentences: number;
+  /** The piece whose text was last sent to viewers, so each piece's text goes out once. */
+  announced: number;
   failure?: string;
   closed: boolean;
   cancelled: boolean;
@@ -129,6 +131,7 @@ export class SpeechEngine {
         rate: 24000,
         spoken: false,
         sentences: 0,
+        announced: -1,
         closed: false,
         cancelled: false,
         virtual: false,
@@ -214,11 +217,11 @@ export class SpeechEngine {
     this.o.observer?.sentence?.({ utterance_id: u.id, index: u.sentences - 1, text, persona: u.persona, voice, at: Date.now() });
     for await (const chunk of this.o.tts.synthesize({ text, voice, signal: u.controller.signal })) {
       if (u.cancelled) return;
-      this.emit(u, chunk);
+      this.emit(u, chunk, text);
     }
   }
 
-  private emit(u: Utterance, chunk: AudioChunk): void {
+  private emit(u: Utterance, chunk: AudioChunk, text: string): void {
     if (chunk.samples.length === 0) return;
     if (!u.spoken) {
       u.spoken = true;
@@ -234,9 +237,14 @@ export class SpeechEngine {
     u.virtualSeconds += chunk.samples.length / chunk.sampleRate;
     if (u.virtual) return; // nobody to send audio to
     const step = Math.max(1, Math.round(this.maxSlice * chunk.sampleRate));
+    const sentence_index = u.sentences - 1;
     for (let at = 0; at < chunk.samples.length; at += step) {
+      const first = u.announced !== sentence_index;
+      u.announced = sentence_index;
       this.hub?.toViewers(
         make("audio", {
+          sentence_index,
+          ...(first ? { sentence_text: text.slice(0, MAX_SENTENCE_TEXT) } : {}),
           utterance_id: u.id,
           seat_id: u.seatId,
           seq: u.seq++,
