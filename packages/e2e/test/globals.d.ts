@@ -13,6 +13,8 @@ interface Window {
     setVisemes(w: Record<string, number>): void;
     setEmotion(emotion: string | undefined, intensity?: number): void;
     setThinking(on: boolean): void;
+    persona?: string;
+    avatarUrl?: string;
     prosody?: { cues: { cue: string; t: number }[] };
     head?: { pitch: number; yaw: number; roll: number };
     gesture?: { pitch: number; roll: number };

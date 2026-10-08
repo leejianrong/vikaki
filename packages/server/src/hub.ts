@@ -49,6 +49,8 @@ export class Hub {
   private driver?: WebSocket;
   private readonly viewers = new Set<WebSocket>();
   private readonly roles = new WeakMap<WebSocket, Role>();
+  /** The persona a viewer said it shows (absent: it shows every line). */
+  private readonly viewerPersona = new WeakMap<WebSocket, string>();
   private readonly seen = new Set<string>();
   /** Utterances the driver has sent that no one has reported finished or interrupted yet: what "cancel everything" stops. */
   private readonly inFlight = new Set<string>();
@@ -78,6 +80,16 @@ export class Hub {
 
   get viewerCount(): number {
     return this.viewers.size;
+  }
+
+  /** How many viewers will play a line of this persona: those showing it, and those showing everyone. */
+  viewerCountFor(persona: string | undefined): number {
+    let n = 0;
+    for (const v of this.viewers) {
+      const shows = this.viewerPersona.get(v);
+      if (shows === undefined || shows === persona) n++;
+    }
+    return n;
   }
 
   /** Send a hub-originated message to the driver, such as a TTS failure. */
@@ -230,6 +242,7 @@ export class Hub {
       if (hello.role === "driver") this.driver = ws;
     } else {
       this.viewers.add(ws);
+      if (hello.persona) this.viewerPersona.set(ws, hello.persona);
     }
     this.roles.set(ws, hello.role);
     this.send(

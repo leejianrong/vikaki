@@ -1,3 +1,4 @@
+import { LineOwners } from "./line-owners.ts";
 import type { FirstFrameTimer } from "./first-frame.ts";
 import { decodePcm16, make, parseMessage, type Message } from "@vikaki/protocol";
 import type { AudioSession } from "./audio-session.ts";
@@ -11,6 +12,8 @@ export interface SpeechPlayerOptions {
   url: string;
   session: AudioSession;
   sessionId?: string;
+  /** Show one persona: play only the lines and turns that name it, and tell the hub so. Without it, this page plays every line. */
+  persona?: string;
   onState?: (state: LiveState, soundBlocked: boolean) => void;
   /** Every event this player reported, for diagnostics and tests: "started:u1", "finished:u1", ... */
   onReport?: (what: string) => void;
@@ -47,10 +50,12 @@ export class SpeechPlayer {
   private web?: Output;
   private current: LiveState = "connecting";
   private lastBlocked = true;
+  private readonly owners: LineOwners;
   /** The emotion each line asked for, until it ends. */
   private readonly feelings = new Map<string, { emotion?: string; intensity?: number }>();
 
   constructor(private readonly o: SpeechPlayerOptions) {
+    this.owners = new LineOwners(o.persona);
     this.playback = new Playback(
       () => (o.session.running ? (this.web ??= o.session.webOutput()) : silent),
       {
@@ -114,7 +119,7 @@ export class SpeechPlayer {
     this.ws = ws;
     ws.onopen = () => {
       this.retry = 1000;
-      ws.send(JSON.stringify(make("hello", { role: "viewer", client: "vikaki-page", ...(this.o.sessionId ? { session_id: this.o.sessionId } : {}) })));
+      ws.send(JSON.stringify(make("hello", { role: "viewer", client: "vikaki-page", ...(this.o.persona ? { persona: this.o.persona } : {}), ...(this.o.sessionId ? { session_id: this.o.sessionId } : {}) })));
     };
     ws.onmessage = (e) => this.onMessage(String(e.data));
     ws.onclose = () => {
@@ -135,16 +140,19 @@ export class SpeechPlayer {
         this.state("connected");
         break;
       case "utterance":
+        this.owners.see(m.utterance_id, m.persona);
+        if (!this.owners.mine(m.utterance_id)) break; // another persona's line: its own page plays it
         this.o.timer?.received(m.utterance_id, performance.now());
         if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity }); // the first message of a streamed line carries it
         break;
       case "turn_started":
-        this.o.onTurn?.(true, m.seat_id);
+        if (this.owners.turnIsMine(m.persona)) this.o.onTurn?.(true, m.seat_id);
         break;
       case "turn_ended":
-        this.o.onTurn?.(false, m.seat_id);
+        if (this.owners.turnIsMine(m.persona)) this.o.onTurn?.(false, m.seat_id);
         break;
       case "audio": {
+        if (!this.owners.mine(m.utterance_id)) break;
         const samples = decodePcm16(m.pcm);
         this.playback.push({
           utteranceId: m.utterance_id,
@@ -159,7 +167,7 @@ export class SpeechPlayer {
         break;
       }
       case "cancel":
-        if (m.utterance_id === undefined) break; // the hub turns "cancel everything" into one cancel per utterance
+        if (m.utterance_id === undefined || !this.owners.mine(m.utterance_id)) break; // the hub turns "cancel everything" into one cancel per utterance
         this.sentences.cancel(m.utterance_id);
         this.playback.cancel(m.utterance_id);
         break;
@@ -169,6 +177,7 @@ export class SpeechPlayer {
   }
 
   private endFeeling(id: string): void {
+    this.owners.forget(id);
     const f = this.feelings.get(id);
     this.feelings.delete(id);
     if (f) this.o.onEmotion?.(f.emotion, f.intensity, "end");

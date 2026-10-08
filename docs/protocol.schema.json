@@ -32,6 +32,11 @@
         "client": {
           "type": "string",
           "maxLength": 64
+        },
+        "persona": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
         }
       },
       "required": [
@@ -208,6 +213,11 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 128
+        },
+        "persona": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
         }
       },
       "required": [
@@ -237,6 +247,11 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 128
+        },
+        "persona": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
         }
       },
       "required": [

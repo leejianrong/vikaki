@@ -54,6 +54,9 @@ declare global {
       head?: { pitch: number; yaw: number; roll: number };
       /** The part of the head pose that came from voice gestures (a nod, a lift), without the idle sway. */
       gesture?: { pitch: number; roll: number };
+      /** The persona this page shows (`?persona=`) and the avatar file it loaded. */
+      persona?: string;
+      avatarUrl?: string;
       /** Eyelid closure applied on the last frame, and how many blinks have started. */
       blink: number;
       blinks: number;
@@ -69,12 +72,23 @@ const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", viseme
 window.__vikaki = api;
 
 const baseUrl = import.meta.env.BASE_URL;
-const avatarUrl = params.get("avatar") ?? `${baseUrl}avatars/cookieman.vrm`;
+const persona = params.get("persona") ?? undefined;
+let avatarUrl = params.get("avatar") ?? `${baseUrl}avatars/cookieman.vrm`;
 const demo = params.get("demo") === "1";
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
 
 try {
+  if (persona && !params.has("avatar")) {
+    // A page that shows one persona looks like it: the hub's personas file says which avatar that is.
+    const res = await fetch(`${baseUrl}personas.json`);
+    const known = res.ok ? ((await res.json()) as { name: string; avatarUrl: string }[]) : [];
+    const found = known.find((p) => p.name === persona);
+    if (!found) throw new Error(`no persona "${persona}" on this hub${known.length ? ` (known: ${known.map((p) => p.name).join(", ")})` : " (it has no personas file)"}`);
+    avatarUrl = found.avatarUrl;
+  }
+  api.persona = persona;
+  api.avatarUrl = avatarUrl;
   const avatar = await VrmAvatar.load(avatarUrl);
   scene.add(avatar.scene);
   api.eyeBones = frameAvatar(camera, avatar).eyeBones;
@@ -147,6 +161,7 @@ try {
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     const player = new SpeechPlayer({
       url: url.href,
+      persona,
       timer: firstFrame,
       // The face follows the line: its emotion while it is heard, then a moment's lingering before relaxing.
       onTurn: (thinking) => puppet.emotion.think(thinking),
@@ -166,7 +181,8 @@ try {
         hud();
       },
     });
-    const hud = () => say(live.state !== "connected" ? `vikaki · ${live.state}` : live.soundBlocked ? "vikaki · click the page to hear the avatar" : "vikaki · live");
+    const who = persona ? ` · ${persona}` : "";
+    const hud = () => say(live.state !== "connected" ? `vikaki${who} · ${live.state}` : live.soundBlocked ? `vikaki${who} · click the page to hear the avatar` : `vikaki${who} · live`);
     const unblock = () =>
       void session.resume().then(() => {
         live.soundBlocked = !session.running;

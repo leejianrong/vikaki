@@ -48,10 +48,10 @@ export async function say(o: SayOptions, io: Io): Promise<number> {
     const id = `cli-${Date.now().toString(36)}`;
     const seat = o.seat ?? "cli";
     if (o.thinkSeconds && o.thinkSeconds > 0) {
-      client.send(make("turn_started", { seat_id: seat }));
+      client.send(make("turn_started", { seat_id: seat, ...(o.persona ? { persona: o.persona } : {}) }));
       io.out("thinking...");
       await new Promise((ok) => setTimeout(ok, o.thinkSeconds! * 1000));
-      client.send(make("turn_ended", { seat_id: seat }));
+      client.send(make("turn_ended", { seat_id: seat, ...(o.persona ? { persona: o.persona } : {}) }));
     }
     client.send(
       make("utterance", {
