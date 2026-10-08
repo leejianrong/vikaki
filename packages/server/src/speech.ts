@@ -19,6 +19,8 @@ export interface SpeechOptions {
   /** Map a persona name to a voice id. By default the persona name itself is passed; engines ignore unknown voices. */
   voiceFor?: (persona: string | undefined) => string | undefined;
   chunker?: ChunkerOptions;
+  /** The voice used when a persona names none. Only shown to clients; the engine decides what it means. */
+  defaultVoice?: string;
   /** Called once per utterance when its first audio is ready. Used to measure time to first audio. */
   onTiming?: (timing: SpeechTiming) => void;
 }

@@ -134,10 +134,10 @@ describe("demo panel", () => {
     const mic = page.getByRole("button", { name: /^Microphone:/ });
     await mic.click();
     await page.waitForFunction(() => window.__vikaki!.mic === "listening", null, { timeout: 15_000 });
-    expect(await mic.textContent()).toBe("Microphone: on");
-    await mic.click();
+    await page.getByRole("button", { name: "Microphone: on" }).waitFor({ timeout: 5000 }); // the label follows the state
+    await page.getByRole("button", { name: "Microphone: on" }).click();
     await page.waitForFunction(() => window.__vikaki!.mic === "idle", null, { timeout: 5000 });
-    expect(await mic.textContent()).toBe("Microphone: off");
+    await page.getByRole("button", { name: "Microphone: off" }).waitFor({ timeout: 5000 });
     await page.close();
   });
 

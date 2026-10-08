@@ -4,9 +4,12 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { findFreePort, startServer } from "@vikaki/server";
-import { FakeTts, KokoroTts, TtsError, type Tts } from "@vikaki/tts";
+import { formatChecks, realDoctorEnv, runDoctor } from "./doctor.ts";
+import { findVoice, INSTALL_COMMAND } from "./voice.ts";
+import { FakeTts, KokoroTts, type Tts } from "@vikaki/tts";
 
-const USAGE = `usage: vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
+const USAGE = `usage: vikaki doctor            check that everything the demos need is in place
+       vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
                     [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>]
 
   --port N   exact port, fails if busy. Without it, starts at 8787 and takes the next free port.
@@ -42,19 +45,20 @@ function openBrowser(url: string): void {
 }
 
 /** Pick a speech engine, and say plainly what was chosen and why. */
-async function chooseTts(kind: string, voice: string | undefined): Promise<Tts | undefined> {
+async function chooseTts(kind: string, voice: string | undefined): Promise<{ tts: Tts; voice?: string } | undefined> {
   if (kind === "none") return undefined;
-  if (kind === "fake") return new FakeTts();
-  console.log("loading the voice (the first run downloads a model of about 90 MB)...");
-  try {
-    return await KokoroTts.create({ voice });
-  } catch (err) {
-    if (kind === "kokoro") throw err;
-    const why = err instanceof TtsError ? err.message : String(err);
-    console.log(`speaking with a test voice (a steady "aah"), because Kokoro is not available:\n  ${why.split(". ")[0]}.`);
-    console.log("  See docs/tts.md to install it for real speech.");
-    return new FakeTts();
+  if (kind === "fake") return { tts: new FakeTts() };
+  const found = findVoice();
+  if (!found && kind === "auto") {
+    console.log("");
+    console.log("  !! The real voice is not installed, so this will play a steady \"aah\" test tone, not speech.");
+    console.log(`  !! Run \`${INSTALL_COMMAND}\` once (about 410 MB), then start again.`);
+    console.log("");
+    return { tts: new FakeTts() };
   }
+  console.log("loading the voice (the first run downloads a model of about 90 MB)...");
+  const tts = await KokoroTts.create({ voice, importFrom: found?.entry });
+  return { tts, voice: voice ?? "af_heart" };
 }
 
 async function serve(argv: string[]): Promise<void> {
@@ -82,17 +86,18 @@ async function serve(argv: string[]): Promise<void> {
   }
   const host = values.host!;
   const port = values.port !== undefined ? Number(values.port) : await findFreePort(8787, host);
-  const tts = await chooseTts(values.tts!, values.voice).catch((err) => {
+  const chosen = await chooseTts(values.tts!, values.voice).catch((err) => {
     console.error(err instanceof Error ? err.message : err);
     process.exit(1);
   });
+  const tts = chosen?.tts;
   const token = values.token ?? process.env.VIKAKI_TOKEN;
   const server = await startServer({
     staticDir: values.static!,
     port,
     host,
     hub: token ? { token } : undefined,
-    speech: tts ? { tts } : undefined,
+    speech: tts ? { tts, defaultVoice: chosen?.voice } : undefined,
   });
   const url = values["speech-demo"] ? `${server.url}?demo=speech&live=1` : values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
   console.log(`vikaki serving ${url}`);
@@ -112,6 +117,10 @@ async function serve(argv: string[]): Promise<void> {
 const [command, ...rest] = process.argv.slice(2);
 if (command === "serve") {
   await serve(rest);
+} else if (command === "doctor") {
+  const checks = await runDoctor(await realDoctorEnv());
+  console.log(formatChecks(checks));
+  process.exit(checks.some((c) => c.status === "fail") ? 1 : 0);
 } else {
   console.error(USAGE);
   process.exit(command ? 1 : 0);

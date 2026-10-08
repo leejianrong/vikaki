@@ -86,7 +86,7 @@ try {
   }
 
   const panel = demo
-    ? mountDemoPanel({
+    ? await mountDemoPanel({
         hold: (w) => (manual = w),
         blink: () => puppet.triggerBlink(),
         toggleMic: async () => (session.listening ? stopMic() : startMic()),
@@ -137,7 +137,7 @@ try {
         state: (state, info) => ui.onState(state, info),
         message: (message) => ui.onMessage(message),
       });
-      const ui = mountSpeechDemo({ driver, unlockSound: unblock, soundBlocked: () => !session.running });
+      const ui = await mountSpeechDemo({ driver, unlockSound: unblock, soundBlocked: () => !session.running });
       driver.connect();
     }
   }

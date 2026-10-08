@@ -66,6 +66,10 @@
         "speech": {
           "type": "string",
           "maxLength": 64
+        },
+        "voice": {
+          "type": "string",
+          "maxLength": 64
         }
       },
       "required": [

@@ -78,6 +78,7 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
   const speech = opts.speech ? new SpeechEngine(opts.speech) : undefined;
   const hub = new Hub(server, {
     speechName: opts.speech ? opts.speech.tts.name : "off",
+    speechVoice: opts.speech?.defaultVoice,
     ...opts.hub,
     onDriverMessage: (m) => {
       opts.hub?.onDriverMessage?.(m);
