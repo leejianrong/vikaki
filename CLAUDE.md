@@ -39,6 +39,7 @@ make check                       # typecheck + test: the fast gate, same as the 
 - `packages/cli` the `vikaki` command.
 - `packages/extension` the Meet extension (main-world script, isolated-world bridge, build script).
 - `packages/e2e` Playwright tests against the built page (software WebGL, no GPU).
+- `scripts/` dev helpers: `screenshot.mjs`, `probe-*.mjs`, `real-site-check.mjs` (manual, needs internet), `make-vowel-fixture.py`.
 - `spikes/` throwaway comparisons with their own README or script. `docs/spikes/` holds the write-ups.
 - `docs/adr` one decision per file.
 
