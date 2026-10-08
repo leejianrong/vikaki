@@ -1,7 +1,7 @@
 # Vikaki Avatar Camera (browser extension)
 
 Replaces your camera in browser meetings with a cartoon avatar that lip-syncs to your microphone.
-Currently works on `https://meet.google.com/*` (Teams web and Zoom web are slice V1.8).
+Runs on Google Meet, Microsoft Teams web (`teams.microsoft.com`, `teams.live.com`, `teams.cloud.microsoft`) and Zoom web (`/wc/` client). Only Meet is the target of the browser tests so far; Teams and Zoom are enabled but untested on real calls (slice V1.8). The desktop Zoom and Teams apps are not covered; use OBS for those.
 
 - The physical camera is never requested, so a camera blocked by policy makes no difference.
 - Your microphone still goes to the call. Its audio is also analysed inside the page to move the mouth. Nothing is uploaded.
@@ -45,3 +45,16 @@ See `docs/adr/0009-meeting-extension-design.md`.
 - Not yet tested on a real Meet call (slice V1.7). The browser tests use a stand-in meeting page.
 - In a background tab the browser slows timers, so the avatar can move less smoothly.
 - Meet, Teams and Zoom can change how they probe cameras at any time.
+
+## Match patterns
+
+`content_scripts[].matches` may include paths (Zoom's web client is `/wc/*`). `web_accessible_resources[].matches` may not: it only accepts origin-wide patterns ending in `/*`, and one bad entry makes the browser refuse the whole extension. The browser tests catch this, because every test fails when the extension does not load.
+
+## Manual check on real sites
+
+`scripts/real-site-check.mjs` loads the built extension and runs it on the official WebRTC sample pages (the device picker, and a call over a real `RTCPeerConnection`). It needs internet and is not part of CI, because a third-party site would make CI flaky.
+
+```bash
+node packages/extension/build.mjs --out /tmp/vikaki-ext --extra-match "https://webrtc.github.io/*"
+node scripts/real-site-check.mjs /tmp/vikaki-ext /tmp/real-check.png
+```

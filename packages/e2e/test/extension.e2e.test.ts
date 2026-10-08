@@ -161,3 +161,49 @@ describe("meeting extension", () => {
     await page.close();
   }, 60_000);
 });
+
+describe("meeting extension with the camera not allowed", () => {
+  let blocked: BrowserContext;
+
+  beforeAll(async () => {
+    const extDir = mkdtempSync(join(tmpdir(), "vikaki-ext-"));
+    execFileSync("node", ["build.mjs", "--out", extDir, "--extra-match", "http://127.0.0.1/*"], { cwd: here("../../extension"), stdio: "pipe" });
+    // No --use-fake-ui-for-media-stream: nobody grants the permission prompt, as with a camera blocked by policy.
+    blocked = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "vikaki-profile-")), {
+      channel: "chromium",
+      headless: true,
+      args: [`--disable-extensions-except=${extDir}`, `--load-extension=${extDir}`, "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--use-fake-device-for-media-stream"],
+    });
+  }, 120_000);
+
+  afterAll(async () => {
+    await blocked?.close();
+  });
+
+  const tryCamera = (page: Page) =>
+    page.evaluate(async () => {
+      const out: { video: string; permission: string } = { video: "", permission: "" };
+      try {
+        out.video = (await navigator.mediaDevices.getUserMedia({ video: true })).getVideoTracks()[0]!.label;
+      } catch (e) {
+        out.video = `${(e as Error).name}`;
+      }
+      out.permission = (await navigator.permissions.query({ name: "camera" as PermissionName })).state;
+      return out;
+    });
+
+  it("is refused on a page the extension is not on, which shows the camera really is blocked", async () => {
+    const page = await blocked.newPage();
+    await page.goto(`${origin.replace("127.0.0.1", "localhost")}/meeting`);
+    expect(await tryCamera(page)).toEqual({ video: "NotAllowedError", permission: "denied" });
+    await page.close();
+  }, 60_000);
+
+  it("still gets the avatar camera on a page the extension is on", async () => {
+    const page = await blocked.newPage();
+    await page.goto(`${origin}/meeting`);
+    expect(await tryCamera(page)).toEqual({ video: "Vikaki Avatar", permission: "granted" });
+    expect((await ext(page)).physicalCameraRequests).toBe(0);
+    await page.close();
+  }, 60_000);
+});
