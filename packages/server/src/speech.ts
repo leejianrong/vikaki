@@ -10,6 +10,16 @@ export interface SpeechTiming {
   firstAudioAt: number;
 }
 
+/** Watches speech as it is made, without changing it. Used by the debug recorder. Must not throw. */
+export interface SpeechObserver {
+  /** A piece of text is about to be synthesized. */
+  sentence?(e: { utterance_id: string; index: number; text: string; persona?: string; voice?: string; at: number }): void;
+  /** The engine produced audio. */
+  audio?(e: { utterance_id: string; sentence: number; samples: Float32Array; sampleRate: number; at: number }): void;
+  /** The utterance is over: spoken to the end, cancelled, or failed. */
+  end?(e: { utterance_id: string; outcome: "completed" | "cancelled" | "failed"; reason?: string; at: number }): void;
+}
+
 export interface SpeechOptions {
   tts: Tts;
   /** Longest slice of audio sent in one message, in seconds. */
@@ -23,6 +33,7 @@ export interface SpeechOptions {
   defaultVoice?: string;
   /** Called once per utterance when its first audio is ready. Used to measure time to first audio. */
   onTiming?: (timing: SpeechTiming) => void;
+  observer?: SpeechObserver;
 }
 
 interface Utterance {
@@ -35,6 +46,8 @@ interface Utterance {
   seq: number;
   rate: number;
   spoken: boolean;
+  sentences: number;
+  failure?: string;
   closed: boolean;
   cancelled: boolean;
   /** No avatar page was connected when speech began, so playback is simulated in real time. */
@@ -115,6 +128,7 @@ export class SpeechEngine {
         seq: 0,
         rate: 24000,
         spoken: false,
+        sentences: 0,
         closed: false,
         cancelled: false,
         virtual: false,
@@ -161,6 +175,7 @@ export class SpeechEngine {
     this.utterances.delete(id); // queued jobs of u are skipped when the worker reaches them
     this.cancelled.add(id);
     if (this.cancelled.size > TOMBSTONES) this.cancelled.delete(this.cancelled.values().next().value as string);
+    this.o.observer?.end?.({ utterance_id: id, outcome: u.failure ? "failed" : "cancelled", reason: u.failure ?? reason, at: Date.now() });
     if (tellViewers) this.hub?.toViewers(make("cancel", { utterance_id: id }));
     // With no avatar page connected, the engine is the one playing, so it reports the interruption.
     if (u.virtual && u.spoken) this.hub?.toDriver(make("speech_interrupted", { utterance_id: id, reason }));
@@ -168,7 +183,8 @@ export class SpeechEngine {
 
   private fail(u: Utterance, err: unknown): void {
     const code = (err as { code?: string })?.code === "tts_failed" ? "tts_failed" : "internal";
-    this.hub?.toDriver(make("error", { code, message: (err as Error)?.message ?? "speech failed", utterance_id: u.id }));
+    u.failure = (err as Error)?.message ?? "speech failed";
+    this.hub?.toDriver(make("error", { code, message: u.failure, utterance_id: u.id }));
     this.cancel(u.id, "cancelled", true);
   }
 
@@ -194,6 +210,8 @@ export class SpeechEngine {
 
   private async speak(u: Utterance, text: string): Promise<void> {
     const voice = this.o.voiceFor ? this.o.voiceFor(u.persona) : u.persona;
+    u.sentences++;
+    this.o.observer?.sentence?.({ utterance_id: u.id, index: u.sentences - 1, text, persona: u.persona, voice, at: Date.now() });
     for await (const chunk of this.o.tts.synthesize({ text, voice, signal: u.controller.signal })) {
       if (u.cancelled) return;
       this.emit(u, chunk);
@@ -212,6 +230,7 @@ export class SpeechEngine {
       }
     }
     u.rate = chunk.sampleRate;
+    this.o.observer?.audio?.({ utterance_id: u.id, sentence: u.sentences - 1, samples: chunk.samples, sampleRate: chunk.sampleRate, at: Date.now() });
     u.virtualSeconds += chunk.samples.length / chunk.sampleRate;
     if (u.virtual) return; // nobody to send audio to
     const step = Math.max(1, Math.round(this.maxSlice * chunk.sampleRate));
@@ -235,6 +254,7 @@ export class SpeechEngine {
       this.hub?.toDriver(make("speech_started", { utterance_id: u.id, seat_id: u.seatId }));
       this.hub?.toDriver(make("speech_finished", { utterance_id: u.id }));
       this.utterances.delete(u.id);
+      this.o.observer?.end?.({ utterance_id: u.id, outcome: "completed", at: Date.now() });
       return;
     }
     if (u.virtual) {
@@ -245,5 +265,6 @@ export class SpeechEngine {
       this.hub?.toViewers(make("audio", { utterance_id: u.id, seat_id: u.seatId, seq: u.seq++, sample_rate: u.rate, pcm: "", final: true }));
     }
     this.utterances.delete(u.id);
+    this.o.observer?.end?.({ utterance_id: u.id, outcome: "completed", at: Date.now() });
   }
 }

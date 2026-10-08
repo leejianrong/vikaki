@@ -3,14 +3,15 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { findFreePort, startServer } from "@vikaki/server";
+import { DebugRecorder, findFreePort, startServer } from "@vikaki/server";
+import { resolve } from "node:path";
 import { formatChecks, realDoctorEnv, runDoctor } from "./doctor.ts";
 import { findVoice, INSTALL_COMMAND } from "./voice.ts";
 import { FakeTts, KokoroTts, type Tts } from "@vikaki/tts";
 
 const USAGE = `usage: vikaki doctor            check that everything the demos need is in place
        vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
-                    [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>]
+                    [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>] [--debug-dir <dir|off>]
 
   --port N   exact port, fails if busy. Without it, starts at 8787 and takes the next free port.
   --demo     the demo page: avatar plus mic, audio-file and mouth-shape controls
@@ -18,6 +19,8 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
   --open     open the page in your browser (works from WSL, macOS and Linux)
   --tts      speech engine. auto uses Kokoro if installed, else a test voice. none turns speech off.
   --voice    default Kokoro voice, such as af_heart
+  --debug-dir  save each spoken utterance (wav, spectrogram, metrics, text, timings) under <dir>.
+             On by default for --speech-demo, into .vikaki/debug. "off" turns it off.
   --token    require this token from the driver (or set VIKAKI_TOKEN)`;
 
 // Default to the engine's built page (run \`pnpm build\` first).
@@ -74,6 +77,7 @@ async function serve(argv: string[]): Promise<void> {
       tts: { type: "string", default: "auto" },
       voice: { type: "string" },
       token: { type: "string" },
+      "debug-dir": { type: "string" },
     },
   });
   if (!["auto", "kokoro", "fake", "none"].includes(values.tts!)) {
@@ -92,17 +96,27 @@ async function serve(argv: string[]): Promise<void> {
   });
   const tts = chosen?.tts;
   const token = values.token ?? process.env.VIKAKI_TOKEN;
+  const debugArg = values["debug-dir"] ?? (values["speech-demo"] ? ".vikaki/debug" : undefined);
+  const debugDir = debugArg && debugArg !== "off" && tts ? resolve(debugArg) : undefined;
+  const recorder = debugDir
+    ? new DebugRecorder({
+        dir: debugDir,
+        onSaved: (f) => console.log(`  debug: saved ${f}`),
+        onError: (err) => console.error(`  debug: could not save a recording: ${err instanceof Error ? err.message : err}`),
+      })
+    : undefined;
   const server = await startServer({
     staticDir: values.static!,
     port,
     host,
     hub: token ? { token } : undefined,
-    speech: tts ? { tts, defaultVoice: chosen?.voice } : undefined,
+    speech: tts ? { tts, defaultVoice: chosen?.voice, observer: recorder } : undefined,
   });
   const url = values["speech-demo"] ? `${server.url}?demo=speech&live=1` : values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
   console.log(`vikaki serving ${url}`);
   console.log(`  drivers connect to ${server.wsUrl}${token ? " (token required)" : ""}; speech: ${tts ? tts.name : "off"}`);
   if (values.port === undefined && port !== 8787) console.log(`(8787 was busy, using ${port})`);
+  if (debugDir) console.log(`  debug recordings: ${debugDir}`);
   console.log("press Ctrl+C to stop");
   if (values.open) openBrowser(url);
 
@@ -112,6 +126,7 @@ async function serve(argv: string[]): Promise<void> {
     if (stopping) process.exit(130);
     stopping = true;
     console.log("\nStopping...");
+    await recorder?.flush();
     const closed = server.close().then(() => true, () => false);
     const timeout = new Promise<false>((ok) => setTimeout(() => ok(false), 3000));
     const clean = await Promise.race([closed, timeout]);
