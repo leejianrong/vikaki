@@ -127,8 +127,9 @@ async function serve(argv: string[]): Promise<void> {
     stopping = true;
     console.log("\nStopping...");
     await recorder?.flush();
-    const closed = server.close().then(() => true, () => false);
-    const timeout = new Promise<false>((ok) => setTimeout(() => ok(false), 3000));
+    // the engine's worker is stopped too, after it has finished what it is in the middle of (stopping it mid-run can crash the process)
+    const closed = Promise.all([server.close(), tts?.close?.()]).then(() => true, () => false);
+    const timeout = new Promise<false>((ok) => setTimeout(() => ok(false), 12_000));
     const clean = await Promise.race([closed, timeout]);
     console.log(clean ? "Stopped." : "Stopped (some connections were still open and were dropped).");
     process.exit(0);
