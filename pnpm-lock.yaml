@@ -32,18 +32,37 @@ importers:
       '@vikaki/server':
         specifier: workspace:*
         version: link:../server
+      '@vikaki/tts':
+        specifier: workspace:*
+        version: link:../tts
 
   packages/e2e:
     dependencies:
+      '@vikaki/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@vikaki/server':
         specifier: workspace:*
         version: link:../server
+      '@vikaki/tts':
+        specifier: workspace:*
+        version: link:../tts
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
 
   packages/engine:
     dependencies:
       '@pixiv/three-vrm':
         specifier: ^3.5.5
         version: 3.5.5(three@0.186.1)
+      '@vikaki/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       three:
         specifier: ^0.186.1
         version: 0.186.1
@@ -83,6 +102,9 @@ importers:
       '@vikaki/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@vikaki/tts':
+        specifier: workspace:*
+        version: link:../tts
       ws:
         specifier: ^8.22.0
         version: 8.22.0

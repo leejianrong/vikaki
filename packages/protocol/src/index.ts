@@ -45,6 +45,8 @@ export const Welcome = z.object({
   ...common,
   type: z.literal("welcome"),
   role: z.enum(["driver", "viewer"]),
+  /** The hub's speech engine, such as "kokoro" or "fake", or "off". For display. */
+  speech: z.string().max(64).optional(),
 });
 
 // ---- from the driver (a game, an LLM, a script) ----
@@ -91,6 +93,26 @@ export const ErrorMessage = z.object({
   utterance_id: id.optional(),
 });
 
+// ---- from the hub to viewers only: the speech to play ----
+
+/** Longest base64 audio payload in one message (about 1.4 MB, over 15 s of 24 kHz speech). */
+export const MAX_AUDIO_B64 = 2_000_000;
+
+/**
+ * A slice of speech. `pcm` is base64 of 16-bit little-endian mono samples. Slices of one utterance
+ * arrive in `seq` order; the last has `final: true` and may carry no samples.
+ */
+export const AudioMessage = z.object({
+  ...common,
+  type: z.literal("audio"),
+  utterance_id: id,
+  seat_id: id.optional(),
+  seq: z.number().int().min(0),
+  sample_rate: z.number().int().min(8000).max(48000),
+  pcm: z.string().max(MAX_AUDIO_B64),
+  final: z.boolean(),
+});
+
 export const Message = z.discriminatedUnion("type", [
   Hello,
   Welcome,
@@ -102,13 +124,14 @@ export const Message = z.discriminatedUnion("type", [
   SpeechStarted,
   SpeechFinished,
   SpeechInterrupted,
+  AudioMessage,
   ErrorMessage,
 ]);
 export type Message = z.infer<typeof Message>;
 export type MessageType = Message["type"];
 export type MessageOf<T extends MessageType> = Extract<Message, { type: T }>;
 
-/** What each role may send after `hello`. The hub enforces this. */
+/** What each role may send after `hello`. The hub enforces this. `audio` is sent by the hub only. */
 export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over"];
 export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error"];
 
@@ -157,4 +180,32 @@ export function normaliseEmotion(value: string | undefined): Emotion {
 /** The JSON Schema published for non-TypeScript clients, such as a Python client. */
 export function jsonSchema(): unknown {
   return z.toJSONSchema(Message, { target: "draft-2020-12" });
+}
+
+// ---- audio encoding, shared by the hub (encode) and avatar pages (decode) ----
+
+/** Floats in [-1, 1] to base64 of 16-bit little-endian PCM. Values outside the range are clipped. */
+export function encodePcm16(samples: Float32Array): string {
+  const bytes = new Uint8Array(samples.length * 2);
+  const view = new DataView(bytes.buffer);
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.max(-1, Math.min(1, samples[i]!));
+    view.setInt16(i * 2, v < 0 ? Math.round(v * 32768) : Math.round(v * 32767), true);
+  }
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+/** The reverse of `encodePcm16`. An empty string gives no samples. */
+export function decodePcm16(base64: string): Float32Array {
+  const binary = atob(base64);
+  const view = new DataView(new ArrayBuffer(binary.length - (binary.length % 2)));
+  for (let i = 0; i < view.byteLength; i++) view.setUint8(i, binary.charCodeAt(i));
+  const out = new Float32Array(view.byteLength / 2);
+  for (let i = 0; i < out.length; i++) {
+    const v = view.getInt16(i * 2, true);
+    out[i] = v < 0 ? v / 32768 : v / 32767;
+  }
+  return out;
 }

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { DRIVER_MAY_SEND, EMOTIONS, jsonSchema, make, normaliseEmotion, parseMessage, PROTOCOL_VERSION, VIEWER_MAY_SEND } from "../src/index.ts";
+import { decodePcm16, DRIVER_MAY_SEND, EMOTIONS, encodePcm16, jsonSchema, make, normaliseEmotion, parseMessage, PROTOCOL_VERSION, VIEWER_MAY_SEND } from "../src/index.ts";
 
 const v = PROTOCOL_VERSION;
 
@@ -76,6 +76,53 @@ describe("make", () => {
 describe("who may send what", () => {
   it("keeps the driver and viewer sets separate", () => {
     expect(DRIVER_MAY_SEND.filter((t) => VIEWER_MAY_SEND.includes(t))).toEqual([]);
+  });
+});
+
+describe("audio message and PCM encoding", () => {
+  const audio = { protocol_version: v, type: "audio", utterance_id: "u1", seq: 0, sample_rate: 24000, pcm: "AAA=", final: false };
+
+  it("accepts a slice, and a final slice with no samples", () => {
+    expect(parseMessage(audio).ok).toBe(true);
+    expect(parseMessage({ ...audio, pcm: "", final: true }).ok).toBe(true);
+  });
+
+  it("rejects a bad rate, a negative or fractional seq, and a missing flag", () => {
+    expect(parseMessage({ ...audio, sample_rate: 100 }).ok).toBe(false);
+    expect(parseMessage({ ...audio, seq: -1 }).ok).toBe(false);
+    expect(parseMessage({ ...audio, seq: 1.5 }).ok).toBe(false);
+    expect(parseMessage({ ...audio, final: undefined }).ok).toBe(false);
+  });
+
+  it("is not something a driver or a viewer may send", () => {
+    expect(DRIVER_MAY_SEND).not.toContain("audio");
+    expect(VIEWER_MAY_SEND).not.toContain("audio");
+  });
+
+  it("round-trips samples to within 16-bit precision", () => {
+    const input = Float32Array.from({ length: 1000 }, (_, i) => Math.sin(i / 7) * 0.8);
+    const back = decodePcm16(encodePcm16(input));
+    expect(back.length).toBe(input.length);
+    for (let i = 0; i < input.length; i++) expect(Math.abs(back[i]! - input[i]!)).toBeLessThan(1 / 16000);
+  });
+
+  it("clips out-of-range samples instead of wrapping around", () => {
+    const back = decodePcm16(encodePcm16(Float32Array.from([2, -2, 1, -1, 0])));
+    expect(Array.from(back)).toEqual([1, -1, 1, -1, 0]);
+  });
+
+  it("handles empty input and large input", () => {
+    expect(decodePcm16(encodePcm16(new Float32Array(0))).length).toBe(0);
+    expect(decodePcm16("").length).toBe(0);
+    const big = new Float32Array(200_000).fill(0.25);
+    expect(decodePcm16(encodePcm16(big)).length).toBe(200_000);
+  });
+});
+
+describe("welcome", () => {
+  it("may say which speech engine the hub uses", () => {
+    expect(parseMessage({ protocol_version: v, type: "welcome", role: "viewer", speech: "kokoro" }).ok).toBe(true);
+    expect(parseMessage({ protocol_version: v, type: "welcome", role: "viewer" }).ok).toBe(true);
   });
 });
 

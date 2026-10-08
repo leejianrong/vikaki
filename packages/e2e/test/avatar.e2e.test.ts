@@ -20,6 +20,10 @@ async function open(query = ""): Promise<Page> {
   return page;
 }
 
+/** Wait for `n` animation frames to be drawn, so a change has reached the screen. Event-based, not a fixed sleep. */
+const framesRendered = (page: Page, n: number) =>
+  page.evaluate((count) => new Promise<void>((done) => { let left = count; const tick = () => (--left <= 0 ? done() : requestAnimationFrame(tick)); requestAnimationFrame(tick); }), n);
+
 const expressionValue = (page: Page, name: string) =>
   page.evaluate((n) => {
     const a = window.__vikaki!.avatar as unknown as { vrm: { expressionManager: { getValue(n: string): number } } };
@@ -53,18 +57,18 @@ describe("avatar page", () => {
 
   it("opens the mouth on `aa` and changes the rendered frame", async () => {
     const page = await open("?hud=0");
-    await page.waitForTimeout(300);
+    await framesRendered(page, 3);
     const closed = await page.screenshot();
 
     await page.evaluate(() => window.__vikaki!.setVisemes({ aa: 1 }));
-    await page.waitForTimeout(300);
+    await framesRendered(page, 3);
     const open_ = await page.screenshot();
 
     expect(await expressionValue(page, "aa")).toBe(1);
     expect(Buffer.compare(closed, open_)).not.toBe(0);
 
     await page.evaluate(() => window.__vikaki!.setVisemes({}));
-    await page.waitForTimeout(300);
+    await framesRendered(page, 3);
     expect(await expressionValue(page, "aa")).toBe(0);
     await page.close();
   });

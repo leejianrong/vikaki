@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install build serve demo extension check hooks
+.PHONY: help install build serve demo demo-speech extension check hooks
 
 help: ## List available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -15,6 +15,9 @@ serve: build ## Build, then serve the avatar page on localhost
 
 demo: build ## Build, serve and open the demo page to judge the avatar by eye
 	pnpm --filter @vikaki/cli dev serve --demo --open
+
+demo-speech: build ## Build, serve and open the speech demo: type text, hear the avatar say it
+	pnpm --filter @vikaki/cli dev serve --speech-demo --open
 
 extension: ## Build the browser extension into packages/extension/dist
 	pnpm --filter @vikaki/extension build

@@ -12,6 +12,12 @@ export interface HubOptions {
   onEvent?: (event: HubEvent) => void;
   /** Close a connection that has not said hello after this long. */
   helloTimeoutMs?: number;
+  /** Shown to clients in `welcome`. */
+  speechName?: string;
+  /** Called with each valid message the driver sends, after it has been relayed. */
+  onDriverMessage?: (message: Message) => void;
+  /** Called when the driver disconnects. */
+  onDriverGone?: () => void;
 }
 
 export interface HubEvent {
@@ -106,7 +112,10 @@ export class Hub {
     ws.on("close", () => {
       clearTimeout(timer);
       this.viewers.delete(ws);
-      if (this.driver === ws) this.driver = undefined;
+      if (this.driver === ws) {
+        this.driver = undefined;
+        this.opts.onDriverGone?.();
+      }
     });
     ws.on("error", () => ws.terminate());
     ws.on("message", (data) => this.onMessage(ws, data.toString()));
@@ -142,6 +151,7 @@ export class Hub {
     if (role === "driver") {
       for (const v of this.viewers) this.send(v, message);
       this.opts.onEvent?.({ at: Date.now(), from: "driver", to: "viewers", message });
+      this.opts.onDriverMessage?.(message);
     } else {
       // Several viewers may report the same thing. The driver should hear it once.
       const key = "utterance_id" in message ? `${message.type}:${message.utterance_id}` : undefined;
@@ -172,7 +182,14 @@ export class Hub {
       this.viewers.add(ws);
     }
     this.roles.set(ws, hello.role);
-    this.send(ws, make("welcome", { role: hello.role, ...(hello.session_id ? { session_id: hello.session_id } : {}) }));
+    this.send(
+      ws,
+      make("welcome", {
+        role: hello.role,
+        ...(hello.session_id ? { session_id: hello.session_id } : {}),
+        ...(this.opts.speechName ? { speech: this.opts.speechName } : {}),
+      }),
+    );
   }
 
   private tokenMatches(given: string | undefined): boolean {

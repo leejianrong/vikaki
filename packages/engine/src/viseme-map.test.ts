@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openness, toVisemeWeights } from "./viseme-map.ts";
+import { openness, scaleWeights, toVisemeWeights } from "./viseme-map.ts";
 
 describe("toVisemeWeights", () => {
   it("is all zero for zero volume", () => {
@@ -33,5 +33,21 @@ describe("openness", () => {
   it("is the strongest weight, and 0 for an empty set", () => {
     expect(openness({ aa: 0.2, oh: 0.7 })).toBe(0.7);
     expect(openness({})).toBe(0);
+  });
+});
+
+describe("scaleWeights", () => {
+  it("shuts the mouth at 0, leaves it at 1, and scales in between", () => {
+    const w = { aa: 0.8, oh: 0.4 };
+    expect(scaleWeights(w, 0)).toEqual({ aa: 0, oh: 0 });
+    expect(scaleWeights(w, 1)).toEqual(w);
+    expect(scaleWeights(w, 0.5)).toEqual({ aa: 0.4, oh: 0.2 });
+  });
+
+  it("stays within [0, 1] and does not modify its input", () => {
+    const w = { aa: 0.9 };
+    expect(scaleWeights(w, 5).aa).toBe(1);
+    expect(scaleWeights(w, -1).aa).toBe(0);
+    expect(w).toEqual({ aa: 0.9 });
   });
 });
