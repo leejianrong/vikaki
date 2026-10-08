@@ -8,3 +8,4 @@ dist/
 .vikaki/
 packages/e2e/artifacts/
 timings.json
+.vitest/
