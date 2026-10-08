@@ -59,17 +59,6 @@ describe("mic mode answers the way the voice goes", () => {
     const page = await browser.newPage({ viewport: { width: 640, height: 480 } });
     await page.goto(`${server.url}?mode=mic&hud=0&seed=3`);
     await page.waitForFunction(() => window.__vikaki?.mic === "listening", null, { timeout: 30_000 });
-    // Watch the gestures while the loop plays: the largest tilt and nod they add to the head (the idle sway is not in these).
-    await page.evaluate(() => {
-      const w = window as unknown as { __tilt: number; __nod: number };
-      w.__tilt = 0;
-      w.__nod = 0;
-      setInterval(() => {
-        const g = window.__vikaki!.gesture!;
-        w.__tilt = Math.max(w.__tilt, Math.abs(g.roll));
-        w.__nod = Math.max(w.__nod, g.pitch);
-      }, 20);
-    });
     await page.waitForFunction(
       () => {
         const kinds = new Set(window.__vikaki!.prosody!.cues.map((c) => c.cue));
@@ -78,7 +67,8 @@ describe("mic mode answers the way the voice goes", () => {
       null,
       { timeout: 40_000 },
     );
-    const { tilt, nod } = await page.evaluate(() => ({ tilt: (window as unknown as { __tilt: number }).__tilt, nod: (window as unknown as { __nod: number }).__nod }));
+    // The page keeps the largest tilt and nod any frame showed (the idle sway is not in these), so a busy page cannot miss the peak between samples.
+    const { pitch: nod, roll: tilt } = (await page.evaluate(() => window.__vikaki!.gesturePeak))!;
     expect(tilt).toBeGreaterThan(0.05); // the head tipped for the rising ending
     expect(nod).toBeGreaterThan(0.05); // and nodded for the stress
     await page.close();

@@ -19,6 +19,7 @@ interface Window {
     prosody?: { cues: { cue: string; t: number }[] };
     head?: { pitch: number; yaw: number; roll: number };
     gesture?: { pitch: number; roll: number };
+    gesturePeak?: { pitch: number; roll: number };
     /** The emotion pose on show after the last frame, and what the preset for an emotion at an intensity says. */
     emotionPose?: EmotionPose;
     presetPose?: (emotion: string, intensity: number) => EmotionPose;

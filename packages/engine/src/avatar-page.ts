@@ -52,8 +52,9 @@ declare global {
       /** In mic mode: the voice cues found so far (stress, rising ending, pause), and the head pose applied on the last frame. */
       prosody?: { cues: { cue: string; t: number }[] };
       head?: { pitch: number; yaw: number; roll: number };
-      /** The part of the head pose that came from voice gestures (a nod, a lift), without the idle sway. */
+      /** The part of the head pose that came from voice gestures (a nod, a lift), without the idle sway, and the largest of each seen on any frame so far. */
       gesture?: { pitch: number; roll: number };
+      gesturePeak?: { pitch: number; roll: number };
       /** The persona this page shows (`?persona=`) and the avatar file it loaded. */
       persona?: string;
       /** True on the audio-only page (`?render=off`), which draws nothing. */
@@ -235,6 +236,9 @@ try {
     puppet.update(dt, mouth);
     api.head = puppet.head;
     api.gesture = puppet.gesture;
+    api.gesturePeak ??= { pitch: 0, roll: 0 };
+    api.gesturePeak.pitch = Math.max(api.gesturePeak.pitch, puppet.gesture.pitch);
+    api.gesturePeak.roll = Math.max(api.gesturePeak.roll, Math.abs(puppet.gesture.roll));
     symbols.update(dt, puppet.emotion.pose);
     api.emotionPose = puppet.emotion.pose;
     api.visemes = puppet.visemes;

@@ -53,6 +53,15 @@ describe("Gestures", () => {
     }
   });
 
+  it("is not skipped when the page stalls: a frame that takes a whole second still shows the start of the nod", () => {
+    const g = new Gestures();
+    g.cue("emphasis");
+    expect(g.update(1).pitch).toBeGreaterThan(0.02); // not aged out in one jump
+    const rest = Array.from({ length: 20 }, () => g.update(1).pitch);
+    expect(Math.max(...rest)).toBeGreaterThan(0.04); // and the nod carries on, frame by frame, to its peak
+    expect(rest.at(-1)).toBe(0); // then ends
+  });
+
   it("a second nod while one is under way adds to it rather than being lost", () => {
     const single = new Gestures();
     single.cue("emphasis");
