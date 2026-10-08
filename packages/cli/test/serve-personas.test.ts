@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const entry = fileURLToPath(new URL("../src/index.ts", import.meta.url));
-const pageDir = fileURLToPath(new URL("../../engine/dist", import.meta.url));
 
 /** Run `vikaki serve ...` until `done` is true of what it has printed (or it exits); stops it with SIGINT. */
-function run(args: string[], done: (out: string) => boolean) {
+async function run(args: string[], done: (out: string) => boolean) {
+  // Any folder will do as the page: these tests are about the personas file, and CI's unit job does not build the page.
+  const pageDir = await mkdtemp(join(tmpdir(), "vikaki-serve-page-"));
+  await writeFile(join(pageDir, "index.html"), "hi");
   const child = spawn(process.execPath, ["--import", "tsx", entry, "serve", "--tts", "fake", "--static", pageDir, ...args], { stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
   let err = "";
