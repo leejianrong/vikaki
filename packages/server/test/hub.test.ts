@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { make, PROTOCOL_VERSION } from "@vikaki/protocol";
-import { Client, utterance } from "./helpers.ts";
+import { Client, until, utterance } from "./helpers.ts";
 import { startServer, type HubEvent, type RunningServer } from "../src/server.ts";
 
 let dir: string;
@@ -123,6 +123,24 @@ describe("relaying", () => {
     // A different utterance still gets through.
     v2.send(make("speech_finished", { utterance_id: "u1" }));
     expect(await d.next()).toMatchObject({ type: "speech_finished" });
+  });
+});
+
+describe("a new driver session", () => {
+  it("hears reports for an utterance id that an earlier driver session used (a reloaded page starts again at demo-1)", async () => {
+    server = await startServer({ staticDir: dir });
+    const v = track(await Client.join(server.wsUrl, "viewer"));
+    const d1 = track(await Client.join(server.wsUrl, "driver"));
+    await Promise.all([v.next(), d1.next()]);
+    v.send(make("speech_started", { utterance_id: "demo-1" }));
+    expect(await d1.next()).toMatchObject({ type: "speech_started" });
+    d1.ws.close();
+    await until(() => server!.hub.hasDriver === false, 3000, "the first driver to leave");
+
+    const d2 = track(await Client.join(server.wsUrl, "driver"));
+    await d2.next();
+    v.send(make("speech_started", { utterance_id: "demo-1" }));
+    expect(await d2.next()).toMatchObject({ type: "speech_started", utterance_id: "demo-1" });
   });
 });
 

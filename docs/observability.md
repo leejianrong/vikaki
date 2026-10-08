@@ -49,8 +49,30 @@ The avatar page can remember what it did, on one clock (milliseconds since the p
 
 **When audio is heard.** Audio is scheduled on the Web Audio clock. `Output.perfMs` converts that to the page clock using the context's output timestamp, which includes the output device's latency; while the browser has not yet allowed sound, the page's own clock is used. An e2e test checks that the `started` event falls within 250 ms of the first piece's scheduled start on a normal machine.
 
-The timeline view and karaoke (the next PRs) draw this data.
+## Phase 2, part 2: the timeline dock
 
+The speech demo has a **Timeline** dock under the avatar. Pick **Live** (the last 8 seconds, with a "now" line) or any spoken line from the list to review it. Lanes, top to bottom, on one time axis:
+
+| Lane | Shows |
+| --- | --- |
+| words | each spoken piece (sentence) with its text, positioned where it was heard |
+| wave | the audio waveform |
+| spectrum | the spectrogram, 0 to 8 kHz, so you can see whether it is speech or a buzz |
+| mouth | the five commanded mouth shapes as lines (each has its own dash pattern as well as a colour), the displayed mouth as a shaded area, loudness as a dotted line |
+| events | the page's own events on the upper row (start, end, cut, blink) and what the driver was told on the lower row (sent, cancel, start, end) |
+
+![A real Kokoro utterance on the timeline](img/timeline-example.png)
+
+**Save PNG** and **Save JSON** export what the dock shows (the PNG is drawn at 1600 by 420; the JSON includes the audio when reviewing, so a scorecard can reuse it). Tests and scripts can do the same: `window.__vikaki.timelineUi` has `select(id | "live")`, `exportPng()`, `exportJson()` and `exportLayout()`. `pnpm exec tsx scripts/screenshot-speech.ts <dir> [fake|kokoro]` speaks a line and saves screenshots, live and review, light and dark, plus an export. The colours are Material 3 roles read from the page, so it follows light and dark. For screen readers the dock has a text summary and a table of the sentences in view (`Sentences in this view`); axe checks both.
+
+**What the first real-speech timelines showed**
+- Kokoro leaves about 0.7 s of silence between sentences, inside each sentence's audio.
+- The page reports `started` as soon as audio plays, but the driver was told 1.45 s later in one run, because the hub's event loop stalled up to 1.8 s while Kokoro synthesised the next sentence (measured with `scripts/probe-hub-lag.ts`). That delays `speech_started` and would delay a `cancel`. Tracked as KAN-1957, not fixed here.
+- With the test voice, the mouth takes about 0.7 s to open fully at the start of an utterance, and sags between sentences.
+
+**Limits.** The microphone has no audio lane (the recorder only sees speech played from the hub). The spectrogram of a very long utterance is computed in one go on first view, which can pause the page briefly. Word-level timing and the karaoke dot come next.
+
+## What this cannot tell you
 ## What this cannot tell you
 
 It cannot say whether speech sounds good or is the right words, only that it is speech-like. Whether the mouth follows the voice is Phase 3's scorecard.

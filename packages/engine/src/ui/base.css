@@ -41,7 +41,7 @@ body.has-panel {
   color: var(--md-sys-color-on-surface);
   font: 400 0.875rem/1.25rem var(--md-ref-typeface-plain);
 }
-body.has-panel canvas { width: 100%; height: 100%; min-width: 0; min-height: 0; }
+body.has-panel > canvas { width: 100%; height: 100%; min-width: 0; min-height: 0; }
 body.has-panel #hud { color: var(--md-sys-color-on-surface-variant); font: 500 0.75rem/1rem var(--md-ref-typeface-plain); }
 
 .side-sheet {
@@ -64,6 +64,36 @@ body.has-panel #hud { color: var(--md-sys-color-on-surface-variant); font: 500 0
 @media (max-width: 800px) {
   body.has-panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: 42vh minmax(0, 1fr); }
   .side-sheet { height: auto; border-inline-start: 0; border-block-start: 1px solid var(--md-sys-color-outline-variant); }
+}
+
+/* ---- the timeline dock: a wide strip under the avatar and the side sheet ---- */
+body.has-timeline { grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "stage panel" "dock panel"; }
+body.has-timeline > canvas { grid-area: stage; }
+body.has-timeline .side-sheet { grid-area: panel; height: auto; min-height: 0; }
+.timeline-dock {
+  grid-area: dock; box-sizing: border-box; min-width: 0; padding: 8px 16px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface);
+  border-block-start: 1px solid var(--md-sys-color-outline-variant);
+}
+.dock-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dock-bar h2 { margin: 0; }
+.dock-bar .grow { flex: 1; }
+.dock-bar md-outlined-select { width: 300px; max-width: 100%; --md-outlined-field-top-space: 6px; --md-outlined-field-bottom-space: 6px; }
+body.has-timeline #hud { bottom: auto; top: 8px; }
+.dock-plot {
+  position: relative; height: clamp(170px, 24vh, 240px); overflow: hidden; border-radius: var(--shape-m);
+  border: 1px solid var(--md-sys-color-outline-variant); background: var(--md-sys-color-surface-container-lowest);
+}
+.dock-plot canvas { display: block; width: 100%; height: 100%; }
+.dock-summary { margin: 0; color: var(--md-sys-color-on-surface-variant); }
+.dock-data summary { cursor: pointer; color: var(--md-sys-color-on-surface-variant); }
+.dock-data table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+.dock-data th, .dock-data td { text-align: start; padding: 4px 10px; border-block-end: 1px solid var(--md-sys-color-outline-variant); }
+.dock-data th { color: var(--md-sys-color-on-surface-variant); font-weight: 500; }
+.timeline-dock.collapsed .dock-plot, .timeline-dock.collapsed .dock-summary, .timeline-dock.collapsed .dock-data { display: none; }
+@media (max-width: 800px) {
+  body.has-timeline { height: auto; min-height: 100vh; overflow-y: auto; grid-template-rows: 42vh auto auto; grid-template-areas: "stage" "dock" "panel"; }
 }
 
 /* ---- status chips (Material has no read-only chip, so these are label-medium on tonal containers) ---- */

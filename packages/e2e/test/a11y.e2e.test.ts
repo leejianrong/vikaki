@@ -38,4 +38,26 @@ describe("accessibility (axe)", () => {
       }, 60_000);
     }
   }
+
+  for (const scheme of ["light", "dark"] as const) {
+    it(`the speech demo with a spoken line under review (timeline, selector, data table) in ${scheme} mode has no axe violations`, async () => {
+      const own = await startServer({ staticDir, speech: { tts: new FakeTts() } }); // its own hub, so tests cannot affect each other
+      const context = await browser.newContext({ colorScheme: scheme, viewport: { width: 1200, height: 800 } });
+      const page = await context.newPage();
+      await page.goto(`${own.url}?demo=speech&live=1&seed=7`);
+      const speak = page.getByRole("button", { name: "Speak", exact: true });
+      await expect.poll(() => speak.isEnabled(), { timeout: 30_000 }).toBe(true);
+      await page.getByRole("textbox", { name: "What the avatar should say" }).fill("Hello there. How are you?");
+      await speak.click();
+      await page.waitForFunction(() => document.getElementById("log")!.innerText.includes("speech finished"), null, { timeout: 30_000 });
+      await page.evaluate(() => window.__vikaki!.timelineUi!.select("demo-1"));
+      await page.locator("#timeline details summary").click(); // open the data table
+      await expect.poll(() => page.locator("#timeline tbody tr").count()).toBe(2);
+      const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      const report = result.violations.map((v) => `${v.id} (${v.impact}): ${v.help}\n  ${v.nodes.map((n) => n.target.join(" ")).slice(0, 4).join("\n  ")}`);
+      await context.close();
+      await own.close();
+      expect(report, report.join("\n")).toEqual([]);
+    }, 90_000);
+  }
 });

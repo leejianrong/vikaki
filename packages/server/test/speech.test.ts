@@ -157,6 +157,26 @@ describe("speaking to avatar pages", () => {
   });
 });
 
+describe("a later session", () => {
+  it("can reuse an utterance id that an earlier, finished session used", async () => {
+    const { viewer, driver } = await setup();
+    driver.send(utterance({ utterance_id: "demo-1", text: "Hello there." }));
+    await readUntil(viewer, isFinal);
+    driver.ws.close();
+    viewer.ws.close();
+    await until(() => server!.hub.viewerCount === 0, 3000, "the first session to leave");
+    const viewer2 = await Client.join(server!.wsUrl, "viewer");
+    clients.push(viewer2);
+    await viewer2.next();
+    const driver2 = await Client.join(server!.wsUrl, "driver");
+    clients.push(driver2);
+    await driver2.next();
+    driver2.send(utterance({ utterance_id: "demo-1", text: "Hello again." }));
+    const seen = await readUntil(viewer2, isFinal);
+    expect(audioOf(seen, "demo-1").length).toBeGreaterThan(1);
+  });
+});
+
 describe("which sentence a slice belongs to", () => {
   it("numbers the slices by spoken piece, and sends each piece's text once, on its first slice", async () => {
     const { viewer, driver } = await setup({ tts: { msPerChar: 100, chunkMs: 100 } });
