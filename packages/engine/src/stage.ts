@@ -54,6 +54,8 @@ export class Puppet {
   /** Eyelid closure and mouth weights applied on the last update. */
   blink = 0;
   visemes: VisemeWeights = {};
+  /** What the avatar showed after the last update, when the renderer can say. Else the same as `visemes`. */
+  applied: VisemeWeights = {};
 
   constructor(
     private readonly avatar: AvatarRenderer,
@@ -78,5 +80,6 @@ export class Puppet {
     this.avatar.setBlink(this.blink);
     this.avatar.setHeadPose(idlePose(this.elapsed));
     this.avatar.update(dt);
+    this.applied = this.avatar.appliedVisemes?.() ?? mouth;
   }
 }

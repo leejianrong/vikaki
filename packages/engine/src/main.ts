@@ -29,6 +29,8 @@ declare global {
       mic: "idle" | "listening" | "error";
       /** The mouth weights applied on the last frame. */
       visemes: VisemeWeights;
+      /** What the avatar actually displayed for each mouth shape on the last frame (see `appliedVisemes`). */
+      applied: VisemeWeights;
       /** Eyelid closure applied on the last frame, and how many blinks have started. */
       blink: number;
       blinks: number;
@@ -40,7 +42,7 @@ declare global {
     };
   }
 }
-const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", visemes: {}, blink: 0, blinks: 0, setVisemes: () => {} };
+const api: NonNullable<Window["__vikaki"]> = { ready: false, mic: "idle", visemes: {}, applied: {}, blink: 0, blinks: 0, setVisemes: () => {} };
 window.__vikaki = api;
 
 const baseUrl = import.meta.env.BASE_URL;
@@ -150,6 +152,7 @@ try {
     const mouth = Object.keys(manual).length > 0 ? manual : (session.lipsync?.weights ?? {});
     puppet.update(clock.getDelta(), mouth);
     api.visemes = puppet.visemes;
+    api.applied = puppet.applied;
     api.blink = puppet.blink;
     api.blinks = puppet.blinks;
     renderer.render(scene, camera);
