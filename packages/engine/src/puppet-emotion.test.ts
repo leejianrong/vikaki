@@ -88,3 +88,30 @@ describe("Puppet with an emotion", () => {
     expect(p.emotion.pose.symbol).toBeNull();
   });
 });
+
+describe("Puppet with voice gestures", () => {
+  it("nods the head on an emphasis cue, on top of the idle sway", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1);
+    run(p, 2);
+    const before = a.head.pitch;
+    p.gestures.cue("emphasis");
+    let peak = before;
+    for (let t = 0; t < 0.4; t += 1 / 60) {
+      p.update(1 / 60, {});
+      peak = Math.max(peak, a.head.pitch);
+    }
+    expect(peak - before).toBeGreaterThan(0.03);
+    expect(p.head).toEqual(a.head);
+  });
+
+  it("blinks soon after a pause cue", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1);
+    run(p, 0.2); // the first blink is due in 1 to 3 seconds
+    const blinks = p.blinks;
+    p.gestures.cue("pause");
+    run(p, 0.3);
+    expect(p.blinks).toBe(blinks + 1);
+  });
+});

@@ -6,6 +6,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { DriverConsole } from "./driver-console.ts";
 import { mountSpeechDemo } from "./speech-demo.ts";
 import { createStage, frameAvatar, Puppet } from "./stage.ts";
+import { ProsodyTracker } from "@vikaki/audio";
 import { EmotionSymbols } from "./symbols.ts";
 import { poseFor, type EmotionPose } from "./emotion.ts";
 import { FirstFrameTimer } from "./first-frame.ts";
@@ -48,6 +49,11 @@ declare global {
       presetPose?: (emotion: string, intensity: number) => EmotionPose;
       /** The emotion on show after the last frame, and the symbol drawn for it. */
       emotionPose?: EmotionPose;
+      /** In mic mode: the voice cues found so far (stress, rising ending, pause), and the head pose applied on the last frame. */
+      prosody?: { cues: { cue: string; t: number }[] };
+      head?: { pitch: number; yaw: number; roll: number };
+      /** The part of the head pose that came from voice gestures (a nod, a lift), without the idle sway. */
+      gesture?: { pitch: number; roll: number };
       /** Eyelid closure applied on the last frame, and how many blinks have started. */
       blink: number;
       blinks: number;
@@ -187,10 +193,26 @@ try {
 
   const clock = new Clock();
   let lastBlinks = 0;
+  const prosody = new ProsodyTracker();
+  api.prosody = { cues: [] };
+  let frame = 0;
   renderer.setAnimationLoop(() => {
     const mouth = Object.keys(manual).length > 0 ? manual : (session.lipsync?.weights ?? {});
     const dt = clock.getDelta();
+    // In mic mode, answer the way the voice goes: read it every other frame (pitch needs little more than 30 times a second).
+    if (session.listening && ++frame % 2 === 0) {
+      const w = session.micWindow();
+      if (w) {
+        for (const e of prosody.push(w.samples, w.sampleRate, performance.now() / 1000)) {
+          puppet.gestures.cue(e.cue);
+          api.prosody!.cues.push({ cue: e.cue, t: e.t });
+          if (api.prosody!.cues.length > 500) api.prosody!.cues.shift();
+        }
+      }
+    }
     puppet.update(dt, mouth);
+    api.head = puppet.head;
+    api.gesture = puppet.gesture;
     symbols.update(dt, puppet.emotion.pose);
     api.emotionPose = puppet.emotion.pose;
     api.visemes = puppet.visemes;
