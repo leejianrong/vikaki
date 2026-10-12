@@ -44,6 +44,9 @@ extension: ## Build the browser extension into packages/extension/dist
 e2e-smoke: ## Quick browser tests: the subset CI runs on every pull request
 	pnpm test:e2e:smoke
 
+e2e-ci: build ## The whole browser suite the way CI runs it (CI=1, two cores): catches timing flakes before the push
+	CI=1 taskset -c 0,1 pnpm --filter @vikaki/e2e exec vitest run
+
 check: ## Fast gate: typecheck + tests (what the pre-push hook runs)
 	pnpm typecheck
 	pnpm test
