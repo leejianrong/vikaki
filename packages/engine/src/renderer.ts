@@ -1,3 +1,5 @@
+import type { Object3D } from "three";
+
 /** The five mouth shapes every avatar type must support (VRM names; doodle avatars draw one sprite each). */
 export const VISEMES = ["aa", "ih", "ou", "ee", "oh"] as const;
 export type Viseme = (typeof VISEMES)[number];
@@ -27,4 +29,27 @@ export interface AvatarRenderer {
    * from what was set when blends or overrides intervene. Optional: a renderer that cannot tell leaves it out.
    */
   appliedVisemes?(): VisemeWeights;
+}
+
+/** Where things are on an avatar, in world units, for placing the camera and the manga symbols. */
+export interface AvatarFraming {
+  /** Centre of the head. */
+  head: { x: number; y: number; z: number };
+  /** Height of the top of the avatar, hat or hair included. */
+  top: number;
+  /** Height of the eyes (measured or estimated). */
+  eyeLevel: number;
+  /** False when `eyeLevel` is an estimate, not read from the model. */
+  eyeBones: boolean;
+}
+
+/**
+ * An avatar the page can put on its stage: it has something to add to the three.js scene and can say where its head is.
+ * Everything that is not VRM-specific about showing an avatar goes through this, so a 2D sprite renderer (a textured plane
+ * that swaps mouth images) can stand in for `VrmAvatar` without touching the page, camera or symbols.
+ */
+export interface SceneAvatar extends AvatarRenderer {
+  /** What to add to the scene. */
+  readonly scene: Object3D;
+  framing(): AvatarFraming;
 }

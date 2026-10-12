@@ -1,4 +1,4 @@
-import { Box3, Clock, Vector3 } from "three";
+import { Clock, Vector3 } from "three";
 import { VrmAvatar } from "./vrm-avatar.ts";
 import { AudioSession } from "./audio-session.ts";
 import { mountDemoPanel } from "./demo-panel.ts";
@@ -108,9 +108,8 @@ try {
   };
 
   const puppet = new Puppet(avatar, seed, params.get("still") !== "1");
-  const box = new Box3().setFromObject(avatar.scene);
-  const head = avatar.headPosition();
-  const symbols = new EmotionSymbols(new Vector3(head.x, (head.y + box.max.y) / 2, head.z + 0.05), (box.max.y - head.y) * 1.2);
+  const { head, top } = avatar.framing();
+  const symbols = new EmotionSymbols(new Vector3(head.x, (head.y + top) / 2, head.z + 0.05), (top - head.y) * 1.2);
   scene.add(symbols.group);
   api.setEmotion = (e, i) => puppet.emotion.set(e, i);
   api.setThinking = (on) => puppet.emotion.think(on);

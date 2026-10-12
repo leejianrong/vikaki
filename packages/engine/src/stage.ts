@@ -1,10 +1,9 @@
-import { AmbientLight, Box3, DirectionalLight, PerspectiveCamera, Scene, WebGLRenderer } from "three";
+import { AmbientLight, DirectionalLight, PerspectiveCamera, Scene, WebGLRenderer } from "three";
 import { Blinker, idlePose, mulberry32 } from "./behaviour.ts";
 import { EmotionState } from "./emotion.ts";
 import { Gestures } from "./gestures.ts";
 import { frameFromEyeLevel } from "./framing.ts";
-import { VISEMES, type AvatarRenderer, type HeadPose, type VisemeWeights } from "./renderer.ts";
-import type { VrmAvatar } from "./vrm-avatar.ts";
+import { VISEMES, type AvatarRenderer, type HeadPose, type SceneAvatar, type VisemeWeights } from "./renderer.ts";
 
 export interface Stage {
   renderer: WebGLRenderer;
@@ -40,13 +39,12 @@ export function createStage(canvas: HTMLCanvasElement, opts: { pixelRatio?: numb
 }
 
 /** Put the camera at the avatar's eye line, looking straight ahead, with the head in view. */
-export function frameAvatar(camera: PerspectiveCamera, avatar: VrmAvatar): { eyeBones: boolean } {
-  const head = avatar.headPosition();
-  const top = new Box3().setFromObject(avatar.scene).max.y;
-  const framing = frameFromEyeLevel(avatar.eyeLevel(), head.y, top, camera.fov);
+export function frameAvatar(camera: PerspectiveCamera, avatar: SceneAvatar): { eyeBones: boolean } {
+  const { head, top, eyeLevel, eyeBones } = avatar.framing();
+  const framing = frameFromEyeLevel(eyeLevel, head.y, top, camera.fov);
   camera.position.set(head.x, framing.y, head.z + framing.distance);
   camera.lookAt(head.x, framing.y, head.z);
-  return { eyeBones: avatar.hasEyeBones() };
+  return { eyeBones };
 }
 
 /** Everything that makes an avatar look alive each frame: mouth, blinking, idle sway. */
