@@ -10,9 +10,10 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'extension is covered by packages/e2e (pnpm test:e2e)'"
+    "test": "vitest run"
   },
   "devDependencies": {
-    "@types/chrome": "^0.3.4"
+    "@types/chrome": "^0.3.4",
+    "vitest": "^5.0.3"
   }
 }
