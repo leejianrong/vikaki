@@ -1,6 +1,6 @@
 # ADR-0016: A thin Python client for the games `Presenter`, kept in this repo
 
-- Status: Proposed (Jian to accept; it also sets what `agent-game-framework` ADR-0010 can rely on)
+- Status: Accepted 2026-10-12 (Jian). It also sets what `agent-game-framework` ADR-0010 can rely on
 - Date: 2026-10-12
 - Deciders: Jian, Claude (KAN-1935)
 
@@ -41,4 +41,4 @@ Build a small Python package, `vikaki-client`, in this repo under `clients/pytho
 - One more package to build, version and publish from this repo; the implementation card is KAN-2100.
 - The protocol schema becomes a contract with a second consumer, so a change to it must keep the client's drift test green.
 - `agent-game-framework` ADR-0010 can say "the Presenter calls `vikaki-client`" and no longer has to describe the wire format itself.
-- Open, for Jian: whether `vikaki-client` is published to PyPI or only installed from this repo's git URL at first.
+- Distribution: installed from this repo's git URL at first (`pip install "git+https://github.com/leejianrong/vikaki.git#subdirectory=clients/python"`). Publishing to PyPI is a later decision, once a game has used the client.
