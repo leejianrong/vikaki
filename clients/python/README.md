@@ -36,6 +36,17 @@ uid = v.say_stream(token_iterator, seat_id="seat-1")
 
 `cancel()` stops everything speaking; `cancel(uid)` stops one line.
 
+### At a table of several seats
+
+One client per LLM, each bound to its seat ([ADR-0017](../../docs/adr/0017-one-driver-per-seat.md)):
+
+```python
+v = Vikaki("ws://127.0.0.1:8787/ws", seats=[{"seat_id": "seat-2", "persona": "ben"}])
+v.say("I check.", seat_id="seat-2")      # the hub fills in ben, so a line needs only its seat
+```
+
+It may speak only for its seats and hears back only about its own lines; a second client for the same seat gets `driver_busy`. Watch the table at `/avatar?seats=3`. `make demo-table` and `make table-hand` show it with no LLM.
+
 ### Async
 
 ```python

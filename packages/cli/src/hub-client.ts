@@ -14,6 +14,8 @@ export interface ConnectOptions {
   url: string;
   role: "driver" | "controller";
   token?: string;
+  /** A driver for some seats of a table only, each with the persona it uses (ADR-0017). Absent: the driver of the whole table. */
+  seats?: { seat_id: string; persona?: string }[];
   /** Shown in the hub's logs. */
   client?: string;
   timeoutMs?: number;
@@ -45,7 +47,7 @@ export class HubClient {
       ws.once("error", (err) => fail(new HubError("connect_failed", `cannot reach ${o.url} (${err.message}). Is \`vikaki serve\` running, and on this port?`)));
     });
     const client = new HubClient(ws);
-    client.send(make("hello", { role: o.role, ...(o.token ? { token: o.token } : {}), client: o.client ?? "vikaki-cli" }));
+    client.send(make("hello", { role: o.role, ...(o.token ? { token: o.token } : {}), ...(o.seats?.length ? { seats: o.seats } : {}), client: o.client ?? "vikaki-cli" }));
     const first = await client.next(o.timeoutMs ?? 5000);
     if (first?.type === "error") {
       ws.close();

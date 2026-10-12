@@ -49,6 +49,8 @@ claude mcp add vikaki -- pnpm --silent --dir /path/to/vikaki vikaki mcp --port 8
 
 Setup and the tools: [docs/mcp.md](docs/mcp.md). Any program can also speak the WebSocket protocol directly: [docs/protocol.md](docs/protocol.md), and every message and field in [docs/protocol-reference.md](docs/protocol-reference.md).
 
+**Watch a whole table.** `/avatar?seats=3` puts three avatars side by side, one per seat, and each LLM at the table can be its own driver (`vikaki mcp --seat seat-2:ben`, or the [Python client](clients/python/README.md) with `seats=`). `make demo-table`, then `make table-hand` in another terminal, plays a scripted hand of poker. See [docs/mcp.md](docs/mcp.md) and [docs/personas.md](docs/personas.md).
+
 **Give it a character, or two.** A personas file names each character's avatar, voice and default emotion. With `pnpm serve --personas personas.example.yaml`, open `/avatar?persona=ada` in one tab and `?persona=ben` in another (a gingerbread man and a snowman) and they take turns as a driver sends lines for each. `?render=off` is an audio-only page: heard, not drawn. See [docs/personas.md](docs/personas.md).
 
 **Show it with no one at a screen.** `vikaki stream` renders the avatar in a hidden browser and publishes it as a video feed that VLC, ffplay or a browser can open (`http://127.0.0.1:8787/stream.mjpg`); `serve --headless` renders for CI. Both need `make install-renderer` once (Chromium, about 170 MB). See [docs/stream.md](docs/stream.md) and [docs/headless.md](docs/headless.md).

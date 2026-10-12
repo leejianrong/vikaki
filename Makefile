@@ -38,6 +38,13 @@ demo: build ## Build, serve and open the demo page to judge the avatar by eye
 demo-speech: install-voice build ## Install the real voice if needed, then open the speech demo
 	@$(CLI) serve --speech-demo --open
 
+demo-table: build ## Serve a table of three avatars (the real voice if installed); then run `make table-hand` in another terminal to play a hand
+	@echo "Open http://127.0.0.1:8787/avatar?seats=3 and, in another terminal, run: make table-hand"
+	@$(CLI) serve --port 8787 --personas $(CURDIR)/personas.table.example.yaml
+
+table-hand: ## Play the scripted hand of poker at the running table, one driver per seat
+	@$(CLI) table-demo --port 8787
+
 extension: ## Build the browser extension into packages/extension/dist
 	pnpm --filter @vikaki/extension build
 

@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { EMOTIONS } from "@vikaki/protocol";
 import { z } from "zod";
 import type { Target } from "./commands.ts";
-import { DriverSession } from "./driver-session.ts";
+import { DriverSession, type SeatBinding } from "./driver-session.ts";
 import { HubError } from "./hub-client.ts";
 
 const text = (value: unknown, isError = false) => ({
@@ -16,7 +16,7 @@ function explain(err: unknown): ReturnType<typeof text> {
   if (err instanceof HubError) {
     return text(
       err.code === "driver_busy"
-        ? "Another driver (a game, `vikaki say`, or another MCP client) holds the avatar. Ask the user to stop it, then try again."
+        ? `Another driver (a game, \`vikaki say\`, or another MCP client) holds the avatar or this seat (${err.message}). Ask the user to stop it, then try again.`
         : err.message,
       true,
     );
@@ -45,6 +45,7 @@ export function createMcpServer(session: DriverSession): McpServer {
         emotion: z.string().max(32).optional().describe(`One of ${EMOTIONS.join(", ")}. Overrides set_emotion for this line.`),
         intensity: z.number().min(0).max(1).optional().describe("How strongly to show the emotion, 0 to 1."),
         persona: z.string().min(1).max(64).optional().describe("Voice or character name. Overrides set_persona for this line."),
+        seat: z.string().min(1).max(128).optional().describe("Which seat at the table speaks, when there are several (a card game). Not needed if this server has only one seat."),
         wait: z.boolean().optional().describe("Default true. false returns at once with the utterance_id so you can cancel it later."),
       },
     },
@@ -55,18 +56,24 @@ export function createMcpServer(session: DriverSession): McpServer {
     "set_emotion",
     {
       description: `Set the avatar's default emotion for the lines that follow. One of ${EMOTIONS.join(", ")}; anything else becomes neutral.`,
-      inputSchema: { emotion: z.string().max(32) },
+      inputSchema: {
+        emotion: z.string().max(32),
+        seat: z.string().min(1).max(128).optional().describe("Set it for this seat's lines only, when there are several seats."),
+      },
     },
-    guard((a: { emotion: string }) => text({ emotion: session.setEmotion(a.emotion) })),
+    guard((a: { emotion: string; seat?: string }) => text({ emotion: session.setEmotion(a.emotion, a.seat), ...(a.seat ? { seat: a.seat } : {}) })),
   );
 
   server.registerTool(
     "set_persona",
     {
       description: "Set the default persona (voice, look and character) for the lines that follow. A name the hub does not know is refused with the list of known ones, and the previous persona stays. On success the persona's style note is returned: write in that manner.",
-      inputSchema: { persona: z.string().min(1).max(64) },
+      inputSchema: {
+        persona: z.string().min(1).max(64),
+        seat: z.string().min(1).max(128).optional().describe("Set it for this seat's lines only, when there are several seats."),
+      },
     },
-    guard(async (a: { persona: string }) => text(await session.setPersona(a.persona))),
+    guard(async (a: { persona: string; seat?: string }) => text(await session.setPersona(a.persona, a.seat))),
   );
 
   server.registerTool(
@@ -85,8 +92,8 @@ export function createMcpServer(session: DriverSession): McpServer {
 }
 
 /** Serve MCP over stdio until the client goes away; the driver slot is released on the way out. */
-export async function runMcp(target: Target): Promise<void> {
-  const session = new DriverSession(target);
+export async function runMcp(target: Target, seats?: SeatBinding[]): Promise<void> {
+  const session = new DriverSession(target, seats);
   const server = createMcpServer(session);
   const transport = new StdioServerTransport();
   const closed = new Promise<void>((ok) => (transport.onclose = ok));
