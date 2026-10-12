@@ -1,6 +1,6 @@
 # Vikaki
 
-Open-source (Apache-2.0) engine that animates a stylised VRM avatar from a mic or from text/TTS, and delivers it into browser meetings, a local browser page, or an MJPEG feed. An LLM can drive it over MCP. Work board: Pandan board 35 ("Vikaki").
+Open-source (Apache-2.0) engine that animates a stylised VRM avatar from a mic or from text/TTS, and delivers it into browser meetings, a local browser page, or an MJPEG feed. An LLM can drive it over MCP. Work board: Pandan board 35 ("Vikaki"); always pass `--board 35` to `pandan` commands that take it (the default board is another project's).
 
 Trust the code over the docs where they disagree, then fix the docs. Where things live: build status `docs/STATUS.md`, plan `docs/PLAN.md`, build order `docs/SLICES.md`, open questions `docs/QUESTIONS.md`, decisions `docs/adr/`, how the pieces fit `docs/architecture.md`, protocol `docs/protocol.md`, testing strategy `docs/testing.md`, observability `docs/observability.md`, MCP `docs/mcp.md`, voices `docs/tts.md`.
 
