@@ -69,6 +69,8 @@ declare global {
       live?: { state: LiveState; soundBlocked: boolean; events: string[] };
       /** True if the avatar has eye bones; false means eye level is estimated. */
       eyeBones?: boolean;
+      /** On the table page (`?seats=`) only: one entry per seat, left to right. `symbol` is the mark over the head ("dots" while thinking), or null. */
+      table?: { seats: { seat: string; persona?: string; avatarUrl: string; x: number; visemes: VisemeWeights; symbol: string | null }[] };
     };
   }
 }

@@ -26,7 +26,26 @@ export class VrmAvatar implements SceneAvatar {
 
   framing(): AvatarFraming {
     const head = this.headPosition();
-    return { head, top: new Box3().setFromObject(this.vrm.scene).max.y, eyeLevel: this.eyeLevel(), eyeBones: this.hasEyeBones() };
+    return { head, top: new Box3().setFromObject(this.vrm.scene).max.y, eyeLevel: this.eyeLevel(), eyeBones: this.hasEyeBones(), width: this.bodyWidth() };
+  }
+
+  /** Shoulder to shoulder (a little more, for the body), or the whole model's width if it has no arm bones. */
+  bodyWidth(): number {
+    this.vrm.scene.updateMatrixWorld(true);
+    const [l, r] = (["leftUpperArm", "rightUpperArm"] as const).map((n) => this.vrm.humanoid.getNormalizedBoneNode(n));
+    if (l && r) return Math.max(0.3, l.getWorldPosition(new Vector3()).distanceTo(r.getWorldPosition(new Vector3())) * 1.5);
+    const box = new Box3().setFromObject(this.vrm.scene);
+    return box.max.x - box.min.x;
+  }
+
+  /**
+   * Let the arms hang at the sides, `radians` down from the T-pose. Avatars standing shoulder to shoulder read as stiff cut-outs with
+   * their arms out, and the arms of neighbours would cross.
+   */
+  lowerArms(radians = 1.2): void {
+    const h = this.vrm.humanoid;
+    h.getNormalizedBoneNode("leftUpperArm")?.rotation.set(0, 0, radians);
+    h.getNormalizedBoneNode("rightUpperArm")?.rotation.set(0, 0, -radians);
   }
 
   /** World position of the head bone, for camera framing. */
