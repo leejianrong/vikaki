@@ -107,3 +107,36 @@ describe("MicTimeline", () => {
     for (const u of phrases(rec)) expect(seconds(u)).toBeLessThan(3.6);
   });
 });
+
+describe("MicTimeline on a page that stalls (software WebGL on two cores)", () => {
+  const extent = (u: { startMs: number; endMs: number }) => (u.endMs - u.startMs) / 1000;
+
+  it("does not stretch a phrase over a stall that comes after it: the phrase ends where the sound did", () => {
+    const { rec, run } = setup();
+    run(1000, 3600, (ms) => ms >= 1500 && ms < 3500); // 2 s of voice, then the quiet that ends it
+    run(7000, 7000, () => false); // the page next reads 3.4 s later
+    run(7033, 8000, () => false);
+    const [u, ...rest] = phrases(rec);
+    expect(rest).toEqual([]);
+    expect(extent(u!)).toBeLessThan(3.4);
+  });
+
+  it("does not stretch a phrase back over a stall that came before it (no stale preroll)", () => {
+    const { rec, run } = setup();
+    run(1000, 1200, () => false);
+    run(5000, 6500, (ms) => ms < 6000); // the page reads again 3.8 s later, with the voice already going
+    run(6533, 7500, () => false);
+    const [u] = phrases(rec);
+    expect(extent(u!)).toBeLessThan(2.0);
+  });
+
+  it("ends a phrase when the page stalls longer than the quiet that would have ended it, and begins another after", () => {
+    const { rec, run } = setup();
+    run(1000, 1800, (ms) => ms >= 1100); // voice begins
+    run(5000, 6200, (ms) => ms < 5800); // 3.2 s with no read, then the voice is still there for a while
+    run(6233, 7500, () => false);
+    const us = phrases(rec);
+    expect(us.length).toBe(2);
+    for (const u of us) expect(extent(u)).toBeLessThan(2.0);
+  });
+});
