@@ -51,6 +51,9 @@ check: ## Fast gate: typecheck + tests (what the pre-push hook runs)
 	pnpm typecheck
 	pnpm test
 
+check-python: ## Python client tests against a fake hub (needs uv); CI also runs them against a real hub
+	cd clients/python && uv run --extra dev pytest -q
+
 hooks: ## Install the pre-push hook
 	ln -sf ../../scripts/git-hooks/pre-push .git/hooks/pre-push
 	chmod +x scripts/git-hooks/pre-push

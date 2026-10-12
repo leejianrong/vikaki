@@ -1,4 +1,5 @@
-// Writes docs/protocol.schema.json and the reference page generated from it. Tests fail if the committed copies are out of date.
+// Writes docs/protocol.schema.json, the reference page generated from it, and the copy the Python client ships (clients/python).
+// Tests fail if the committed copies are out of date.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,4 +11,6 @@ mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, JSON.stringify(jsonSchema(), null, 2) + "\n");
 const reference = fileURLToPath(new URL("../../../docs/protocol-reference.md", import.meta.url));
 writeFileSync(reference, protocolReference(jsonSchema()));
-console.log("wrote", out, "and", reference);
+const pythonCopy = fileURLToPath(new URL("../../../clients/python/src/vikaki_client/protocol.schema.json", import.meta.url));
+writeFileSync(pythonCopy, JSON.stringify(jsonSchema(), null, 2) + "\n");
+console.log("wrote", out, ",", reference, "and", pythonCopy);

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vikaki-client"
+version = "0.1.0"
+description = "A small Python client for the Vikaki avatar hub (WebSocket protocol, version 1)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+# websockets: BSD-3-Clause. jsonschema: MIT. Both checked 2026-10-12 (ADR-0016).
+dependencies = ["websockets>=14", "jsonschema>=4.18"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vikaki_client = ["protocol.schema.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: needs a running `vikaki serve` (set VIKAKI_HUB_URL)"]
