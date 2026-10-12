@@ -1,11 +1,11 @@
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { Box3, Vector3, type Mesh, type Object3D } from "three";
-import { VISEMES, type AvatarRenderer, type HeadPose, type VisemeWeights } from "./renderer.ts";
+import { VISEMES, type AvatarFraming, type HeadPose, type SceneAvatar, type VisemeWeights } from "./renderer.ts";
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
-export class VrmAvatar implements AvatarRenderer {
+export class VrmAvatar implements SceneAvatar {
   private constructor(readonly vrm: VRM) {}
 
   /** `source` is a URL to fetch or the VRM file's bytes (when a page cannot fetch). */
@@ -22,6 +22,11 @@ export class VrmAvatar implements AvatarRenderer {
 
   get scene(): Object3D {
     return this.vrm.scene;
+  }
+
+  framing(): AvatarFraming {
+    const head = this.headPosition();
+    return { head, top: new Box3().setFromObject(this.vrm.scene).max.y, eyeLevel: this.eyeLevel(), eyeBones: this.hasEyeBones() };
   }
 
   /** World position of the head bone, for camera framing. */
