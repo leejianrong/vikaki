@@ -4,7 +4,7 @@ JSON text messages over a WebSocket at `ws://127.0.0.1:<port>/ws`. Every message
 
 ## Roles
 
-- **Driver**: the thing that decides what is said (a game, an LLM, a script). Only one at a time; a second gets `driver_busy`.
+- **Driver**: the thing that decides what is said (a game, an LLM, a script). Only one at a time; a second gets `driver_busy`. At a table with several LLM seats, each seat can have its own driver (see below).
 - **Controller**: a side channel for `vikaki cancel`. Never holds the driver slot, receives nothing, may send only `cancel`, and needs the driver token if there is one (ADR-0014).
 - **Viewer**: an avatar page that plays what the driver sends and reports back. Any number.
 
@@ -17,7 +17,19 @@ The first message on a connection must be `hello`; the hub answers `welcome`.
 { "protocol_version": 1, "type": "welcome", "role": "driver" }
 ```
 
-`role` is `driver`, `viewer` or `controller`. When the hub was started with a personas file, `welcome` also carries `personas`, the names it knows ([personas.md](personas.md)).
+`role` is `driver`, `viewer` or `controller`. A driver that speaks for some seats only lists them, `"seats": [{ "seat_id": "seat-2", "persona": "ada" }]` (1 to 16, `persona` optional): see *One driver per seat*. When the hub was started with a personas file, `welcome` also carries `personas`, the names it knows ([personas.md](personas.md)).
+
+## One driver per seat
+
+A driver that lists `seats` in `hello` speaks for those seats only ([ADR-0017](adr/0017-one-driver-per-seat.md)). Drivers for different seats can be connected at once; a second driver for a seat that has one, or a driver of the whole table (no `seats`) alongside a seat driver, gets `driver_busy`. A seat driver:
+
+- may send `utterance`, `turn_started` and `turn_ended` for its seats, and `game_over` with its own `seat_id`; anything else about another seat is `not_allowed`;
+- gets its seat's `persona` filled in on lines and turns that name none (a persona named on the line wins), and is refused at `hello` if a seat names a persona the hub's personas file lacks (`unknown_persona`);
+- hears `speech_started`, `speech_finished`, `speech_interrupted` and line errors only for its own lines, and may cancel only its own lines (`cancel` with no id stops just those);
+- cannot reuse a line id that another driver has in flight (`bad_message`);
+- leaves its lines stopped when it disconnects; the other seats go on.
+
+Only a driver lists seats. The hub still speaks one line at a time, so two seats asked to speak together are spoken in turn.
 
 ## Driver sends
 

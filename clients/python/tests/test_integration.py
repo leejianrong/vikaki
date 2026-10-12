@@ -35,3 +35,16 @@ def test_a_second_driver_is_told_driver_busy():
         with pytest.raises(HubError) as err:
             Vikaki(URL)
     assert err.value.code == "driver_busy"
+
+
+def test_two_seat_drivers_speak_at_once_and_a_third_for_a_taken_seat_is_busy():
+    from vikaki_client import HubError
+
+    with Vikaki(URL, seats=[{"seat_id": "s1"}]) as a, Vikaki(URL, seats=[{"seat_id": "s2"}]) as b:
+        ua = a.say("Seat one speaking.", seat_id="s1")
+        ub = b.say("Seat two speaking.", seat_id="s2")
+        assert a.wait_finished(ua, timeout=30)["utterance_id"] == ua
+        assert b.wait_finished(ub, timeout=30)["utterance_id"] == ub
+        with pytest.raises(HubError) as err:
+            Vikaki(URL, seats=[{"seat_id": "s1"}])
+    assert err.value.code == "driver_busy"

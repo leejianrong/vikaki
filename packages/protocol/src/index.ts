@@ -41,6 +41,12 @@ export const Hello = z.object({
   client: z.string().max(64).optional(),
   /** A viewer that shows one persona says so: it plays only that persona's lines. Without it, a viewer plays every line. */
   persona: z.string().min(1).max(64).optional(),
+  /**
+   * A driver that speaks for some seats only (one LLM at a poker table) lists them, each with the persona that seat uses. Several
+   * such drivers may be connected at once, one per seat; a driver that lists none is the whole table's driver, as before. The hub
+   * fills in a line's `persona` from its seat, and sends each driver only the reports for its own lines.
+   */
+  seats: z.array(z.object({ seat_id: id, persona: z.string().min(1).max(64).optional() })).min(1).max(16).optional(),
 });
 
 export const Welcome = z.object({

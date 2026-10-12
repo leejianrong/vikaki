@@ -245,3 +245,14 @@ def test_listeners_may_be_functions_or_coroutines_and_a_broken_one_does_not_stop
 
     got_sync, got_async = run(go())
     assert got_sync == got_async == ["speech_started", "speech_finished"]
+
+
+def test_a_seat_driver_lists_its_seats_in_hello_and_a_bad_list_is_refused_before_connecting(hub):
+    async def go():
+        async with await VikakiClient.connect(hub.url, seats=[{"seat_id": "seat-2", "persona": "ada"}, {"seat_id": "seat-3"}]):
+            pass
+        with pytest.raises(InvalidMessage):
+            await VikakiClient.connect(hub.url, seats=[])  # no seats at all is not a list of seats
+
+    run(go())
+    assert hub.wait_received(1)[0]["seats"] == [{"seat_id": "seat-2", "persona": "ada"}, {"seat_id": "seat-3"}]

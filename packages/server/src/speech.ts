@@ -105,9 +105,9 @@ export class SpeechEngine {
     else if (message.type === "cancel" && message.utterance_id !== undefined) this.cancel(message.utterance_id, "cancelled", false); // the hub expands an id-less cancel
   }
 
-  /** The driver left: stop everything it had in flight. */
-  driverGone(): void {
-    for (const id of [...this.utterances.keys()]) this.cancel(id, "driver_disconnected", true);
+  /** A driver left: stop the lines it had in flight (`ids`), or with no ids everything. */
+  driverGone(ids?: string[]): void {
+    for (const id of ids ?? [...this.utterances.keys()]) this.cancel(id, "driver_disconnected", true);
   }
 
   // ---- intake ----
