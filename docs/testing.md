@@ -38,7 +38,7 @@ To put a test in it, tag it: `it("…", { tags: ["smoke"] }, async () => { … }
 - **Every bug gets a failing test first.** New guards are proven by mutation: break the code on purpose, watch the right test fail, restore.
 - **No fixed sleeps** to encode a timing assumption. Wait for an event with a generous ceiling.
 - **Millisecond budgets only off CI**: `STRICT_TIMING = !process.env.CI`. CI is two shared cores with software WebGL.
-- Check CI-like locally with `CI=1 taskset -c 0,1 pnpm --filter @vikaki/e2e exec vitest run`.
+- Check CI-like locally with `make e2e-ci` (builds, then runs `CI=1 taskset -c 0,1 pnpm --filter @vikaki/e2e exec vitest run`). Run it before pushing any change that touches timing, the mic path or the page.
 - Tests never call a paid or non-deterministic service.
 - Look at screenshots of any visual change yourself; for audio use the spectrograms and metrics (`docs/observability.md`).
 
