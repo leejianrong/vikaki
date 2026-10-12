@@ -48,7 +48,7 @@ See `docs/adr/0009-meeting-extension-design.md`.
 
 ## Match patterns
 
-`content_scripts[].matches` may include paths (Zoom's web client is `/wc/*`). `web_accessible_resources[].matches` may not: it only accepts origin-wide patterns ending in `/*`, and one bad entry makes the browser refuse the whole extension. The browser tests catch this, because every test fails when the extension does not load.
+`content_scripts[].matches` may include paths (Zoom's web client is `/wc/*`). `web_accessible_resources[].matches` may not: it only accepts origin-wide patterns ending in `/*`, and one bad entry makes the browser refuse the whole extension. The browser tests catch this, because every test fails when the extension does not load. A unit test (`test/manifest.test.ts`) asserts the supported-site list and these rules.
 
 ## Manual check on real sites
 
