@@ -68,6 +68,11 @@ export class MicTimeline {
   push(window: Float32Array, rate: number, perfMs: number): void {
     const elapsed = this.lastPerfMs === undefined ? Infinity : perfMs - this.lastPerfMs;
     this.lastPerfMs = perfMs;
+    // A page that stalls reads only now and then (software WebGL on two shared cores). Audio from before a long gap is not
+    // contiguous with what is read now, so it is not stitched on: the old preroll is dropped, and a phrase that was open ends where
+    // the last read left it (we did not hear it continue), so one stall never stretches a phrase over seconds nobody recorded.
+    if (elapsed > this.prerollMs) this.preroll.length = 0;
+    if (this.phrase && elapsed > this.quietMs) this.finish();
     const wanted = Math.min(window.length, Math.max(1, Math.round((elapsed / 1000) * rate)));
     const fresh = window.subarray(window.length - wanted);
     let energy = 0;
