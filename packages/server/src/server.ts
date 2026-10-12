@@ -123,9 +123,9 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
       opts.hub?.onDriverMessage?.(m);
       speech?.handle(m);
     },
-    onDriverGone: () => {
-      opts.hub?.onDriverGone?.();
-      speech?.driverGone();
+    onDriverGone: (ids) => {
+      opts.hub?.onDriverGone?.(ids);
+      speech?.driverGone(ids);
     },
   });
   speech?.attach(hub);

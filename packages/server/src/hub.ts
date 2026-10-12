@@ -23,8 +23,8 @@ export interface HubOptions {
   personas?: PersonaBook;
   /** Where warnings go, such as an emotion the avatar does not know. Defaults to the console. */
   warn?: (message: string) => void;
-  /** Called when the driver disconnects. */
-  onDriverGone?: () => void;
+  /** Called when a driver disconnects, with the ids of its lines that had not finished: those are the ones to stop. */
+  onDriverGone?: (utteranceIds: string[]) => void;
 }
 
 export interface HubEvent {
@@ -35,6 +35,10 @@ export interface HubEvent {
 }
 
 type Role = "driver" | "viewer" | "controller";
+/** A connected driver. `seats` is absent for the driver of the whole table; otherwise seat id to the persona it uses (or undefined). */
+interface DriverInfo {
+  seats?: Map<string, string | undefined>;
+}
 const MAX_PAYLOAD = 256 * 1024;
 const DEDUP_LIMIT = 2000;
 
@@ -43,17 +47,19 @@ const sha = (s: string) => createHash("sha256").update(s).digest();
 /**
  * One driver (a game, an LLM, a script) sends utterances; any number of viewers (avatar pages)
  * play them and report back (ADR-0001). The hub validates, enforces who may send what, and relays.
+ * At a table with several LLM seats, each can be its own driver, declaring its seats in `hello` (ADR-0017): a seat has one driver,
+ * a driver may speak only for its seats, and hears back only about its own lines.
  */
 export class Hub {
   private readonly wss: WebSocketServer;
-  private driver?: WebSocket;
+  private readonly drivers = new Map<WebSocket, DriverInfo>();
   private readonly viewers = new Set<WebSocket>();
   private readonly roles = new WeakMap<WebSocket, Role>();
   /** The persona a viewer said it shows (absent: it shows every line). */
   private readonly viewerPersona = new WeakMap<WebSocket, string>();
   private readonly seen = new Set<string>();
-  /** Utterances the driver has sent that no one has reported finished or interrupted yet: what "cancel everything" stops. */
-  private readonly inFlight = new Set<string>();
+  /** Utterances a driver has sent that no one has reported finished or interrupted yet, and whose they are: what "cancel everything" stops. */
+  private readonly inFlight = new Map<string, WebSocket>();
   /** Lines refused for an unknown persona, so the rest of a streamed one is ignored rather than scolded again. */
   private readonly refused = new Set<string>();
 
@@ -75,7 +81,7 @@ export class Hub {
   }
 
   get hasDriver(): boolean {
-    return this.driver !== undefined;
+    return this.drivers.size > 0;
   }
 
   get viewerCount(): number {
@@ -92,10 +98,11 @@ export class Hub {
     return n;
   }
 
-  /** Send a hub-originated message to the driver, such as a TTS failure. */
+  /** Send a hub-originated message to the driver it is about, such as a TTS failure. */
   toDriver(message: Message): void {
+    const target = this.driverFor(message);
     this.noteReport(message);
-    this.send(this.driver, message);
+    this.send(target, message);
     this.opts.onEvent?.({ at: Date.now(), from: "hub", to: "driver", message });
   }
 
@@ -136,11 +143,13 @@ export class Hub {
     ws.on("close", () => {
       clearTimeout(timer);
       this.viewers.delete(ws);
-      if (this.driver === ws) {
-        this.driver = undefined;
-        this.inFlight.clear();
-        this.seen.clear(); // the next driver starts afresh, and may reuse ids (a reloaded page counts from demo-1 again)
-        this.opts.onDriverGone?.();
+      if (this.drivers.delete(ws)) {
+        const lines = [...this.inFlight].filter(([, owner]) => owner === ws).map(([id]) => id);
+        for (const id of lines) this.inFlight.delete(id);
+        // The next driver starts afresh and may reuse ids (a reloaded page counts from demo-1 again).
+        if (this.drivers.size === 0) this.seen.clear();
+        else for (const id of lines) for (const t of ["speech_started", "speech_finished", "speech_interrupted", "error"]) this.seen.delete(`${t}:${id}`);
+        this.opts.onDriverGone?.(lines);
       }
     });
     ws.on("error", () => ws.terminate());
@@ -175,11 +184,13 @@ export class Hub {
     }
 
     if (role === "driver" || role === "controller") {
+      const info = this.drivers.get(ws);
       if (message.type === "cancel" && message.utterance_id === undefined) {
         // "Cancel everything" becomes one ordinary cancel per utterance still in flight, so viewers and the engine need no new case.
-        for (const id of [...this.inFlight]) this.relayFromDriver(role, make("cancel", { utterance_id: id }));
+        // A seat driver stops only its own lines; the driver of the whole table and a controller stop all of them.
+        for (const [id, owner] of [...this.inFlight]) if (!info?.seats || owner === ws) this.relayFromDriver(role, ws, make("cancel", { utterance_id: id }));
       } else {
-        this.relayFromDriver(role, message);
+        this.relayFromDriver(role, ws, message);
       }
     } else {
       // Several viewers may report the same thing. The driver should hear it once.
@@ -189,13 +200,27 @@ export class Hub {
         this.seen.add(key);
         if (this.seen.size > DEDUP_LIMIT) this.seen.delete(this.seen.values().next().value as string);
       }
+      const target = this.driverFor(message);
       this.noteReport(message);
-      this.send(this.driver, message);
+      this.send(target, message);
       this.opts.onEvent?.({ at: Date.now(), from: "viewer", to: "driver", message });
     }
   }
 
-  private relayFromDriver(from: "driver" | "controller", message: Message): void {
+  private relayFromDriver(from: "driver" | "controller", ws: WebSocket, message: Message): void {
+    const seats = this.drivers.get(ws)?.seats;
+    if (seats && !this.mayAct(ws, seats, message)) return;
+    if (message.type === "utterance") {
+      const owner = this.inFlight.get(message.utterance_id);
+      if (owner !== undefined && owner !== ws) {
+        return void this.send(ws, make("error", { code: "bad_message", message: `utterance ${message.utterance_id} is in use by another driver`, utterance_id: message.utterance_id }));
+      }
+    }
+    // A seat has a persona: a line or turn that does not name one gets its seat's.
+    if (seats && (message.type === "utterance" || message.type === "turn_started" || message.type === "turn_ended") && message.persona === undefined) {
+      const bound = seats.get(message.seat_id);
+      if (bound !== undefined) message = { ...message, persona: bound };
+    }
     if (message.type === "utterance" && this.opts.personas) {
       if (this.refused.has(message.utterance_id)) return;
       if (message.persona !== undefined) {
@@ -203,7 +228,7 @@ export class Hub {
         if (!persona) {
           this.refused.add(message.utterance_id);
           if (this.refused.size > DEDUP_LIMIT) this.refused.delete(this.refused.values().next().value as string);
-          this.toDriver(make("error", { code: "unknown_persona", message: `no persona "${message.persona}" (known: ${this.opts.personas.names.join(", ")})`, utterance_id: message.utterance_id }));
+          this.send(ws, make("error", { code: "unknown_persona", message: `no persona "${message.persona}" (known: ${this.opts.personas.names.join(", ")})`, utterance_id: message.utterance_id }));
           return;
         }
         if (message.emotion === undefined && persona.emotion) message = { ...message, emotion: persona.emotion };
@@ -213,8 +238,8 @@ export class Hub {
       if (message.emotion !== undefined && !(EMOTIONS as readonly string[]).includes(message.emotion)) {
         (this.opts.warn ?? console.warn)(`utterance ${message.utterance_id}: unknown emotion "${message.emotion}", showing neutral`);
       }
-      this.inFlight.add(message.utterance_id);
-      if (this.inFlight.size > DEDUP_LIMIT) this.inFlight.delete(this.inFlight.values().next().value as string);
+      this.inFlight.set(message.utterance_id, ws);
+      if (this.inFlight.size > DEDUP_LIMIT) this.inFlight.delete(this.inFlight.keys().next().value as string);
     } else if (message.type === "cancel" && message.utterance_id !== undefined) {
       this.inFlight.delete(message.utterance_id);
     }
@@ -223,23 +248,63 @@ export class Hub {
     this.opts.onDriverMessage?.(message);
   }
 
+  /** Whether a seat driver may send this: only for its own seats, and only cancel its own lines. Tells the driver if not. */
+  private mayAct(ws: WebSocket, seats: Map<string, string | undefined>, message: Message): boolean {
+    let ok = true;
+    let what = "";
+    if (message.type === "utterance" || message.type === "turn_started" || message.type === "turn_ended") {
+      ok = seats.has(message.seat_id);
+      what = `seat ${message.seat_id} is not one of this driver's seats`;
+    } else if (message.type === "game_over") {
+      ok = message.seat_id !== undefined && seats.has(message.seat_id);
+      what = "a seat driver may send game_over only for its own seat";
+    } else if (message.type === "cancel" && message.utterance_id !== undefined) {
+      const owner = this.inFlight.get(message.utterance_id);
+      ok = owner === undefined || owner === ws;
+      what = `utterance ${message.utterance_id} belongs to another driver`;
+    }
+    if (!ok) this.send(ws, make("error", { code: "not_allowed", message: what, ...("utterance_id" in message && message.utterance_id ? { utterance_id: message.utterance_id } : {}) }));
+    return ok;
+  }
+
+  /** The driver a report is for: the one that sent the line, else the driver of the whole table, else the one that has the seat. */
+  private driverFor(message: Message): WebSocket | undefined {
+    const uid = "utterance_id" in message ? message.utterance_id : undefined;
+    const owner = uid !== undefined ? this.inFlight.get(uid) : undefined;
+    if (owner) return owner;
+    for (const [ws, info] of this.drivers) if (!info.seats) return ws;
+    const seat = "seat_id" in message ? message.seat_id : undefined;
+    if (seat !== undefined) for (const [ws, info] of this.drivers) if (info.seats?.has(seat)) return ws;
+    return undefined;
+  }
+
   private noteReport(message: Message): void {
     if (message.type === "speech_finished" || message.type === "speech_interrupted") this.inFlight.delete(message.utterance_id);
   }
 
   private admit(ws: WebSocket, hello: Extract<Message, { type: "hello" }>): void {
+    if (hello.seats !== undefined && hello.role !== "driver") {
+      this.fail(ws, "bad_message", "only a driver lists seats");
+      ws.close(1008, "bad_message");
+      return;
+    }
     if (hello.role === "driver" || hello.role === "controller") {
       if (this.opts.token !== undefined && !this.tokenMatches(hello.token)) {
         this.fail(ws, "unauthorized", "wrong or missing token");
         ws.close(1008, "unauthorized");
         return;
       }
-      if (hello.role === "driver" && this.driver) {
-        this.fail(ws, "driver_busy", "another driver is already connected");
-        ws.close(1008, "driver_busy");
-        return;
+      if (hello.role === "driver") {
+        const seats = this.seatsOf(ws, hello);
+        if (seats === null) return;
+        const busy = this.busyWith(seats);
+        if (busy) {
+          this.fail(ws, "driver_busy", busy);
+          ws.close(1008, "driver_busy");
+          return;
+        }
+        this.drivers.set(ws, { seats });
       }
-      if (hello.role === "driver") this.driver = ws;
     } else {
       this.viewers.add(ws);
       if (hello.persona) this.viewerPersona.set(ws, hello.persona);
@@ -255,6 +320,35 @@ export class Hub {
         ...(this.opts.personas ? { personas: this.opts.personas.names } : {}),
       }),
     );
+  }
+
+  /** The seats a driver asked for, `undefined` for the whole table, or `null` after refusing it (a seat twice, or a persona the hub lacks). */
+  private seatsOf(ws: WebSocket, hello: Extract<Message, { type: "hello" }>): Map<string, string | undefined> | undefined | null {
+    if (!hello.seats) return undefined;
+    const seats = new Map<string, string | undefined>();
+    for (const s of hello.seats) {
+      if (seats.has(s.seat_id)) {
+        this.fail(ws, "bad_message", `seat ${s.seat_id} is listed twice`);
+        ws.close(1008, "bad_message");
+        return null;
+      }
+      if (s.persona !== undefined && this.opts.personas && !this.opts.personas.get(s.persona)) {
+        this.fail(ws, "unknown_persona", `seat ${s.seat_id} uses persona "${s.persona}", which is not one of: ${this.opts.personas.names.join(", ")}`);
+        ws.close(1008, "unknown_persona");
+        return null;
+      }
+      seats.set(s.seat_id, s.persona);
+    }
+    return seats;
+  }
+
+  /** Why a driver for these seats (`undefined`: the whole table) cannot join now, if it cannot. */
+  private busyWith(seats: Map<string, string | undefined> | undefined): string | undefined {
+    for (const info of this.drivers.values()) {
+      if (!seats || !info.seats) return "another driver is already connected";
+      for (const seat of seats.keys()) if (info.seats.has(seat)) return `seat ${seat} already has a driver`;
+    }
+    return undefined;
   }
 
   private tokenMatches(given: string | undefined): boolean {

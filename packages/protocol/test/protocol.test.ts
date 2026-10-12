@@ -129,6 +129,25 @@ describe("audio message and PCM encoding", () => {
   });
 });
 
+describe("hello with seats", () => {
+  const hello = (extra: Record<string, unknown>) => parseMessage({ protocol_version: v, type: "hello", role: "driver", ...extra });
+
+  it("is optional, so an older driver's hello is still valid", () => {
+    expect(hello({}).ok).toBe(true);
+  });
+
+  it("lists seats, each with a persona or none", () => {
+    expect(hello({ seats: [{ seat_id: "seat-1", persona: "ada" }, { seat_id: "seat-2" }] }).ok).toBe(true);
+  });
+
+  it("rejects no seats, too many, and a seat without an id or with an empty persona", () => {
+    expect(hello({ seats: [] }).ok).toBe(false);
+    expect(hello({ seats: Array.from({ length: 17 }, (_, i) => ({ seat_id: `s${i}` })) }).ok).toBe(false);
+    expect(hello({ seats: [{ persona: "ada" }] }).ok).toBe(false);
+    expect(hello({ seats: [{ seat_id: "s", persona: "" }] }).ok).toBe(false);
+  });
+});
+
 describe("welcome", () => {
   it("may say which speech engine the hub uses", () => {
     expect(parseMessage({ protocol_version: v, type: "welcome", role: "viewer", speech: "kokoro" }).ok).toBe(true);

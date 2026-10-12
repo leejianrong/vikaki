@@ -13,6 +13,7 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `token` | string | no | at most 256 characters |
 | `client` | string | no | at most 64 characters |
 | `persona` | string | no | 1 to 64 characters |
+| `seats` | list of object | no | at most 16 items |
 
 ## `welcome`
 

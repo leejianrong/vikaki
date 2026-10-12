@@ -28,13 +28,14 @@ class Vikaki:
         token: str | None = None,
         client: str = CLIENT_NAME,
         session_id: str | None = None,
+        seats: list[dict[str, str]] | None = None,
         timeout: float = 5.0,
     ) -> None:
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever, name="vikaki-client", daemon=True)
         self._thread.start()
         try:
-            self._client: VikakiClient = self._run(VikakiClient.connect(url, role=role, token=token, client=client, session_id=session_id, timeout=timeout))
+            self._client: VikakiClient = self._run(VikakiClient.connect(url, role=role, token=token, client=client, session_id=session_id, seats=seats, timeout=timeout))
         except BaseException:
             self._stop()
             raise

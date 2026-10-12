@@ -58,10 +58,16 @@ class VikakiClient:
         token: str | None = None,
         client: str = CLIENT_NAME,
         session_id: str | None = None,
+        seats: list[dict[str, str]] | None = None,
         timeout: float = 5.0,
     ) -> VikakiClient:
-        """Open the connection and say hello. Raises `HubError` (`connect_failed`, `driver_busy`, `unauthorized`, ...)."""
-        hello = make("hello", role=role, token=token, client=client, session_id=session_id)
+        """Open the connection and say hello. Raises `HubError` (`connect_failed`, `driver_busy`, `unauthorized`, ...).
+
+        `seats` is for one seat's driver at a table of several (an LLM seat), each item `{"seat_id": "seat-2", "persona": "ada"}`
+        (`persona` optional). Such a driver may speak only for its seats and hears back only about its own lines; the hub fills in
+        the seat's persona. Leave it out to drive the whole table.
+        """
+        hello = make("hello", role=role, token=token, client=client, session_id=session_id, seats=seats)
         try:
             ws = await asyncio.wait_for(connect(url, max_size=2**20), timeout)
         except (OSError, WebSocketException, asyncio.TimeoutError) as err:
