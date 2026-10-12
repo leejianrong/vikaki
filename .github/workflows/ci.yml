@@ -94,3 +94,28 @@ jobs:
           path: packages/e2e/artifacts
           if-no-files-found: ignore
           retention-days: 14
+
+  # The Python client (ADR-0016): unit tests against a fake hub, then the same client against a real `vikaki serve --tts fake`.
+  python-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Unit tests (fake hub)
+        working-directory: clients/python
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -e ".[dev]"
+          .venv/bin/pytest -q
+      - name: Integration tests (real hub, fake voice)
+        working-directory: clients/python
+        run: |
+          pnpm --dir ../.. serve --port 8787 --tts fake > hub.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:8787/avatar && break; sleep 1; done
+          VIKAKI_HUB_URL=ws://127.0.0.1:8787/ws .venv/bin/pytest -q -m integration || { cat hub.log; exit 1; }

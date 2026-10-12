@@ -53,7 +53,7 @@ The hub listens on localhost only. It refuses browser connections from other sit
 
 ## Limits of the JSON Schema
 
-The schema describes field types and ranges. It cannot express "exactly one of `text` or `delta`" or "`final` only with `delta`"; the hub enforces those. A client in another language should check them too.
+The schema describes field types and ranges. It cannot express "exactly one of `text` or `delta`" or "`final` only with `delta`"; the hub enforces those. A client in another language should check them too. The Python client in `clients/python` does ([ADR-0016](adr/0016-python-client-for-the-games-presenter.md)).
 
 ## Speech from the hub to viewers
 
