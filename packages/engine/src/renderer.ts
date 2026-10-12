@@ -41,6 +41,8 @@ export interface AvatarFraming {
   eyeLevel: number;
   /** False when `eyeLevel` is an estimate, not read from the model. */
   eyeBones: boolean;
+  /** How much room the body needs beside another avatar: about shoulder to shoulder, not the span of outstretched arms. */
+  width: number;
 }
 
 /**

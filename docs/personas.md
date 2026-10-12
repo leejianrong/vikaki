@@ -32,6 +32,18 @@ Open an avatar page with `?persona=ada` (for example `http://127.0.0.1:8787/avat
 - A `?persona=` the hub does not have shows an error in the corner of the page listing the ones it does.
 - The second avatar in `personas.example.yaml` terms is Snowy (`packages/engine/public/avatars/snowy.vrm`, CC0, see `ASSETS.md`).
 
+## One page for a whole table: `?seats=`
+
+`http://127.0.0.1:8787/avatar?seats=3` puts three avatars side by side in one scene, one per seat, for watching a table of LLM players on one screen ([ADR-0017](adr/0017-one-driver-per-seat.md)). The page shows every line, plays each on the avatar of the seat it names, and gives that avatar the lip sync, the line's emotion and its turns' thinking pose; the others blink and sway.
+
+- `seats=3`: seats `seat-1` to `seat-3`, taking the hub's personas in order (reused in turn if there are fewer).
+- `seats=ada,ben,cy`: bare names are personas for `seat-1`, `seat-2`, `seat-3`.
+- `seats=north:ada,south:ben`: seat ids named, each with its persona.
+- Up to 8 seats. A persona the hub lacks shows an error in the corner, listing the ones it has. With no personas file the seats alternate the two bundled looks.
+- A line finds its avatar by its `seat_id`, else by its `persona`. A seat driver (`hello` with `seats`) gets its seat's persona filled in, so a line needs to name only its seat.
+- The avatars let their arms hang so neighbours do not cross, and the camera backs off until the whole row fits, again when the window changes shape. The canvas size stays in CSS, as on every page.
+- The hub speaks one line at a time, so one seat's mouth moves at once. `window.__vikaki.table.seats` lists each seat's persona, avatar, position, mouth and symbol for tests.
+
 ## Heard but not seen: `?render=off`
 
 `http://127.0.0.1:8787/avatar?render=off&persona=ada&live=1` is an **audio-only page**: it plays ada's lines through the speakers and reports `speech_started` / `speech_finished` to the driver exactly like an avatar page, but loads no Three.js scene, no VRM and no lip-sync code, creates no WebGL context and draws nothing (the page entry picks the audio-only chunk, about a kilobyte). A seat nobody is looking at costs almost nothing, yet can still be heard. Its timing report has `audio_ms` and no `frame_ms`. When no page at all shows a persona, the hub keeps time itself and nothing is heard.

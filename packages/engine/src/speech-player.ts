@@ -7,6 +7,13 @@ import { SentenceAssembler, type CompleteSentence } from "./sentences.ts";
 
 export type LiveState = "connecting" | "connected" | "disconnected";
 
+/** Whose a line is, as its first message said: the seat and persona a table page needs to pick the avatar that speaks it. */
+export interface LineInfo {
+  id: string;
+  seat?: string;
+  persona?: string;
+}
+
 export interface SpeechPlayerOptions {
   /** ws:// or wss:// address of the hub. */
   url: string;
@@ -20,9 +27,9 @@ export interface SpeechPlayerOptions {
   /** Called for every slice of audio as it is handed to the speakers, with when it will be heard. */
   onScheduled?: (slice: ScheduledSlice) => void;
   /** A line with this emotion has begun to be heard (`phase: "start"`), or has ended or been cut off (`"end"`). */
-  onEmotion?: (emotion: string | undefined, intensity: number | undefined, phase: "start" | "end") => void;
-  /** The driver says a turn began (`true`) or ended (`false`): time for the avatar to look thoughtful. */
-  onTurn?: (thinking: boolean, seatId: string) => void;
+  onEmotion?: (emotion: string | undefined, intensity: number | undefined, phase: "start" | "end", line?: LineInfo) => void;
+  /** The driver says a turn began (`true`) or ended (`false`): time for the avatar to look thoughtful. `seatId` is empty when the connection was lost. */
+  onTurn?: (thinking: boolean, seatId: string, persona?: string) => void;
   /** Times lines for the `timing` of `speech_finished`. The page's render loop feeds it frames. */
   timer?: FirstFrameTimer;
   /** Called when all the audio of a spoken sentence has arrived, which is before it is heard. */
@@ -52,7 +59,7 @@ export class SpeechPlayer {
   private lastBlocked = true;
   private readonly owners: LineOwners;
   /** The emotion each line asked for, until it ends. */
-  private readonly feelings = new Map<string, { emotion?: string; intensity?: number }>();
+  private readonly feelings = new Map<string, { emotion?: string; intensity?: number; seat?: string; persona?: string }>();
 
   constructor(private readonly o: SpeechPlayerOptions) {
     this.owners = new LineOwners(o.persona);
@@ -63,7 +70,7 @@ export class SpeechPlayer {
           o.session.lipsync?.unmute();
           o.timer?.heard(id, performance.now());
           const f = this.feelings.get(id);
-          o.onEmotion?.(f?.emotion, f?.intensity, "start");
+          o.onEmotion?.(f?.emotion, f?.intensity, "start", f ? { id, seat: f.seat, persona: f.persona } : undefined);
           this.report(make("speech_started", { utterance_id: id, ...(seat ? { seat_id: seat } : {}) }), `started:${id}`);
         },
         finished: (id) => {
@@ -143,13 +150,13 @@ export class SpeechPlayer {
         this.owners.see(m.utterance_id, m.persona);
         if (!this.owners.mine(m.utterance_id)) break; // another persona's line: its own page plays it
         this.o.timer?.received(m.utterance_id, performance.now());
-        if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity }); // the first message of a streamed line carries it
+        if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity, seat: m.seat_id, persona: m.persona }); // the first message of a streamed line carries it
         break;
       case "turn_started":
-        if (this.owners.turnIsMine(m.persona)) this.o.onTurn?.(true, m.seat_id);
+        if (this.owners.turnIsMine(m.persona)) this.o.onTurn?.(true, m.seat_id, m.persona);
         break;
       case "turn_ended":
-        if (this.owners.turnIsMine(m.persona)) this.o.onTurn?.(false, m.seat_id);
+        if (this.owners.turnIsMine(m.persona)) this.o.onTurn?.(false, m.seat_id, m.persona);
         break;
       case "audio": {
         if (!this.owners.mine(m.utterance_id)) break;
@@ -180,7 +187,7 @@ export class SpeechPlayer {
     this.owners.forget(id);
     const f = this.feelings.get(id);
     this.feelings.delete(id);
-    if (f) this.o.onEmotion?.(f.emotion, f.intensity, "end");
+    if (f) this.o.onEmotion?.(f.emotion, f.intensity, "end", { id, seat: f.seat, persona: f.persona });
   }
 
   private report(message: Message, what: string): void {

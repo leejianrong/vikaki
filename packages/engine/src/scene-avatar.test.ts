@@ -23,7 +23,7 @@ class FakeSceneAvatar implements SceneAvatar {
 }
 
 describe("a SceneAvatar that is not a VRM", () => {
-  const framing: AvatarFraming = { head: { x: 0.2, y: 1.3, z: -0.1 }, top: 1.7, eyeLevel: 1.5, eyeBones: false };
+  const framing: AvatarFraming = { head: { x: 0.2, y: 1.3, z: -0.1 }, top: 1.7, eyeLevel: 1.5, eyeBones: false, width: 0.6 };
 
   it("is framed by the camera from what it reports, at its eye line and in front of its head", () => {
     const camera = new PerspectiveCamera(28, 1, 0.1, 50);

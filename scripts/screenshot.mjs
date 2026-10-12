@@ -1,5 +1,5 @@
 // Dev helper: screenshot the avatar page in headless Chromium (software WebGL, no GPU needed).
-// usage: node scripts/screenshot.mjs <url> <out.png> [visemeJson]   e.g. '{"aa":1}'
+// usage: node scripts/screenshot.mjs <url> <out.png> [visemeJson]   e.g. '{"aa":1}'  (VIEWPORT=WxH sets the window size)
 import { chromium } from "playwright";
 
 const [url, out, visemes] = process.argv.slice(2);
@@ -12,7 +12,8 @@ const browser = await chromium.launch({
   args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
 try {
-  const page = await browser.newPage({ viewport: { width: 640, height: 480 } });
+  const [vw, vh] = (process.env.VIEWPORT ?? "640x480").split("x").map(Number); // e.g. VIEWPORT=1280x720
+  const page = await browser.newPage({ viewport: { width: vw, height: vh } });
   page.on("console", (m) => m.type() === "error" && console.error("page error:", m.text()));
   await page.goto(url);
   await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 30000 });
