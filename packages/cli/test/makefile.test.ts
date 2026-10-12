@@ -20,7 +20,7 @@ function recipe(target: string): string[] {
 describe("long-running Makefile targets", () => {
   // pnpm reports a clean Ctrl+C stop as "Command failed with signal SIGINT" with a long error block,
   // and make adds its own "Interrupt" line. Running the CLI directly avoids the first.
-  it.each(["serve", "demo", "demo-speech"])("`make %s` runs the CLI directly, not through pnpm", (target) => {
+  it.each(["serve", "demo", "demo-speech", "demo-table"])("`make %s` runs the CLI directly, not through pnpm", (target) => {
     const lines = recipe(target).filter((l) => /serve/.test(l));
     expect(lines.length).toBeGreaterThan(0);
     for (const l of lines) expect(l).not.toMatch(/pnpm/);
@@ -30,5 +30,6 @@ describe("long-running Makefile targets", () => {
     expect(makefile).toMatch(/^serve: build/m);
     expect(makefile).toMatch(/^demo: build/m);
     expect(makefile).toMatch(/^demo-speech: install-voice build/m);
+    expect(makefile).toMatch(/^demo-table: build/m);
   });
 });

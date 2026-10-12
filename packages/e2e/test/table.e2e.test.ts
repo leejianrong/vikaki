@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,7 +31,7 @@ afterEach(async () => {
   server = undefined;
 });
 
-async function setup(query = "seats=3", viewport = { width: 960, height: 540 }) {
+async function setup(query = "seats=3", viewport = { width: 960, height: 540 }, withDrivers = true) {
   const dir = await mkdtemp(join(tmpdir(), "vikaki-table-e2e-"));
   await writeFile(
     join(dir, "personas.yaml"),
@@ -42,7 +43,7 @@ async function setup(query = "seats=3", viewport = { width: 960, height: 540 }) 
   pages.push(page);
   await page.goto(`${server.url}?${query}&seed=3`);
   await page.waitForFunction(() => window.__vikaki?.ready === true && window.__vikaki.live?.state === "connected" && window.__vikaki.live.soundBlocked === false, null, { timeout: 40_000 });
-  const ds = await Promise.all(SEATS.map((s) => SeatDriver.connect(server!.wsUrl, s)));
+  const ds = withDrivers ? await Promise.all(SEATS.map((s) => SeatDriver.connect(server!.wsUrl, s))) : [];
   drivers.push(...ds);
   return { page, drivers: ds as [SeatDriver, SeatDriver, SeatDriver], fake };
 }
@@ -83,7 +84,11 @@ describe("the table page", () => {
   it("follows the canvas when the window changes shape, and keeps no inline size", { timeout: 90_000 }, async () => {
     const { page } = await setup();
     await page.setViewportSize({ width: 500, height: 800 });
-    await page.waitForFunction(() => (document.getElementById("stage") as HTMLCanvasElement).clientWidth === 500);
+    // The canvas is laid out at once, but the drawing buffer follows when the page's ResizeObserver runs: wait for that, not just the layout.
+    await page.waitForFunction(() => {
+      const c = document.getElementById("stage") as HTMLCanvasElement;
+      return c.clientWidth === 500 && Math.abs(c.width / c.height - 500 / 800) < 0.05;
+    });
     const box = await page.evaluate(() => {
       const c = document.getElementById("stage") as HTMLCanvasElement;
       return { w: c.clientWidth, h: c.clientHeight, buffer: [c.width, c.height], inlineStyle: c.getAttribute("style") };
@@ -126,6 +131,38 @@ describe("the table page", () => {
     expect((await seatsOf(page)).map((s) => s.symbol)).toEqual([null, null, "dots"]);
     d3.send("turn_ended");
     await page.waitForFunction(() => window.__vikaki!.table!.seats[2]!.symbol === null, null, { timeout: 15_000 });
+  });
+
+  it("plays `vikaki table-demo`'s scripted hand: each seat thinks, then speaks, in turn, on its own avatar", { timeout: 180_000 }, async () => {
+    const { page } = await setup("seats=3", { width: 960, height: 540 }, false);
+    // Watch the whole hand from inside the page: who has the mouth open, and who shows the thinking dots.
+    await page.evaluate(() => {
+      const spoke: number[] = [];
+      const thought = new Set<number>();
+      (window as unknown as { __watch: { spoke: number[]; thought: Set<number> } }).__watch = { spoke, thought };
+      setInterval(() => {
+        const seats = window.__vikaki!.table!.seats;
+        seats.forEach((s, i) => s.symbol === "dots" && thought.add(i));
+        const open = seats.map((s) => Math.max(0, ...Object.values(s.visemes)));
+        const loudest = open.indexOf(Math.max(...open));
+        if (open[loudest]! > 0.3 && spoke[spoke.length - 1] !== loudest) spoke.push(loudest);
+      }, 20);
+    });
+    const cliDir = fileURLToPath(new URL("../../cli", import.meta.url));
+    const cliEntry = join(cliDir, "src/index.ts");
+    const child = spawn(process.execPath, ["--import", "tsx", cliEntry, "table-demo", "--url", server!.wsUrl, "--pace", "0.25"], { cwd: cliDir, stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (out += d));
+    const code = await new Promise<number | null>((ok) => child.once("exit", ok));
+    expect(code, out).toBe(0);
+    const { spoke, thought } = await page.evaluate(() => {
+      const w = (window as unknown as { __watch: { spoke: number[]; thought: Set<number> } }).__watch;
+      return { spoke: w.spoke, thought: [...w.thought].sort() };
+    });
+    expect(spoke, "who spoke, in order: ada, ben, cy, ada, ben, ada, ben, ada, ben").toEqual([0, 1, 2, 0, 1, 0, 1, 0, 1]);
+    expect(thought, "every seat that has a thinking beat showed the dots").toEqual([0, 1, 2]);
+    expect(out).toContain("hand over");
   });
 
   it("names the persona it cannot find, and takes explicit seat:persona pairs", { timeout: 90_000 }, async () => {

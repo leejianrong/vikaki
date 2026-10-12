@@ -7,6 +7,8 @@ import { DebugRecorder, EventLog, findFreePort, loadPersonas, PersonaError, star
 import { HeadlessRenderer, MjpegFeed, RendererUnavailable, startScreencast } from "@vikaki/render";
 import { cancel, replay, say, type Io } from "./commands.ts";
 import { runMcp } from "./mcp.ts";
+import { playHand } from "./table-demo.ts";
+import { fromHere } from "./paths.ts";
 import { hubUrl } from "./hub-client.ts";
 import { resolve } from "node:path";
 import { formatChecks, realDoctorEnv, runDoctor } from "./doctor.ts";
@@ -20,10 +22,15 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
                     [--headless [--audio-only] [--gpu] [--chrome <path>]]
        vikaki stream [serve options] [--size 1280x720] [--fps 15] [--quality 80] [--background fff1e8|green] [--stream-persona <name>]
                                      serve, render headless and publish the avatar as an MJPEG feed at /stream.mjpg
-       vikaki say <text...> [--persona <name>] [--emotion <name>] [--think <seconds>]
-                                     speak one line and wait until it is over; --think shows the avatar thinking first
+       vikaki say <text...> [--persona <name>] [--emotion <name>] [--seat <id>] [--think <seconds>]
+                                     speak one line and wait until it is over; --think shows the avatar thinking first.
+                                     --seat claims that seat, so says for different seats of a table can run together
        vikaki cancel [<utterance_id>]    stop what the avatar is saying (everything, or one line)
-       vikaki mcp                        MCP server on stdio so an LLM can drive the avatar (tools: say, set_emotion, set_persona, cancel)
+       vikaki mcp [--seat <id>[:<persona>]]...
+                                     MCP server on stdio so an LLM can drive the avatar (tools: say, set_emotion, set_persona, cancel).
+                                     With --seat it speaks for that seat of a table only (repeat it for several): one server per LLM
+       vikaki table-demo [--pace N]      a scripted hand of poker with one driver per seat; watch it at /avatar?seats=3
+                                     (start the hub with --personas personas.table.example.yaml)
        vikaki replay <file.jsonl> [--speed N]   send a recorded session's driver messages again
 
   say, cancel, replay and mcp talk to a running \`vikaki serve\`: add [--port N | --url ws://host:port/ws] [--token <secret>].
@@ -145,7 +152,7 @@ async function serve(argv: string[]): Promise<void> {
   const tts = chosen?.tts;
   const token = values.token ?? process.env.VIKAKI_TOKEN;
   const debugArg = values["debug-dir"] ?? (values["speech-demo"] ? ".vikaki/debug" : undefined);
-  const debugDir = debugArg && debugArg !== "off" && tts ? resolve(debugArg) : undefined;
+  const debugDir = debugArg && debugArg !== "off" && tts ? (values["debug-dir"] ? fromHere(debugArg) : resolve(debugArg)) : undefined;
   const recorder = debugDir
     ? new DebugRecorder({
         dir: debugDir,
@@ -154,13 +161,13 @@ async function serve(argv: string[]): Promise<void> {
       })
     : undefined;
   const personas = values.personas
-    ? await loadPersonas(resolve(values.personas)).catch((err) => {
+    ? await loadPersonas(fromHere(values.personas)).catch((err) => {
         console.error(err instanceof PersonaError ? err.message : err);
         process.exit(1);
       })
     : undefined;
   const feed = streaming ? new MjpegFeed({ fps, token }) : undefined;
-  const eventLog = values["event-log"] ? new EventLog(resolve(values["event-log"])) : undefined;
+  const eventLog = values["event-log"] ? new EventLog(fromHere(values["event-log"])) : undefined;
   const server = await startServer({
     staticDir: values.static!,
     port,
@@ -212,7 +219,7 @@ async function serve(argv: string[]): Promise<void> {
   if (values.port === undefined && port !== 8787) console.log(`(8787 was busy, using ${port})`);
   if (debugDir) console.log(`  debug recordings: ${debugDir}`);
   if (personas) console.log(`  personas: ${personas.names.join(", ")}`);
-  if (eventLog) console.log(`  event log: ${resolve(values["event-log"]!)}`);
+  if (eventLog) console.log(`  event log: ${fromHere(values["event-log"]!)}`);
   console.log("press Ctrl+C to stop");
   if (values.open) openBrowser(url);
 
@@ -258,9 +265,26 @@ async function clientCommand(command: string, argv: string[]): Promise<number> {
     return say({ ...targetOf(values), text, persona: values.persona, emotion: values.emotion, seat: values.seat, thinkSeconds: values.think ? Number(values.think) : undefined, signal: ac.signal }, consoleIo);
   }
   if (command === "mcp") {
-    const { values } = parseArgs({ args: argv, options: TARGET_OPTIONS });
-    await runMcp(targetOf(values)); // stdout belongs to the protocol: anything human goes to stderr
+    const { values } = parseArgs({ args: argv, options: { ...TARGET_OPTIONS, seat: { type: "string", multiple: true } } });
+    const seats = (values.seat ?? []).map((s) => {
+      const [seat_id, persona] = s.split(":");
+      return { seat_id: seat_id!, ...(persona ? { persona } : {}) };
+    });
+    if (seats.some((s) => !/^[\w.-]+$/.test(s.seat_id) || new Set(seats.map((x) => x.seat_id)).size !== seats.length)) {
+      console.error("--seat is an id such as seat-2, or seat-2:ada to name its persona; each seat once");
+      return 1;
+    }
+    await runMcp(targetOf(values), seats.length ? seats : undefined); // stdout belongs to the protocol: anything human goes to stderr
     return 0;
+  }
+  if (command === "table-demo") {
+    const { values } = parseArgs({ args: argv, options: { ...TARGET_OPTIONS, pace: { type: "string", default: "1" } } });
+    const pace = Number(values.pace);
+    if (!(pace >= 0)) {
+      console.error("usage: vikaki table-demo [--pace N]   (N is 0 or more; 1 is as written, 0 skips the thinking pauses)");
+      return 1;
+    }
+    return playHand({ ...targetOf(values), pace }, consoleIo);
   }
   if (command === "cancel") {
     const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: TARGET_OPTIONS });
@@ -272,7 +296,7 @@ async function clientCommand(command: string, argv: string[]): Promise<number> {
     console.error("usage: vikaki replay <file.jsonl> [--speed N]   (N above 0)");
     return 1;
   }
-  return (await replay({ ...targetOf(values), file: positionals[0], speed }, consoleIo)).code;
+  return (await replay({ ...targetOf(values), file: fromHere(positionals[0]), speed }, consoleIo)).code;
 }
 
 const [command, ...rest] = process.argv.slice(2);
@@ -280,7 +304,7 @@ if (command === "serve") {
   await serve(rest);
 } else if (command === "stream") {
   await serve([...rest, "--stream"]);
-} else if (command === "say" || command === "cancel" || command === "replay" || command === "mcp") {
+} else if (command === "say" || command === "cancel" || command === "replay" || command === "mcp" || command === "table-demo") {
   process.exit(await clientCommand(command, rest));
 } else if (command === "doctor") {
   const checks = await runDoctor(await realDoctorEnv());

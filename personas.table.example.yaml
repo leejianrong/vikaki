@@ -1,0 +1,17 @@
+# The three seats of `vikaki table-demo`, for `pnpm serve --personas personas.table.example.yaml`.
+# Watch the hand at http://127.0.0.1:8787/avatar?seats=3 (seat-1 is ada, seat-2 is ben, seat-3 is cy).
+# A seat's persona is bound when its driver connects (`hello` with `seats`), so a line need not name it.
+personas:
+  ada:
+    avatar: packages/engine/public/avatars/cookieman.vrm   # a .vrm file, relative to this file
+    voice: af_heart                                        # a voice id for the speech engine (Kokoro voice names)
+    emotion: happy                                         # used for lines that name no emotion
+    style: warm, quick-witted, a little teasing            # a note for whoever writes the lines; never spoken
+  ben:
+    avatar: packages/engine/public/avatars/snowy.vrm
+    voice: am_adam
+    style: careful, a worrier, always polite
+  cy:
+    avatar: packages/engine/public/avatars/cookieman.vrm
+    voice: bf_emma
+    style: cheerful, quick to fold, never sulks

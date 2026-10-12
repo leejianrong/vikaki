@@ -15,7 +15,7 @@ export interface Target {
 /** Turn a connection failure into a sentence a person can act on. */
 function explain(err: unknown, io: Io): number {
   if (err instanceof HubError) {
-    io.err(err.code === "driver_busy" ? "another driver (an LLM over MCP, a game, or another `vikaki say`) is connected. Stop it, or use `vikaki cancel` to silence it." : err.message);
+    io.err(err.code === "driver_busy" ? `another driver (an LLM over MCP, a game, or another \`vikaki say\`) is connected or holds this seat (${err.message}). Stop it, or use \`vikaki cancel\` to silence it.` : err.message);
     return 1;
   }
   throw err;
@@ -36,7 +36,8 @@ export interface SayOptions extends Target {
 export async function say(o: SayOptions, io: Io): Promise<number> {
   let client: HubClient;
   try {
-    client = await HubClient.connect({ url: o.url, token: o.token, role: "driver" });
+    // Naming a seat claims it, so several `say`s for different seats can run at once at a table (ADR-0017).
+    client = await HubClient.connect({ url: o.url, token: o.token, role: "driver", ...(o.seat ? { seats: [{ seat_id: o.seat }] } : {}) });
   } catch (err) {
     return explain(err, io);
   }
