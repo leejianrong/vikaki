@@ -112,11 +112,13 @@ describe("spectrogram pixels", () => {
 
 describe("spectrogramPixels for long lines", () => {
   // A voice-like signal whose loudness and pitch move, so frames differ.
-  const make = (seconds: number, rate = 24000): Signal => ({
-    samples: Float32Array.from({ length: rate * seconds }, (_, i) => 0.4 * Math.sin((2 * Math.PI * (180 + 60 * Math.sin(i / 9000)) * i) / rate) * (0.5 + 0.5 * Math.sin(i / 5000))),
-    rate,
-    startMs: 0,
-  });
+  // Beyond ten seconds the first ten are repeated: generating 14 million samples one by one took 2.5 s idle and timed out under load.
+  const make = (seconds: number, rate = 24000): Signal => {
+    const unit = Float32Array.from({ length: rate * Math.min(seconds, 10) }, (_, i) => 0.4 * Math.sin((2 * Math.PI * (180 + 60 * Math.sin(i / 9000)) * i) / rate) * (0.5 + 0.5 * Math.sin(i / 5000)));
+    const samples = new Float32Array(rate * seconds);
+    for (let at = 0; at < samples.length; at += unit.length) samples.set(unit.subarray(0, Math.min(unit.length, samples.length - at)), at);
+    return { samples, rate, startMs: 0 };
+  };
 
   /** The way it was done before: the whole signal's spectrogram, then one frame per column. */
   function reference(s: Signal, v: View, columns: number, rows: number): Uint8ClampedArray {

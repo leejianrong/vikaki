@@ -31,7 +31,7 @@ export async function create({ importFrom = "kokoro-js", model = "onnx-community
     name: "kokoro",
     voices,
     async *synthesize({ text, voice: wanted, signal }) {
-      // A whole sentence in one call cannot be stopped, and the next line waits behind it (KAN-1961). In smaller pieces, an abort
+      // A whole sentence in one call cannot be stopped, and the next line waits behind it (VIK-40). In smaller pieces, an abort
       // lands between them; each piece's audio is delivered as soon as it is made.
       const pieces = splitLong(text, MAX_PIECE_CHARS);
       for (const [i, piece] of pieces.entries()) {

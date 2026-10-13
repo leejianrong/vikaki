@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-08
-- Deciders: Jian, Claude (KAN-1917)
+- Deciders: Jian, Claude (VIK-16)
 
 ## Context
 

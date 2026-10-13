@@ -1,6 +1,6 @@
 // Dev helper: speak once with the real voice and report (a) the timeline events and (b) how long the server's event loop stalls.
 // A stall delays everything the hub relays (speech_started to the driver, cancel to the page). Needs `make install-voice` and `pnpm build`.
-//   pnpm exec tsx scripts/probe-hub-lag.ts [--in-process]    (--in-process runs Kokoro in the server's own thread, as before KAN-1957)
+//   pnpm exec tsx scripts/probe-hub-lag.ts [--in-process]    (--in-process runs Kokoro in the server's own thread, as before VIK-36)
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";

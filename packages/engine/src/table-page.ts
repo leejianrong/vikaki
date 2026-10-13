@@ -1,5 +1,5 @@
 // The table page (`?seats=`): one scene with several avatars side by side, one per seat, so a table of LLM players can be watched on one
-// screen (KAN-2060, ADR-0017). It is a viewer that shows every line. Each line is played on the avatar of the seat it names, and that avatar
+// screen (VIK-47, ADR-0017). It is a viewer that shows every line. Each line is played on the avatar of the seat it names, and that avatar
 // gets the lip sync, the line's emotion and its turns' thinking pose; the others breathe, blink and sway. The hub speaks one line at a time,
 // so one lip-sync node serves them all: whoever's line began last owns the mouth.
 import { Box3, Clock, Vector3 } from "three";

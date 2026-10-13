@@ -68,7 +68,7 @@ The page never talks to a VRM directly. Two interfaces in `packages/engine/src/r
 - `AvatarRenderer`: what lip sync and behaviour drive each frame (mouth shapes, blink, head pose, `update`). `Puppet` only knows this.
 - `SceneAvatar`: an `AvatarRenderer` plus `scene` (what to add to the three.js scene) and `framing()` (head position, top, eye level), which the camera framing and the manga symbols read.
 
-`VrmAvatar` implements both. A 2D sprite avatar (a textured plane that swaps one mouth image per viseme, see KAN-1933) can implement the same two and the page, camera and symbols stay as they are. `scene-avatar.test.ts` proves the seam with a fake that has no three-vrm in it. The canvas size stays in CSS only (see `stage.ts`).
+`VrmAvatar` implements both. A 2D sprite avatar (a textured plane that swaps one mouth image per viseme, see VIK-32) can implement the same two and the page, camera and symbols stay as they are. `scene-avatar.test.ts` proves the seam with a fake that has no three-vrm in it. The canvas size stays in CSS only (see `stage.ts`).
 
 ## One utterance, end to end
 

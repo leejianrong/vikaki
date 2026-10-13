@@ -36,7 +36,7 @@ None. Round 1 closed 2026-10-07.
 | Q18 | Ready Player Me | DECIDED | Rejected, service ended 2026-01-31 | ADR-0002 |
 | Q19 | Emotion vocabulary | ASSUMED | Seven: neutral, happy, smug, worried, surprised, sad, angry. Unknown falls back to neutral | PLAN, V3 |
 | Q20 | Persona ownership | ASSUMED | This project owns `personas.yaml`, games refer to a name only | PLAN, V3 |
-| Q21 | Rendered seats per machine | ASSUMED | One page per seat, one seat in M1, audio-only for unwatched seats | V4 |
+| Q21 | Rendered seats per machine | DECIDED | One page per seat stays valid (audio-only for unwatched seats). A table page (`?seats=N`) also shows several seats in one scene | V4, ADR-0017 |
 | Q22 | TTS engine | DECIDED | Kokoro (Apache-2.0) as an optional on-demand engine; FakeTts for tests; Piper rejected (GPL-3.0). Measured about 1.6 s to a first short sentence on CPU | ADR-0010, docs/tts.md |
 | Q23 | Does the game wait for speech | DEFERRED | Game-side per-game setting. We only emit events | PLAN §Deferred |
 | Q24 | Do humans see their own avatar | DEFERRED | In mic mode the page is the preview. Multi-viewer decision belongs to the game side | PLAN §Deferred |
@@ -44,7 +44,7 @@ None. Round 1 closed 2026-10-07.
 | Q26 | Native speech-to-speech models | DEFERRED | Protocol must still allow text beside audio | PLAN §Deferred |
 | Q27 | Hosted or neural avatar renderers | DEFERRED | Swappable renderer later, not M1 | PLAN §Deferred |
 | Q29 | Hosting seams | ASSUMED | Optional `session_id`, driver auth token, stateless env-configured hub, URL assets, usage counters | ADR-0001 |
-| Q30 | LLM control surface | DECIDED | An LLM drives the avatar over MCP (and text events). Multi-avatar poker spectator view follows M1 | PLAN, V2 |
+| Q30 | LLM control surface | DECIDED | An LLM drives the avatar over MCP (and text events). The multi-avatar poker spectator view is built (`?seats=N`, `vikaki mcp --seat`) | PLAN, V2 |
 | Q31 | Local viewing | DECIDED | Avatar must be watchable locally as a live video feed: browser page in V1, MJPEG stream via `vikaki stream` in V4 | PLAN R10, V4 |
 | Q28 | Secrets | ASSUMED | None in human mode. TTS API keys, if used, come from environment variables and are never logged or committed | PLAN |
 
