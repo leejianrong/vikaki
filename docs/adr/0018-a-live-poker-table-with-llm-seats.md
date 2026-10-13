@@ -1,6 +1,6 @@
 # ADR-0018: A live poker table: a rules engine, LLM seats over OpenRouter, silent reactions and table state
 
-- Status: Proposed (Jian asked for the live table on 2026-10-14; cards VIK-56 to 60)
+- Status: Accepted (Jian asked for the live table and accepted this on 2026-10-14; cards VIK-56 to 60)
 - Date: 2026-10-14
 - Deciders: Jian, Claude
 
@@ -19,7 +19,7 @@ Three gaps stand between the scripted hand and that goal:
 Build it as an example on top of the engine, and add two small, additive pieces to the protocol. `protocol_version` stays 1.
 
 1. **The rules live in `examples/poker/`, not in the engine.** A pure Texas Hold'em engine (Python): deal, betting rounds, showdown, side pots, the list of legal actions, a seeded shuffle. The engine and the page know nothing about poker; the example is one game built on `vikaki-client` (ADR-0016). It owns the truth: an LLM chooses an action and says something, and never decides the state of the game (VIK-56).
-2. **One LLM per seat, through an OpenAI-compatible API (OpenRouter).** Each seat is its own driver (ADR-0017). A seat is shown only its own hole cards and the board, and returns `{action, say, emotion}`. An illegal action folds the hand and is logged, so a bad model output never stalls the table. The model is set per seat in the personas file, with an optional cheaper model for reactions. The key comes from `OPENROUTER_API_KEY` (a git-ignored `.env` works) and is never logged. Tokens per turn are capped and spend per run is logged (VIK-57).
+2. **One LLM per seat, through an OpenAI-compatible API (OpenRouter).** Each seat is its own driver (ADR-0017). A seat is shown only its own hole cards and the board, and returns `{action, say, emotion}`. An illegal action folds the hand and is logged, so a bad model output never stalls the table. The model is set per seat in the personas file, with an optional cheaper model for reactions. The default is DeepSeek's cheap models on OpenRouter (the exact model ids are chosen when the key exists; until then only the fake LLM runs). The key comes from `OPENROUTER_API_KEY` (a git-ignored `.env` works) and is never logged. Tokens per turn are capped and spend per run is logged (VIK-57).
 3. **A silent `react` event.** An emotion plus a short pose for a seat, with no speech. Seats look at the current speaker. A listener-reaction hook lets the runner ask a cheap model how a seat feels about what it just heard, and send the answer as `react` (VIK-58).
 4. **A `table_state` viewer event and an overlay.** The game sends pot, stacks, community cards, dealer button and turn marker; the page draws them and a transcript strip. The page holds no game logic (VIK-59).
 5. **Tests never call a paid service.** The LLM sits behind a small interface with a scripted fake, as `FakeTts` does for speech. A real OpenRouter run is a manual demo, not a test.
