@@ -61,6 +61,9 @@ check: ## Fast gate: typecheck + tests (what the pre-push hook runs)
 check-python: ## Python client tests against a fake hub (needs uv); CI also runs them against a real hub
 	cd clients/python && uv run --extra dev pytest -q
 
+check-poker: ## Poker example engine tests (needs uv; pure Python, no hub)
+	cd examples/poker && uv run --extra dev pytest -q
+
 hooks: ## Install the pre-push hook
 	ln -sf ../../scripts/git-hooks/pre-push .git/hooks/pre-push
 	chmod +x scripts/git-hooks/pre-push
