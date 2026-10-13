@@ -49,7 +49,7 @@ claude mcp add vikaki -- pnpm --silent --dir /path/to/vikaki vikaki mcp --port 8
 
 Setup and the tools: [docs/mcp.md](docs/mcp.md). Any program can also speak the WebSocket protocol directly: [docs/protocol.md](docs/protocol.md), and every message and field in [docs/protocol-reference.md](docs/protocol-reference.md).
 
-**Watch a whole table.** `/avatar?seats=3` puts three avatars side by side, one per seat, and each LLM at the table can be its own driver (`vikaki mcp --seat seat-2:ben`, or the [Python client](clients/python/README.md) with `seats=`). `make demo-table`, then `make table-hand` in another terminal, plays a scripted hand of poker. See [docs/mcp.md](docs/mcp.md) and [docs/personas.md](docs/personas.md).
+**Watch a whole table.** `/avatar?seats=3` puts three avatars side by side, one per seat, and each LLM at the table can be its own driver (`vikaki mcp --seat seat-2:ben`, or the [Python client](clients/python/README.md) with `seats=`). `make demo-table`, then `make table-hand` in another terminal, plays a scripted hand of poker, and [examples/poker](examples/poker/README.md) seats LLMs at the table to play real hands and talk (a scripted stand-in without a key, OpenRouter models with one). See [docs/mcp.md](docs/mcp.md) and [docs/personas.md](docs/personas.md).
 
 **Give it a character, or two.** A personas file names each character's avatar, voice and default emotion. With `pnpm serve --personas personas.example.yaml`, open `/avatar?persona=ada` in one tab and `?persona=ben` in another (a gingerbread man and a snowman) and they take turns as a driver sends lines for each. `?render=off` is an audio-only page: heard, not drawn. See [docs/personas.md](docs/personas.md).
 
