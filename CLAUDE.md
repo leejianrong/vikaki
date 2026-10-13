@@ -41,7 +41,7 @@ CI-like e2e locally: `CI=1 taskset -c 0,1 pnpm --filter @vikaki/e2e exec vitest 
 
 ## Layout
 
-The Python client for games is `clients/python` (`make check-python`, needs uv). Packages are under `packages/`: `engine` (the Vite page, browser code), `protocol`, `tts`, `audio` (pure code shared by server and page, no Node-only APIs), `server` (hub, speech engine, debug recorder), `render` (headless Chromium, optional install), `cli`, `extension`, `e2e`. `scripts/` holds dev helpers; `spikes/` throwaway comparisons (write-ups in `docs/spikes/`).
+The Python client for games is `clients/python` (`make check-python`, needs uv). The live poker table (ADR-0018) is built as an example in `examples/poker` (`make check-poker`), not in the engine. Packages are under `packages/`: `engine` (the Vite page, browser code), `protocol`, `tts`, `audio` (pure code shared by server and page, no Node-only APIs), `server` (hub, speech engine, debug recorder), `render` (headless Chromium, optional install), `cli`, `extension`, `e2e`. `scripts/` holds dev helpers; `spikes/` throwaway comparisons (write-ups in `docs/spikes/`).
 
 ## Context budget
 

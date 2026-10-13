@@ -95,6 +95,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # The poker example's rules engine (ADR-0018): pure Python, no hub and no Node needed.
+  poker-example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Engine tests
+        working-directory: examples/poker
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -e ".[dev]"
+          .venv/bin/pytest -q
+
   # The Python client (ADR-0016): unit tests against a fake hub, then the same client against a real `vikaki serve --tts fake`.
   python-client:
     runs-on: ubuntu-latest
