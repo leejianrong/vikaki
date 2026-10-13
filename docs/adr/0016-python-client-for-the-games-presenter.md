@@ -2,7 +2,7 @@
 
 - Status: Accepted 2026-10-12 (Jian). It also sets what `agent-game-framework` ADR-0010 can rely on
 - Date: 2026-10-12
-- Deciders: Jian, Claude (KAN-1935)
+- Deciders: Jian, Claude (VIK-34)
 
 ## Context
 
@@ -26,7 +26,7 @@ Build a small Python package, `vikaki-client`, in this repo under `clients/pytho
 - Starting or supervising the hub. The client connects to a running `vikaki serve`; whoever runs the game starts it.
 - Speech, rendering, personas files and anything else the hub does.
 - `human_utterance` (speech-to-text from a human seat). The protocol does not carry it yet; that is a separate decision when STT is built.
-- Several seats on one scene. The poker table cards (KAN-2059 to 2061) add a seat parameter to the protocol additively; the client follows then.
+- Several seats on one scene. The poker table cards (VIK-46 to 48) add a seat parameter to the protocol additively; the client follows then.
 - A true in-process engine. The brief's "in-process" wiring is satisfied by the framework's `Presenter` class calling this client, with the same event shapes; the avatar itself still runs in the Node hub and the browser page.
 
 ## Alternatives considered
@@ -38,7 +38,7 @@ Build a small Python package, `vikaki-client`, in this repo under `clients/pytho
 
 ## Consequences
 
-- One more package to build, version and publish from this repo; the implementation card is KAN-2100.
+- One more package to build, version and publish from this repo; the implementation card is VIK-54.
 - The protocol schema becomes a contract with a second consumer, so a change to it must keep the client's drift test green.
 - `agent-game-framework` ADR-0010 can say "the Presenter calls `vikaki-client`" and no longer has to describe the wire format itself.
 - Distribution: installed from this repo's git URL at first (`pip install "git+https://github.com/leejianrong/vikaki.git#subdirectory=clients/python"`). Publishing to PyPI is a later decision, once a game has used the client.

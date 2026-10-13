@@ -69,7 +69,7 @@ The images speak with the test tone; the real voice is not packaged yet. See [do
 
 ## Status
 
-Early development, all open source and all running locally. Built and tested: the avatar and mic lip sync, speech from text, the CLI, MCP, emotions, personas and two looks, mic gestures, headless rendering, the video feed, Docker images, and a timeline for seeing what was said. **Not yet verified:** the meeting extension on a real call (V1.7 to V1.9 need a person on a call machine), the feed inside OBS, and the real voice inside Docker. Details: [docs/STATUS.md](docs/STATUS.md).
+Early development, all open source and all running locally. Built and tested: the avatar and mic lip sync, speech from text, the CLI, MCP, emotions, personas and two looks, mic gestures, headless rendering, the video feed, Docker images, a timeline for seeing what was said, a multi-avatar table with one driver per seat, and a Python client. **Not yet verified:** the meeting extension on a real call (VIK-7 to VIK-9 need a person on a call machine), the feed inside OBS, and the real voice inside Docker. Details: [docs/STATUS.md](docs/STATUS.md).
 
 ## More
 

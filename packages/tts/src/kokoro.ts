@@ -20,7 +20,7 @@ export interface KokoroOptions {
  * short first sentence takes roughly 1.5 s to produce.
  *
  * It runs in a worker thread: synthesis holds its thread for up to 1.8 s at a time, and in the server's own thread
- * that stalled everything the hub relays (KAN-1957). Call `close()` to stop the worker.
+ * that stalled everything the hub relays (VIK-36). Call `close()` to stop the worker.
  */
 export class KokoroTts implements Tts {
   readonly name = "kokoro";

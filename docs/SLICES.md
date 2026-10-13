@@ -147,3 +147,12 @@ Vertical increments. Each ends in something you can demonstrate. Slice 1 confron
 #### Unit
 
 - Config loader applies defaults and rejects unknown keys, with environment overrides.
+
+## After V4
+
+Built after the four slices above, each tracked on the board (Pandan board 35, cards `VIK-##`); what is built is in [STATUS.md](STATUS.md).
+
+- **Renderer seam** (VIK-45): `SceneAvatar`, so the page, camera and symbols do not depend on `VrmAvatar`. A 2D sprite renderer can sit beside it (ADR-0008).
+- **Python client** (VIK-34, VIK-54): `vikaki-client` in `clients/python`, for the games `Presenter` (ADR-0016).
+- **Poker table** (VIK-46 to 48): one driver per seat in the hub (ADR-0017), the `?seats=N` table page, and `vikaki mcp --seat` with `say --seat`. Demo: `make demo-table`, then `make table-hand`.
+- **Still open:** the real-call checks (VIK-7 to 9), doodle avatars (VIK-32), and phoneme lip sync judged by a scorecard (VIK-43, 49 to 51, deferred).

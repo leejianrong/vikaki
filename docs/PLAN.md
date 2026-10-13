@@ -43,7 +43,7 @@ Separately, Jian is building LLM-driven games and agent teams whose AI seats nee
 - Speech-to-text and `human_utterance`.
 - Photoreal or human-mimicking avatars: a non-goal, not a deferral (ADR-0005). The project is cartoon-first.
 - A custom virtual-camera driver or Electron app.
-- A multi-avatar spectator table (the poker view). This is the first follow-up after M1, since it is the stated end goal for the LLM use case.
+- ~~A multi-avatar spectator table (the poker view).~~ Built after M1: `/avatar?seats=N`, one driver per seat (ADR-0017, VIK-46 to 48).
 - Hand and full-body gestures beyond a few baked clips.
 
 ## Requirements
@@ -125,7 +125,7 @@ Test at three seams, highest first: the browser page driven by Playwright with a
 | Q15 | No Electron and no custom driver: the extension does web meetings, OBS covers desktop apps | Medium: if extensions are blocked on the call machine, V1 falls back to OBS, then to window share, and a custom virtual camera becomes its own milestone |
 | Q29 | Protocol carries optional `session_id` and a driver auth token from the start, hub is stateless and env-configured, assets are URLs, usage counters exist | Low now, expensive to retrofit if hosting is ever wanted |
 | Q22 | One local TTS engine is acceptable quality and licence | Days: swap behind the adapter |
-| Q21 | One rendered seat per page is enough in M1 | Low: pages are independent, multi-seat is more pages |
+| Q21 | One rendered seat per page is enough in M1 | Low: pages are independent, multi-seat is more pages. Held for M1; the table page (`?seats=N`) has since added several seats in one scene |
 
 ## Deferred and recorded
 
@@ -133,7 +133,7 @@ These are real goals. They are out of M1 only.
 
 **Use case 2: agent software demo.** Multiple orchestrated agents present an app over a video call. Needs multi-stream rooms, floor control, screen share composition (headless browser for the demo plus an avatar overlay per agent), and state-driven animations such as `screencast`, `talking` and `idle`. Assessed as medium difficulty.
 
-**Use case 3: interactive games.** LLMs play Codenames, Wavelength, Catan and poker with talking and body language. The end goal is to watch LLM avatars playing poker at a table, with the LLM sending text (and possibly controlling the avatar over MCP). That needs a spectator page with several avatars on one scene (one persona and one driver stream per seat), which is the first follow-up after M1. Also needs a gesture state machine fed by LLM-issued expression calls, and a game-agnostic interface. The consumer is `agent-game-framework`, whose brief defines the events (`utterance`, `cancel`, `turn_*`, `game_over`) and the lifecycle events back. Remaining integration work: a Python `Presenter` client (decided in ADR-0016, card KAN-2100), ADR-0010 on the framework side, multi-seat rendering, and human `human_utterance` via streaming STT. Open questions the brief asks that this project defers to the game side: whether the game waits for speech to finish (per-game setting), and whether humans see their own avatar.
+**Use case 3: interactive games.** LLMs play Codenames, Wavelength, Catan and poker with talking and body language. The end goal is to watch LLM avatars playing poker at a table, with the LLM sending text (and possibly controlling the avatar over MCP). The spectator page with several avatars on one scene (one persona and one driver stream per seat) is built (`?seats=N`, ADR-0017). Still needs a gesture state machine fed by LLM-issued expression calls, and a game-agnostic interface. The consumer is `agent-game-framework`, whose brief defines the events (`utterance`, `cancel`, `turn_*`, `game_over`) and the lifecycle events back. The Python client (`clients/python`, ADR-0016, VIK-54) is built. Remaining integration work: ADR-0010 on the framework side, and `human_utterance` via streaming STT. Open questions the brief asks that this project defers to the game side: whether the game waits for speech to finish (per-game setting), and whether humans see their own avatar.
 
 **Commercial layer.** Cheapest hosted shape: host the hub, TTS, personas, auth and billing, while viewers' browsers render. Hosted video rendering (headless Chromium into a WebRTC SFU such as LiveKit) is the costlier second shape, needed for remote viewers and meeting bots. Open-core: free self-hosted engine, paid hosted platform (managed WebRTC SFU, multi-agent orchestration, voice cloning, compliance tiers). Pricing sketch from the market analysis: Pro $29-99/mo, enterprise custom. Starting audience: developers building agent teams and AI games. Positioning: "LiveKit for avatars". Market gaps worth targeting: near-zero-cost client-side rendering, plug-and-play meeting integration, a gesture/sentiment layer, and regulated-industry personas.
 

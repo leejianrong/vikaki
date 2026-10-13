@@ -1,8 +1,8 @@
 # ADR-0017: One driver per seat, with the seat's persona set in `hello`
 
-- Status: Accepted (Jian asked for the poker table cards, KAN-2059 to 2061; this is the hub half)
+- Status: Accepted (Jian asked for the poker table cards, VIK-46 to 48; this is the hub half)
 - Date: 2026-10-12
-- Deciders: Jian, Claude (KAN-2059)
+- Deciders: Jian, Claude (VIK-46)
 
 ## Context
 
@@ -20,17 +20,17 @@ An additive field on `hello`: a driver may list `seats`, each `{ seat_id, person
 - **Each driver hears only its own lines.** The hub remembers which driver sent each line that is still in flight and sends `speech_started`, `speech_finished`, `speech_interrupted` and line errors to that driver. Reusing a line id that another driver has in flight is `bad_message`.
 - **A driver leaving stops only its own lines.** The other seats keep speaking.
 
-Only drivers list seats; a viewer or controller that does is refused (`bad_message`). Pages are unchanged: one page per persona still works, and the single-scene page that shows several seats is KAN-2060.
+Only drivers list seats; a viewer or controller that does is refused (`bad_message`). Pages are unchanged: one page per persona still works, and the single-scene page that shows several seats is VIK-47.
 
 ## Alternatives considered
 
 - **One driver for the whole table.** Works today, but then one process must hold every LLM's output and nothing stops one seat speaking for another.
-- **A `seat_id` on the viewer's `hello`, filtering by seat.** Needed only by a page that shows one seat without a persona; the persona filter already does the job. KAN-2060 may add it if the scene page wants it.
+- **A `seat_id` on the viewer's `hello`, filtering by seat.** Needed only by a page that shows one seat without a persona; the persona filter already does the job. VIK-47 may add it if the scene page wants it.
 - **Seat bindings in the personas file.** A seat is a property of one match, not of a character, so the game says it when it connects.
 
 ## Consequences
 
-- Several MCP servers or Python clients can drive one table. The Python client takes `seats=[...]`; the MCP seat parameter is KAN-2061.
+- Several MCP servers or Python clients can drive one table. The Python client takes `seats=[...]`; the MCP seat parameter is VIK-48.
 - The speech engine is still one voice at a time: two seats asked to speak together are spoken in turn. A table with true overlap would need more than one engine, which is not planned.
 - `onDriverGone` now gets the ids of the departing driver's unfinished lines, and the engine stops those, not everything.
 - The JSONL event log is unchanged and `vikaki replay` still sends a whole log as one driver.

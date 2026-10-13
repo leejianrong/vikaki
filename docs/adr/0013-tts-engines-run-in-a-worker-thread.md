@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-08
-- Deciders: Jian, Claude (KAN-1957)
+- Deciders: Jian, Claude (VIK-36)
 
 ## Context
 
@@ -36,7 +36,7 @@ The timeline view showed that the page reported `speech_started` at 1.6 s but th
 
 Buys a hub that stays responsive whatever the engine does, and makes `cancel` and the `speech_*` events trustworthy with a real voice. Costs a second thread and a little start-up (the model loads in the worker), a copy of Kokoro's loading code in plain JavaScript, and a wait of up to one sentence on shutdown when a cancelled sentence is still being made. A cancelled sentence still occupies the CPU until it finishes; true cancellation would need the engine to support it.
 
-## Update: cancelling a sentence with the real voice (KAN-1961)
+## Update: cancelling a sentence with the real voice (VIK-40)
 
 Measured with `scripts/probe-cancel-cost.ts` (Kokoro on this machine's CPU): a sentence cannot be interrupted once `generate()` has started, so cancelling one 300 ms in delayed the first audio of the next line from 1.0 s to 2.9 s (60 characters), 5.0 s (120) and 7.4 s (200): the next line waited behind the abandoned one, and in fact ran beside it, which slowed both. Three changes:
 

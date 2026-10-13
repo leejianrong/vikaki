@@ -9,7 +9,7 @@ import { loadPersonas, startServer, type RunningServer } from "@vikaki/server";
 import { FakeTts } from "@vikaki/tts";
 import { SeatDriver, SEATS } from "./seat-driver.ts";
 
-// The table page: one scene, three avatars, three seat drivers (KAN-2060).
+// The table page: one scene, three avatars, three seat drivers (VIK-47).
 const staticDir = fileURLToPath(new URL("../../engine/dist", import.meta.url));
 const avatars = fileURLToPath(new URL("../../engine/public/avatars/", import.meta.url));
 
