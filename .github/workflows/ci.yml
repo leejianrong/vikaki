@@ -131,3 +131,11 @@ jobs:
           pnpm --dir ../.. serve --port 8787 --tts fake > hub.log 2>&1 &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:8787/avatar && break; sleep 1; done
           VIKAKI_HUB_URL=ws://127.0.0.1:8787/ws .venv/bin/pytest -q -m integration || { cat hub.log; exit 1; }
+      - name: Poker example, three LLM seats on a real hub (scripted LLM, fake voice; ADR-0018)
+        working-directory: examples/poker
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -e "../../clients/python" -e ".[dev]"
+          pnpm --dir ../.. serve --port 8788 --tts fake --personas personas.table.example.yaml > hub.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:8788/avatar && break; sleep 1; done
+          VIKAKI_HUB_URL=ws://127.0.0.1:8788/ws .venv/bin/pytest -q || { cat hub.log; exit 1; }

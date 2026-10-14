@@ -9,13 +9,16 @@ description = "A Texas Hold'em engine and LLM seats for the Vikaki example table
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-dependencies = []
+# pyyaml: MIT (checked 2026-10-14). Reads the table file and the personas file for each character's style.
+dependencies = ["pyyaml>=6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+# Speaking at a real hub also needs vikaki-client (ADR-0016). It is not on PyPI yet, so it is not listed here: see the README.
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["integration: needs a running `vikaki serve --personas personas.table.example.yaml` (set VIKAKI_HUB_URL)"]

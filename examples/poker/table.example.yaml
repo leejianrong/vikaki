@@ -1,0 +1,21 @@
+# The example poker table (ADR-0018): who sits where and which model plays each seat.
+# Run a hub with the matching personas first:  pnpm serve --port 8787 --personas personas.table.example.yaml
+# Then:  python -m vikaki_poker play --table examples/poker/table.example.yaml
+# Watch at http://127.0.0.1:8787/avatar?seats=3
+
+personas_file: ../../personas.table.example.yaml   # the characters' looks, voices and `style` notes; relative to this file
+stack: 200                                         # chips each seat starts with
+small_blind: 1
+big_blind: 2
+max_tokens: 200                                    # cap on a model's reply per move
+
+seats:
+  seat-1:
+    persona: ada
+    model: deepseek/deepseek-chat     # an OpenRouter model id; confirm the exact one when the key exists
+  seat-2:
+    persona: ben
+    model: deepseek/deepseek-chat
+  seat-3:
+    persona: cy
+    model: deepseek/deepseek-chat
