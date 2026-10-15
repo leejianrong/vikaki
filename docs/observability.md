@@ -89,10 +89,52 @@ It sits behind the `WordTimer` type (`(text, samples, rate) => {word, start, end
 
 **Limits.** The microphone has no words (it has no text), so no karaoke or sentence pills. Its phrases are recorded (see below), but the audio is read from the analyser every other frame, so on a page that keeps up it is continuous and on one that stalls it has gaps rather than invented sound. 
 
-## What this cannot tell you
+## Phase 3, part 1: the lip-sync scorecard
+
+`make lipsync-scorecard` (VIK-49) plays eight recorded lines through the real page and scores how the mouth followed each one. It is the measure the phoneme work (VIK-50, VIK-51) will be judged by; nothing has been changed to improve the numbers yet. The lines are Kokoro speech, committed as fixtures (`packages/audio/test/fixtures/scorecard/`, what each says is in its README) and replayed by a stand-in engine, so a run costs nothing, needs no voice installed and says the same words every time. The mouth is what the page's own timeline recorded (the commanded mouth shapes, added into one openness), and the maths is `scoreLine` in `packages/audio/src/scorecard.ts`, tested on its own against signals whose right answers are known.
+
+| Measure | What it is | Good |
+| --- | --- | --- |
+| match at 0 | Correlation of the mouth's openness with the audio's loudness, with no shift | high (1 is perfect) |
+| lag | How far the mouth runs behind the sound, in ms, where the match is best; negative is ahead of it | near 0 |
+| match at lag | The correlation at that lag: how well the mouth follows the loudness once the delay is allowed for | high |
+| closure | Share of the quiet time (after 200 ms for the mouth to close) with the mouth shut | 100% |
+| range | How far the mouth opens while speech is loud: the 95th minus the 5th percentile of its openness | wide; near 0 is a stuck mouth |
+| jitter | Mean change of openness per 1/60 s step | low; a flapping mouth is over 0.5 |
+
+**Baseline** (wLipSync with the default profile, the current mouth; eight lines, three voices, mean of three runs; software WebGL, so the page drew about 55 frames a second):
+
+| match at 0 | lag | match at lag | closure | range | jitter |
+| --- | --- | --- | --- | --- | --- |
+| 0.78 | -27 ms | 0.82 | 94% | 0.75 | 0.035 |
+
+Run to run the mean moved by under 0.02 in match and 7 ms in lag, and each line by up to about 30 ms in lag, so a change bigger than that is a change. By line (the last of the three runs):
+
+| line | match at 0 | lag | match at lag | closure | range | jitter |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0.76 | 0 | 0.76 | 96% | 0.44 | 0.030 |
+| 2 | 0.82 | -30 | 0.83 | 95% | 0.35 | 0.020 |
+| 3 | 0.72 | -40 | 0.78 | 95% | 0.95 | 0.041 |
+| 4 | 0.73 | -20 | 0.75 | 92% | 0.86 | 0.045 |
+| 5 | 0.85 | -10 | 0.85 | 95% | 0.82 | 0.034 |
+| 6 | 0.91 | -20 | 0.93 | 96% | 0.68 | 0.040 |
+| 7 | 0.77 | -40 | 0.83 | 95% | 0.92 | 0.035 |
+| 8 | 0.77 | -20 | 0.79 | 95% | 0.97 | 0.037 |
+
+**What it says.** The mouth keeps up with the sound: no lag worth the name (it is a little ahead, 0 to 40 ms), it shuts in the quiet (92 to 96%), and it is smooth (about 0.035, against over 0.5 for a mouth that flaps). The weak spot is how it follows the loudness: a match of 0.72 to 0.91 means the mouth tracks the loud syllables but only loosely, and this score does not judge whether the vowel shapes are right. And the opening is uneven: lines 1 and 2 open only about 0.35 to 0.45 wide against 0.7 to 0.97 for the others. It is not the voice (lines 4 and 7 share line 1's and open well), so it is something about those two lines that the next step has to explain.
+
+**Caveats.**
+- *The first lines of a session are unreliable in headless Chromium.* It has no audio device, and for its first seconds the output clock the page uses to say when a line is heard is hundreds of ms out (the first five lines read +300, -280, -180, -100 and -40 ms, in any order, so it follows the place in the run, not the line). The script plays four lines first, unscored (`--warmup`), after which the lag is steady. A real browser with a real device does not show this, but it also means the absolute lag here is the page's own estimate of when sound is heard, not a measurement at a speaker.
+- *Frames are what the page drew.* Software WebGL drew 45 to 60 a second (the first scored line is often slower, 20 to 35), and the maths interpolates between frames; with 15 a second it still finds the lag to within a frame in the test. The script prints the rate beside each line.
+- *Eight lines is a small sample.* Enough to see a difference of the size the phoneme work is after, not to rank two close methods.
+
+**A report, not a gate.** It prints a table and, with `--json`, writes the numbers; no test fails on them. The maths is gated by unit tests, including one on a real recording. A threshold on a whole-page run would depend on how many frames a CI machine's software renderer manages and on a headless audio clock, and we have already seen those two make e2e tests flake. When VIK-51 compares the audio-only, phoneme and hybrid mouths on this table, a floor chosen from those numbers can be made a gate then, on the measures that held steady (match at lag, closure, range) and not on lag.
+
+Regenerate the recordings with `scripts/make-speech-fixture.ts` (needs `make install-voice`); see the fixtures' README.
+
 ## What this cannot tell you
 
-It cannot say whether speech sounds good or is the right words, only that it is speech-like. Whether the mouth follows the voice is Phase 3's scorecard.
+It cannot say whether speech sounds good or is the right words, only that it is speech-like. Whether the mouth follows the voice is the lip-sync scorecard above.
 
 **First-speech freeze under software WebGL.** In headless Chromium with software WebGL (what CI and the e2e suite use), the page freezes for about 0.7 to 1 s shortly after the first speech starts: a trace (`scripts/probe-trace.ts`) shows one main-thread task of about 800 ms with 4 ms of JavaScript in it and a 714 ms GPU task beside it, plus about 200 ms of timeline-dock drawing. On a real GPU the same work is a few milliseconds. The karaoke dot and the display of a short word can skip during that freeze, so the karaoke e2e only excuses a missed word when a freeze overlaps that word (`scripts/probe-jank.ts` measures the gaps). Related: VIK-42 (long spectrograms are drawn in one go).
 

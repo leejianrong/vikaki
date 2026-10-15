@@ -3,3 +3,4 @@ export { detectPitch, ProsodyTracker, type Pitch, type ProsodyCue, type ProsodyE
 export { colour, fft, stft, type Stft } from "./stft.ts";
 export { decodeWav, encodeWav } from "./wav.ts";
 export { estimateWordTimings, syllables, type WordTimer, type WordTiming } from "./words.ts";
+export { opennessOf, scoreLine, type LineScore, type MouthTrack } from "./scorecard.ts";
