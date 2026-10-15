@@ -31,3 +31,5 @@ for (const p of parts) {
 }
 writeFileSync(out, encodeWav(all, rate));
 console.log(`wrote ${out}: ${(all.length / rate).toFixed(2)} s at ${rate} Hz`);
+await tts.close?.();
+process.exit(0); // the model runtime keeps the process alive otherwise
