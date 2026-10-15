@@ -33,6 +33,7 @@ def _parser() -> argparse.ArgumentParser:
     play.add_argument("--no-hub", action="store_true", help="print the lines instead of speaking them")
     play.add_argument("--fake-llm", action="store_true", help=f"no model calls: a scripted stand-in (no {KEY_ENV} needed)")
     play.add_argument("--no-reactions", action="store_true", help="the seats that are listening stay still (no silent reactions)")
+    play.add_argument("--show-cards", action="store_true", help="show every live hand face up on the page (default: face down until a showdown)")
     play.add_argument("--model", help="play every seat with this model instead of the table file's")
     play.add_argument("--base-url", help="another OpenAI-compatible endpoint (default: OpenRouter)")
     return p
@@ -77,7 +78,7 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
                 print(f"vikaki_poker: could not join the table at {args.url} ({code}). Is `pnpm serve --personas personas.table.example.yaml` running?", file=sys.stderr)
                 return 1
     try:
-        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=args.seed, reactor=reactor)
+        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=args.seed, reactor=reactor, show_cards=args.show_cards)
     finally:
         if own_voice and hasattr(voice, "close"):
             voice.close()  # type: ignore[union-attr]
