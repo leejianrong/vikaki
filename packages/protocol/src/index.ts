@@ -89,6 +89,42 @@ export const TurnStarted = z.object({ ...common, type: z.literal("turn_started")
 export const TurnEnded = z.object({ ...common, type: z.literal("turn_ended"), seat_id: id, persona: z.string().min(1).max(64).optional() });
 export const GameOver = z.object({ ...common, type: z.literal("game_over"), outcome: z.enum(OUTCOMES), seat_id: id.optional() });
 
+/** One card as the game names it, such as `As` or `Td`, or `back` for a card face down. The page only draws it; it knows no rules. */
+const card = z.string().min(1).max(8);
+
+/**
+ * The state of a table game, for the overlay on a table page (ADR-0018, VIK-59). The game owns the truth and sends the whole state each
+ * time it changes; a viewer draws the last one and keeps no game logic. Every field but `seats` is optional, so a game with no pot or no
+ * board still works. A seat's `cards` are shown as sent: send `back` for a card the table must not see. Any driver may send it, and it
+ * is for the whole table, so the last one wins.
+ */
+export const TableState = z
+  .object({
+    ...common,
+    type: z.literal("table_state"),
+    pot: z.number().min(0).optional(),
+    /** The stage of the hand, for display: "preflop", "flop", "showdown". */
+    street: z.string().min(1).max(32).optional(),
+    board: z.array(card).max(10).optional(),
+    /** The seat with the dealer button. */
+    dealer: id.optional(),
+    /** The seat whose turn it is, shown with a marker. */
+    turn: id.optional(),
+    seats: z
+      .array(
+        z.object({
+          seat_id: id,
+          stack: z.number().min(0),
+          /** What the seat has put in this round. */
+          bet: z.number().min(0).optional(),
+          folded: z.boolean().optional(),
+          cards: z.array(card).max(10).optional(),
+        }),
+      )
+      .max(16),
+  })
+  .refine((m) => new Set(m.seats.map((s) => s.seat_id)).size === m.seats.length, { message: "a seat is listed twice" });
+
 // ---- back to the driver, reported by whoever plays the audio ----
 
 export const SpeechStarted = z.object({ ...common, type: z.literal("speech_started"), utterance_id: id, seat_id: id.optional() });
@@ -152,6 +188,7 @@ export const Message = z.discriminatedUnion("type", [
   TurnStarted,
   TurnEnded,
   GameOver,
+  TableState,
   SpeechStarted,
   SpeechFinished,
   SpeechInterrupted,
@@ -163,7 +200,7 @@ export type MessageType = Message["type"];
 export type MessageOf<T extends MessageType> = Extract<Message, { type: T }>;
 
 /** What each role may send after `hello`. The hub enforces this. `audio` is sent by the hub only. */
-export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over"];
+export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state"];
 /** A controller is not a driver: it never holds the driver slot and may only stop speech (`vikaki cancel`). */
 export const CONTROLLER_MAY_SEND: readonly MessageType[] = ["cancel"];
 export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error"];

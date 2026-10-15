@@ -9,6 +9,7 @@ import type { VisemeWeights } from "./renderer.ts";
 import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
+import { TableOverlay } from "./table-overlay.ts";
 import { frameRow, layoutRow, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
 
@@ -51,6 +52,7 @@ try {
     scene.add(a.scene);
   });
 
+  const overlay = new TableOverlay(seats);
   const puppets = avatars.map((a, i) => new Puppet(a, seed + i * 101, params.get("still") !== "1"));
   const symbols = avatars.map((a) => {
     const { head, top } = a.framing();
@@ -79,6 +81,8 @@ try {
     // Looking a few degrees down puts the heads about 40% from the top instead of in the middle, so the bodies show and the sky does not.
     const visibleHeight = 2 * f.distance * Math.tan((camera.fov * Math.PI) / 360);
     camera.lookAt(centre, f.y - 0.1 * visibleHeight, z);
+    camera.updateMatrixWorld();
+    overlay.place(avatars.map((a) => ((new Vector3(a.scene.position.x, 0, z).project(camera).x + 1) / 2) * canvas.clientWidth));
   };
   reframe();
   new ResizeObserver(() => {
@@ -120,6 +124,8 @@ try {
       const i = seatFor(seats, { seat, persona });
       if (i !== undefined) puppets[i]!.emotion.think(thinking);
     },
+    onTableState: (state) => overlay.setState(state),
+    onText: (line) => overlay.addText(line),
     onReport: (what) => live.events.push(what),
     onState: (state, soundBlocked) => {
       live.state = state;

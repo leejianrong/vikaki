@@ -23,7 +23,7 @@ The first message on a connection must be `hello`; the hub answers `welcome`.
 
 A driver that lists `seats` in `hello` speaks for those seats only ([ADR-0017](adr/0017-one-driver-per-seat.md)). Drivers for different seats can be connected at once; a second driver for a seat that has one, or a driver of the whole table (no `seats`) alongside a seat driver, gets `driver_busy`. A seat driver:
 
-- may send `utterance`, `turn_started` and `turn_ended` for its seats, and `game_over` with its own `seat_id`; anything else about another seat is `not_allowed`;
+- may send `utterance`, `turn_started` and `turn_ended` for its seats, `game_over` with its own `seat_id`, and `table_state` (which is about the whole table); anything else about another seat is `not_allowed`;
 - gets its seat's `persona` filled in on lines and turns that name none (a persona named on the line wins), and is refused at `hello` if a seat names a persona the hub's personas file lacks (`unknown_persona`);
 - hears `speech_started`, `speech_finished`, `speech_interrupted` and line errors only for its own lines, and may cancel only its own lines (`cancel` with no id stops just those);
 - cannot reuse a line id that another driver has in flight (`bad_message`);
@@ -39,6 +39,7 @@ Only a driver lists seats. The hub still speaks one line at a time, so two seats
 | `cancel` | optional `utterance_id` | Stop that line now. Without an id, stop everything speaking or queued. A controller sends the same message. |
 | `turn_started` / `turn_ended` | `seat_id`, optional `persona` | While a turn is on, the avatar looks thoughtful (head tipped, a bubble of dots). A line that starts ends it; a driver that never sends `turn_ended` is cleared after 30 s. `vikaki say --think 2` does this before speaking. `persona` says whose turn it is: a page showing one persona ignores other personas' turns (and turns that name nobody). |
 | `game_over` | `outcome` (`won`, `lost`, `drew`), optional `seat_id` | |
+| `table_state` | `seats` (each `seat_id`, `stack`, optional `bet`, `folded`, `cards`), optional `pot`, `street`, `board`, `dealer`, `turn` | The state of a table game, for the overlay on `?seats=` ([personas.md](personas.md)). The game owns the truth and sends the whole state each time it changes; a page draws the last one and keeps no game logic. Cards are the game's short names (`As`, `Td`) or `back` for a card face down, shown as sent: leave a hand `back` to keep it hidden. Any driver may send it, a seat driver too, and the last one wins. Viewers get it as it was sent; a viewer that has no table page ignores it. |
 
 `emotion` is one of `neutral`, `happy`, `smug`, `worried`, `surprised`, `sad`, `angry`. Anything else, or nothing, is `neutral`; it is never an error (the hub logs a warning for an unknown name). `intensity` scales it from 0 to 1 and defaults to 1. The page shows it while the line is heard and relaxes shortly after; ADR-0015 says how it looks.
 

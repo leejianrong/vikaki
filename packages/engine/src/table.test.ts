@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frameRow, layoutRow, parseSeats, seatFor } from "./table.ts";
+import { addToTranscript, cardFace, frameRow, layoutRow, parseSeats, seatFor } from "./table.ts";
 
 describe("parseSeats", () => {
   it("a number makes that many seats, named seat-1 to seat-N, with the hub's personas in order", () => {
@@ -95,5 +95,38 @@ describe("frameRow", () => {
     const f = frameRow({ ...base, spanWidth: 0.4, aspect: 2 });
     const alone = Math.max(1.7 - 1.4, 1.4 - 1.25) * 1.45 / Math.tan((28 * Math.PI) / 360);
     expect(f.distance).toBeCloseTo(alone);
+  });
+});
+
+describe("cardFace", () => {
+  it("reads the game's short names: rank and suit, with ten as 10 and hearts and diamonds red", () => {
+    expect(cardFace("As")).toEqual({ text: "A♠", red: false, down: false });
+    expect(cardFace("Td")).toEqual({ text: "10♦", red: true, down: false });
+    expect(cardFace("7h")).toEqual({ text: "7♥", red: true, down: false });
+    expect(cardFace("kc")).toEqual({ text: "K♣", red: false, down: false });
+  });
+
+  it("shows `back` face down, and a name it cannot read as it was sent", () => {
+    expect(cardFace("back")).toMatchObject({ down: true });
+    expect(cardFace("joker")).toEqual({ text: "joker", red: false, down: false });
+  });
+});
+
+describe("addToTranscript", () => {
+  it("adds a whole line, and grows a streamed one by its pieces", () => {
+    let t = addToTranscript([], { id: "a", seat: "seat-1", text: "Raise." });
+    t = addToTranscript(t, { id: "b", seat: "seat-2", delta: "I " });
+    t = addToTranscript(t, { id: "b", seat: "seat-2", delta: "call" });
+    expect(t).toEqual([
+      { id: "a", seat: "seat-1", text: "Raise." },
+      { id: "b", seat: "seat-2", text: "I call" },
+    ]);
+  });
+
+  it("keeps the last few lines, and does not change the list it was given", () => {
+    const first = [{ id: "a", seat: "s", text: "one" }];
+    const t = ["b", "c", "d"].reduce((acc, id) => addToTranscript(acc, { id, seat: "s", text: id }), first);
+    expect(t.map((l) => l.id)).toEqual(["b", "c", "d"]);
+    expect(first).toEqual([{ id: "a", seat: "s", text: "one" }]);
   });
 });

@@ -105,6 +105,17 @@ describe("what a seat driver may send", () => {
     expect(viewer.inbox.map((m) => m.type)).toEqual(["utterance", "game_over"]); // nothing of seat B's reached the viewer
   });
 
+  it("may send the table's state, which every viewer gets as it is (VIK-59)", async () => {
+    server = await startServer({ staticDir: dir });
+    const viewer = track(await Client.join(server.wsUrl, "viewer"));
+    await viewer.next();
+    const a = await seatDriver(server.wsUrl, { seat_id: "A", persona: "ada" });
+    const state = make("table_state", { pot: 30, seats: [{ seat_id: "A", stack: 70 }, { seat_id: "B", stack: 100 }], turn: "B" });
+    a.d.send(state);
+    await until(() => viewer.inbox.length === 1);
+    expect(viewer.inbox[0]).toEqual(state);
+  });
+
   it("gets the seat's persona filled in on its lines and turns, unless it names another", async () => {
     server = await startServer({ staticDir: dir });
     const viewer = track(await Client.join(server.wsUrl, "viewer"));

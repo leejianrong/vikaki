@@ -212,3 +212,20 @@ describe("personas.table.example.yaml", () => {
     for (const seat of TABLE_SEATS) expect(book.get(seat.persona), seat.persona).toBeDefined();
   });
 });
+
+describe("the demo table's state (VIK-59)", () => {
+  it("is a valid table_state: whose turn it is, folded seats, and hands face down until the showdown", async () => {
+    const { tableState } = await import("../src/table-demo.ts");
+    const { parseMessage } = await import("@vikaki/protocol");
+    const shown = { pot: 12, street: "flop", board: ["As"], stacks: [94, 94, 100] as [number, number, number], bets: [4, 4, 0] as [number, number, number], folded: 2 as const };
+    const down = tableState(shown, 1);
+    expect(parseMessage(down).ok).toBe(true);
+    expect(down.turn).toBe("seat-2");
+    expect(down.seats.map((s) => s.cards)).toEqual([["back", "back"], ["back", "back"], ["back", "back"]]);
+    expect(down.seats[2]).toMatchObject({ folded: true });
+    expect(down.seats[0]!.bet).toBe(4);
+    const up = tableState({ ...shown, reveal: true });
+    expect(up.turn).toBeUndefined();
+    expect(up.seats.map((s) => s.cards![0])).toEqual(["7h", "Qs", "back"]); // the folded seat keeps its hand hidden
+  });
+});

@@ -81,3 +81,43 @@ export function frameRow(o: { eyeY: number; headY: number; topY: number; fov: nu
   const wideDistance = (o.spanWidth / 2) * 1.08 / (Math.tan((o.fov * Math.PI) / 360) * Math.max(o.aspect, 0.1));
   return { y: tall.y, distance: Math.max(tall.distance, wideDistance) };
 }
+
+/** A card as the page draws it. `back` is a card face down; a name it cannot read is shown as sent, so a game with its own deck still works. */
+export interface CardFace {
+  text: string;
+  red: boolean;
+  down: boolean;
+}
+
+const SUITS: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
+
+/** `As` is A♠, `Td` is 10♦, `back` is face down. Only formatting: the page knows no rules. */
+export function cardFace(card: string): CardFace {
+  if (card === "back") return { text: "", red: false, down: true };
+  const suit = SUITS[card.slice(-1).toLowerCase()];
+  const rank = card.slice(0, -1);
+  if (!suit || rank === "") return { text: card, red: false, down: false };
+  const s = card.slice(-1).toLowerCase();
+  return { text: `${rank.toUpperCase() === "T" ? "10" : rank.toUpperCase()}${suit}`, red: s === "h" || s === "d", down: false };
+}
+
+/** One line of the transcript: who said it (a seat id), and what, as far as it has arrived. */
+export interface TranscriptLine {
+  id: string;
+  seat: string;
+  text: string;
+}
+
+/** Lines kept in the transcript strip. */
+export const TRANSCRIPT_LINES = 3;
+
+/**
+ * Add what an `utterance` message carries to the transcript: a whole `text` makes a line, `delta` pieces grow the line of the same id.
+ * Returns the last `max` lines; the list it was given is not changed.
+ */
+export function addToTranscript(lines: TranscriptLine[], m: { id: string; seat: string; text?: string; delta?: string }, max = TRANSCRIPT_LINES): TranscriptLine[] {
+  const piece = m.text ?? m.delta ?? "";
+  const at = lines.findIndex((l) => l.id === m.id);
+  const next = at < 0 ? [...lines, { id: m.id, seat: m.seat, text: piece }] : lines.map((l, i) => (i === at ? { ...l, text: m.text !== undefined ? piece : l.text + piece } : l));
+  return next.slice(-max);
+}
