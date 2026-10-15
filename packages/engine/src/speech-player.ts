@@ -1,9 +1,12 @@
 import { LineOwners } from "./line-owners.ts";
 import type { FirstFrameTimer } from "./first-frame.ts";
-import { decodePcm16, make, parseMessage, type Message, type MessageOf } from "@vikaki/protocol";
+import { decodePcm16, make, parseMessage, type Gesture, type Message, type MessageOf } from "@vikaki/protocol";
 import type { AudioSession } from "./audio-session.ts";
 import { Playback, type Output, type ScheduledSlice } from "./playback.ts";
 import { SentenceAssembler, type CompleteSentence } from "./sentences.ts";
+
+/** How long a reaction's feeling is held when the driver does not say. */
+export const DEFAULT_REACT_SECONDS = 1.5;
 
 export type LiveState = "connecting" | "connected" | "disconnected";
 
@@ -30,6 +33,8 @@ export interface SpeechPlayerOptions {
   onEmotion?: (emotion: string | undefined, intensity: number | undefined, phase: "start" | "end", line?: LineInfo) => void;
   /** The driver says a turn began (`true`) or ended (`false`): time for the avatar to look thoughtful. `seatId` is empty when the connection was lost. */
   onTurn?: (thinking: boolean, seatId: string, persona?: string) => void;
+  /** A seat reacts without speaking (`react`): a feeling held for a moment, and perhaps a nod, shake or tilt. `persona` is the seat's, when the hub knows it. */
+  onReact?: (reaction: { seat: string; persona?: string; emotion?: string; intensity?: number; gesture?: Gesture; seconds: number }) => void;
   /** The game sent the state of the table (pot, stacks, cards, whose turn): draw it. */
   onTableState?: (state: MessageOf<"table_state">) => void;
   /** A piece of a line's text arrived: the whole `text`, or one `delta` of a line still being written. For a transcript. */
@@ -156,6 +161,9 @@ export class SpeechPlayer {
         this.o.timer?.received(m.utterance_id, performance.now());
         this.o.onText?.({ id: m.utterance_id, seat: m.seat_id, ...(m.text !== undefined ? { text: m.text } : {}), ...(m.delta !== undefined ? { delta: m.delta } : {}) });
         if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity, seat: m.seat_id, persona: m.persona }); // the first message of a streamed line carries it
+        break;
+      case "react":
+        if (this.owners.turnIsMine(m.persona)) this.o.onReact?.({ seat: m.seat_id, persona: m.persona, emotion: m.emotion, intensity: m.intensity, gesture: m.gesture, seconds: m.seconds ?? DEFAULT_REACT_SECONDS });
         break;
       case "table_state":
         this.o.onTableState?.(m);

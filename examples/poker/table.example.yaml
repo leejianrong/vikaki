@@ -8,6 +8,7 @@ stack: 200                                         # chips each seat starts with
 small_blind: 1
 big_blind: 2
 max_tokens: 200                                    # cap on a model's reply per move
+# reaction_model: deepseek/deepseek-chat           # optional, a cheap model for how listeners react silently to a line; without it they follow a fixed table
 
 seats:
   seat-1:

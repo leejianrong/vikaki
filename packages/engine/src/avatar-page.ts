@@ -70,7 +70,7 @@ declare global {
       /** True if the avatar has eye bones; false means eye level is estimated. */
       eyeBones?: boolean;
       /** On the table page (`?seats=`) only: one entry per seat, left to right. `symbol` is the mark over the head ("dots" while thinking), or null. */
-      table?: { seats: { seat: string; persona?: string; avatarUrl: string; x: number; visemes: VisemeWeights; symbol: string | null }[] };
+      table?: { seats: { seat: string; persona?: string; avatarUrl: string; x: number; visemes: VisemeWeights; symbol: string | null; /** Where the head is turned to look at the speaker, and the whole head pose now, in radians. */ look: number; yaw: number; pitch: number; roll: number }[] };
     };
   }
 }
@@ -174,13 +174,23 @@ try {
     api.live = live;
     const url = new URL("/ws", location.href);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    let lineOn = false; // a line is being heard: a silent reaction would talk over its feeling
     const player = new SpeechPlayer({
       url: url.href,
       persona,
       timer: firstFrame,
       // The face follows the line: its emotion while it is heard, then a moment's lingering before relaxing.
       onTurn: (thinking) => puppet.emotion.think(thinking),
-      onEmotion: (e, i, phase) => (phase === "start" ? puppet.emotion.set(e, i) : puppet.emotion.release(0.7)),
+      onEmotion: (e, i, phase) => {
+        lineOn = phase === "start";
+        if (phase === "start") puppet.emotion.set(e, i);
+        else puppet.emotion.release(0.7);
+      },
+      onReact: (r) => {
+        if (lineOn || puppet.emotion.thinking) return; // a line's own feeling and a turn's thinking pose win over a silent reaction
+        if (r.emotion !== undefined) puppet.emotion.react(r.emotion, r.intensity, r.seconds);
+        if (r.gesture) puppet.reaction.play(r.gesture);
+      },
       session,
       sessionId: params.get("session") ?? undefined,
       onReport: (what) => {

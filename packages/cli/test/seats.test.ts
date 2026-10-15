@@ -188,6 +188,11 @@ describe("the scripted hand", () => {
     const turns = w.seen.filter((m) => m.type === "turn_started" || m.type === "turn_ended" || m.type === "utterance").map((m) => `${m.type}:${m.seat_id}`);
     expect(turns[0]).toBe("turn_started:seat-1");
     expect(turns.slice(0, 3)).toEqual(["turn_started:seat-1", "turn_ended:seat-1", "utterance:seat-1"]);
+    const reacts = w.seen.filter((m) => m.type === "react");
+    expect(reacts.slice(0, 2).map((m) => [m.seat_id, m.persona, m.emotion, m.gesture])).toEqual([ // ada's smug line: ben and cy answer, in silence
+      ["seat-2", "ben", "worried", "tilt"],
+      ["seat-3", "cy", "worried", "tilt"],
+    ]);
     expect(w.seen.filter((m) => m.type === "game_over").length).toBeGreaterThanOrEqual(1);
     expect(out.join("\n")).toMatch(/seat-1/);
   });

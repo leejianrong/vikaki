@@ -10,7 +10,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
-import { frameRow, layoutRow, parseSeats, seatFor } from "./table.ts";
+import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
 
 const params = new URLSearchParams(location.search);
@@ -91,12 +91,20 @@ try {
   }).observe(canvas);
 
   api.table = {
-    seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null })),
+    seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0 })),
   };
   api.eyeBones = frames.every((f) => f.eyeBones);
 
   /** Whose line has the mouth: the seat whose line began last. The voice is one node, and the hub speaks one line at a time. */
   let speaking: number | undefined;
+  /** Who has a line being heard now (cleared when it ends, unlike `speaking`, which the mouth keeps until the next line), and who is thinking. */
+  let talker: number | undefined;
+  let thinker: number | undefined;
+  /** Every seat but the one in focus looks at it: the speaker, else whoever is thinking. The one in focus looks ahead. */
+  const refocus = () => {
+    const focus = talker ?? thinker;
+    puppets.forEach((p, j) => p.reaction.look(focus === undefined || focus === j ? 0 : lookYaw(xs[j]!, xs[focus]!)));
+  };
   const live = { state: "connecting" as LiveState, soundBlocked: true, events: [] as string[] };
   api.live = live;
   const firstFrame = new FirstFrameTimer();
@@ -113,16 +121,32 @@ try {
       const i = seatFor(seats, line);
       if (i === undefined) return;
       if (phase === "start") {
-        speaking = i;
+        speaking = talker = i;
         puppets[i]!.emotion.set(emotion, intensity);
       } else {
+        if (talker === i) talker = undefined;
         puppets[i]!.emotion.release(0.7);
       }
+      refocus();
+    },
+    onReact: (r) => {
+      const i = seatFor(seats, { seat: r.seat, persona: r.persona });
+      if (i === undefined || talker === i || puppets[i]!.emotion.thinking) return; // its own line's feeling and its turn's thinking pose win
+      if (r.emotion !== undefined) puppets[i]!.emotion.react(r.emotion, r.intensity, r.seconds);
+      if (r.gesture) puppets[i]!.reaction.play(r.gesture);
     },
     onTurn: (thinking, seat, persona) => {
-      if (seat === "") return void puppets.forEach((p) => p.emotion.think(false)); // the connection was lost: nobody is waiting on a move
+      if (seat === "") {
+        thinker = talker = undefined;
+        puppets.forEach((p) => p.emotion.think(false)); // the connection was lost: nobody is waiting on a move
+        return refocus();
+      }
       const i = seatFor(seats, { seat, persona });
-      if (i !== undefined) puppets[i]!.emotion.think(thinking);
+      if (i === undefined) return;
+      puppets[i]!.emotion.think(thinking);
+      if (thinking) thinker = i;
+      else if (thinker === i) thinker = undefined;
+      refocus();
     },
     onTableState: (state) => overlay.setState(state),
     onText: (line) => overlay.addText(line),
@@ -155,6 +179,10 @@ try {
       const row = api.table!.seats[i]!;
       row.visemes = p.visemes;
       row.symbol = p.emotion.pose.symbol ?? null;
+      row.look = p.reaction.looking;
+      row.yaw = p.head.yaw;
+      row.pitch = p.head.pitch;
+      row.roll = p.head.roll;
     });
     const lead = puppets[speaking ?? 0]!;
     api.visemes = lead.visemes;

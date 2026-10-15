@@ -217,7 +217,7 @@ export class Hub {
       }
     }
     // A seat has a persona: a line or turn that does not name one gets its seat's.
-    if (seats && (message.type === "utterance" || message.type === "turn_started" || message.type === "turn_ended") && message.persona === undefined) {
+    if (seats && (message.type === "utterance" || message.type === "turn_started" || message.type === "turn_ended" || message.type === "react") && message.persona === undefined) {
       const bound = seats.get(message.seat_id);
       if (bound !== undefined) message = { ...message, persona: bound };
     }
@@ -252,7 +252,7 @@ export class Hub {
   private mayAct(ws: WebSocket, seats: Map<string, string | undefined>, message: Message): boolean {
     let ok = true;
     let what = "";
-    if (message.type === "utterance" || message.type === "turn_started" || message.type === "turn_ended") {
+    if (message.type === "utterance" || message.type === "turn_started" || message.type === "turn_ended" || message.type === "react") {
       ok = seats.has(message.seat_id);
       what = `seat ${message.seat_id} is not one of this driver's seats`;
     } else if (message.type === "game_over") {

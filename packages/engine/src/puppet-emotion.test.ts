@@ -137,3 +137,20 @@ describe("Puppet with sway off", () => {
     expect(a.head.pitch).toBeGreaterThan(0.1);
   });
 });
+
+describe("Puppet with a silent reaction (VIK-58)", () => {
+  it("turns the head toward what it looks at, and nods and shakes on top of the sway", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1, false); // no sway, so the head is only what was asked of it
+    p.reaction.look(0.3);
+    run(p, 2);
+    expect(a.head.yaw).toBeCloseTo(0.3, 2);
+    p.reaction.play("nod");
+    let peak = 0;
+    for (let t = 0; t < 1; t += 1 / 60) {
+      p.update(1 / 60, {});
+      peak = Math.max(peak, a.head.pitch);
+    }
+    expect(peak).toBeGreaterThan(0.05);
+  });
+});

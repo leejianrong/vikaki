@@ -175,6 +175,52 @@ describe("the table page", () => {
     expect(xs[1]!).toBeLessThan(xs[2]!);
   });
 
+  it("makes the other seats look at whoever is speaking, and look ahead again when the line ends (VIK-58)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [, d2] } = await setup();
+    const looks = () => page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.look));
+    d2.say("x".repeat(60), "u1"); // 2.4 s
+    await page.waitForFunction(() => window.__vikaki!.table!.seats[0]!.look > 0.1, null, { timeout: 15_000 });
+    const [left, middle, right] = await looks();
+    expect(left!).toBeGreaterThan(0); // the seat to the speaker's left (screen left) turns toward the right
+    expect(right!).toBeLessThan(0);
+    expect(middle).toBe(0); // the speaker looks ahead
+    await d2.waitFor((m) => m.type === "speech_finished" && m.utterance_id === "u1");
+    await page.waitForFunction(() => window.__vikaki!.table!.seats.every((s) => Math.abs(s.look) < 0.02), null, { timeout: 15_000 });
+  });
+
+  it("shows a silent reaction on its seat only: a feeling for a moment, a shake of the head, and then rest (VIK-58)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [, d2] } = await setup();
+    d2.ws.send(JSON.stringify(make("react", { seat_id: "seat-2", emotion: "surprised", gesture: "shake", seconds: 1 })));
+    await page.waitForFunction(() => window.__vikaki!.table!.seats[1]!.symbol === "bang", null, { timeout: 15_000 });
+    const yaws = await page.evaluate(async () => {
+      const seen: number[] = [];
+      const end = performance.now() + 1200;
+      while (performance.now() < end) {
+        seen.push(window.__vikaki!.table!.seats[1]!.yaw);
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return seen;
+    });
+    expect(Math.max(...yaws) - Math.min(...yaws)).toBeGreaterThan(0.08); // the head swung from side to side
+    const others = await seatsOf(page);
+    expect([others[0]!.symbol, others[2]!.symbol]).toEqual([null, null]); // only that seat reacted
+    await page.waitForFunction(() => window.__vikaki!.table!.seats[1]!.symbol === null, null, { timeout: 15_000 });
+  });
+
+  it("leaves a seat that is thinking, or speaking, as it is: a reaction does not talk over them (VIK-58)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1, , d3] } = await setup();
+    d3.send("turn_started");
+    await page.waitForFunction(() => window.__vikaki!.table!.seats[2]!.symbol === "dots", null, { timeout: 15_000 });
+    d3.ws.send(JSON.stringify(make("react", { seat_id: "seat-3", emotion: "happy", gesture: "nod" })));
+    d1.say("x".repeat(60), "u1", { emotion: "smug" });
+    await page.waitForFunction(() => window.__vikaki!.table!.seats[0]!.symbol !== null, null, { timeout: 15_000 });
+    d1.ws.send(JSON.stringify(make("react", { seat_id: "seat-1", emotion: "sad" })));
+    await page.waitForTimeout(600);
+    const symbols = (await seatsOf(page)).map((s) => s.symbol);
+    expect(symbols[2]).toBe("dots"); // still thinking
+    expect(symbols[0]).not.toBe("gloom"); // still the line's own feeling, not the reaction's
+  });
+
   it("plays `vikaki table-demo`'s scripted hand: each seat thinks, then speaks, in turn, on its own avatar", { timeout: 180_000 }, async () => {
     const { page } = await setup("seats=3", { width: 960, height: 540 }, false);
     // Watch the whole hand from inside the page: who has the mouth open, and who shows the thinking dots.

@@ -77,6 +77,10 @@ class Vikaki:
     def game_over(self, outcome: str, *, seat_id: str | None = None) -> None:
         self._run(self._client.game_over(outcome, seat_id=seat_id))
 
+    def react(self, seat_id: str, **kw: Any) -> None:
+        """See `VikakiClient.react`."""
+        self._run(self._client.react(seat_id, **kw))
+
     def table_state(self, seats: list[dict[str, Any]], **kw: Any) -> None:
         """See `VikakiClient.table_state`."""
         self._run(self._client.table_state(seats, **kw))

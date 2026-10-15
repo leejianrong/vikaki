@@ -9,7 +9,7 @@ from typing import Sequence
 
 from .llm import KEY_ENV, FakeLlm, Llm, LlmError, OpenRouterLlm, Usage, load_dotenv
 from .runner import HubVoice, PrintVoice, Voice, play_session
-from .table import TableError, build_agents, load_table
+from .table import TableError, build_agents, build_reactor, load_table
 
 # What `--fake-llm` says: no key, no cost, always legal moves ("call" is read as "check" when nothing is owed).
 DEMO_REPLIES = [
@@ -32,16 +32,20 @@ def _parser() -> argparse.ArgumentParser:
     play.add_argument("--token", default=os.environ.get("VIKAKI_TOKEN"), help="the hub's driver token, if it has one")
     play.add_argument("--no-hub", action="store_true", help="print the lines instead of speaking them")
     play.add_argument("--fake-llm", action="store_true", help=f"no model calls: a scripted stand-in (no {KEY_ENV} needed)")
+    play.add_argument("--no-reactions", action="store_true", help="the seats that are listening stay still (no silent reactions)")
     play.add_argument("--model", help="play every seat with this model instead of the table file's")
     play.add_argument("--base-url", help="another OpenAI-compatible endpoint (default: OpenRouter)")
     return p
 
 
-def _summary(agents: dict, out) -> None:
+def _summary(agents: dict, out, reactor=None) -> None:
     total = Usage()
     for seat, agent in agents.items():
         total.add(agent.usage)
         out(f"  {seat}: {agent.usage.calls} calls, {agent.usage.prompt_tokens}+{agent.usage.completion_tokens} tokens")
+    if isinstance(getattr(reactor, "usage", None), Usage):  # reactions asked a model: count them too
+        total.add(reactor.usage)
+        out(f"  reactions: {reactor.usage.calls} calls, {reactor.usage.prompt_tokens}+{reactor.usage.completion_tokens} tokens")
     cost = f", cost {total.cost:.4f} credits" if total.cost else ""
     out(f"model use: {total.calls} calls, {total.prompt_tokens}+{total.completion_tokens} tokens{cost}")
 
@@ -60,6 +64,7 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
         print(f"vikaki_poker: {err}", file=sys.stderr)
         return 2
     agents = build_agents(table, llm)
+    reactor = None if args.no_reactions else build_reactor(table, None if args.fake_llm else llm)
     own_voice = voice is None
     if voice is None:
         if args.no_hub:
@@ -72,12 +77,12 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
                 print(f"vikaki_poker: could not join the table at {args.url} ({code}). Is `pnpm serve --personas personas.table.example.yaml` running?", file=sys.stderr)
                 return 1
     try:
-        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=args.seed)
+        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=args.seed, reactor=reactor)
     finally:
         if own_voice and hasattr(voice, "close"):
             voice.close()  # type: ignore[union-attr]
     print("chips: " + ", ".join(f"{s} {n}" for s, n in session.stacks.items()))
-    _summary(agents, print)
+    _summary(agents, print, reactor)
     return 0
 
 

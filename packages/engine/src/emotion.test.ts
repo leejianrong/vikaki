@@ -190,3 +190,35 @@ describe("the thinking pose", () => {
     expect(settle(s, THINKING_TIMEOUT_SECONDS - 1).symbol).toBe("dots");
   });
 });
+
+describe("a silent reaction", () => {
+  const settle = (s: EmotionState, seconds: number) => {
+    for (let t = 0; t < seconds; t += 1 / 60) s.update(1 / 60);
+  };
+
+  it("shows the feeling for the time asked, then lets it go", () => {
+    const s = new EmotionState();
+    expect(s.react("surprised", 1, 1.5)).toBe(true);
+    settle(s, 1);
+    expect(s.emotion).toBe("surprised");
+    expect(s.pose.symbol).toBe("bang");
+    settle(s, 1.5);
+    expect(s.emotion).toBe("neutral");
+  });
+
+  it("does not interrupt a seat that is thinking: the thinking pose wins, and nothing is changed", () => {
+    const s = new EmotionState();
+    s.think(true);
+    expect(s.react("happy", 1, 1)).toBe(false);
+    expect(s.thinking).toBe(true);
+    expect(s.emotion).toBe("neutral");
+  });
+
+  it("a line starting ends it, as it ends any feeling", () => {
+    const s = new EmotionState();
+    s.react("worried", 1, 5);
+    s.set("happy", 1);
+    settle(s, 6);
+    expect(s.emotion).toBe("happy"); // the reaction's release did not take the line's feeling away
+  });
+});

@@ -2,6 +2,7 @@ import { AmbientLight, DirectionalLight, PerspectiveCamera, Scene, WebGLRenderer
 import { Blinker, idlePose, mulberry32 } from "./behaviour.ts";
 import { EmotionState } from "./emotion.ts";
 import { Gestures } from "./gestures.ts";
+import { ReactionMotion } from "./reaction.ts";
 import { frameFromEyeLevel } from "./framing.ts";
 import { VISEMES, type AvatarRenderer, type HeadPose, type SceneAvatar, type VisemeWeights } from "./renderer.ts";
 
@@ -55,6 +56,8 @@ export class Puppet {
   readonly emotion = new EmotionState();
   /** Nods, lifts and blinks answering the voice (mic mode). Feed it the cues from `ProsodyTracker`. */
   readonly gestures = new Gestures();
+  /** A silent seat's nods, shakes and tilts (`react`), and its turn toward the speaker. */
+  readonly reaction = new ReactionMotion();
   /** The head pose applied on the last update, in radians, and how much of it came from voice gestures. */
   head: HeadPose = { pitch: 0, yaw: 0, roll: 0 };
   gesture = { pitch: 0, roll: 0 };
@@ -90,12 +93,13 @@ export class Puppet {
     if (this.gestures.takeBlink()) this.blinker.trigger();
     this.blink = Math.max(this.blinker.update(dt), pose.squint);
     this.avatar.setBlink(this.blink);
+    const react = this.reaction.update(dt);
     const idle = this.sway ? idlePose(this.elapsed) : { pitch: 0, yaw: 0, roll: 0 };
     const tau = Math.PI * 2;
     this.head = {
-      pitch: idle.pitch + pose.pitch + gesture.pitch + pose.bob * 0.05 * Math.sin(tau * 1.8 * this.elapsed),
-      yaw: idle.yaw + pose.yaw + pose.shake * 0.03 * Math.sin(tau * 9 * this.elapsed),
-      roll: idle.roll + pose.roll + gesture.roll,
+      pitch: idle.pitch + pose.pitch + gesture.pitch + react.pitch + pose.bob * 0.05 * Math.sin(tau * 1.8 * this.elapsed),
+      yaw: idle.yaw + pose.yaw + react.yaw + pose.shake * 0.03 * Math.sin(tau * 9 * this.elapsed),
+      roll: idle.roll + pose.roll + gesture.roll + react.roll,
     };
     this.avatar.setHeadPose(this.head);
     this.avatar.update(dt);

@@ -427,6 +427,62 @@
         },
         "type": {
           "type": "string",
+          "const": "react"
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "persona": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "emotion": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "intensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "gesture": {
+          "type": "string",
+          "enum": [
+            "nod",
+            "shake",
+            "tilt"
+          ]
+        },
+        "seconds": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 10
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "seat_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
           "const": "speech_started"
         },
         "utterance_id": {

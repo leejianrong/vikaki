@@ -180,6 +180,23 @@ class VikakiClient:
         """`outcome` is `won`, `lost` or `drew`."""
         await self._send(make("game_over", outcome=outcome, seat_id=seat_id))
 
+    async def react(
+        self,
+        seat_id: str,
+        *,
+        emotion: str | None = None,
+        gesture: str | None = None,
+        intensity: float | None = None,
+        seconds: float | None = None,
+        persona: str | None = None,
+    ) -> None:
+        """A silent reaction: the seat shows `emotion` for `seconds` (default 1.5) and perhaps a `gesture` (`nod`, `shake` or `tilt`).
+
+        Nothing is spoken and nothing waits in the speech queue. Send `emotion`, `gesture` or both. It is ignored while that seat is speaking
+        or thinking. A seat driver may react only for its own seats.
+        """
+        await self._send(make("react", seat_id=seat_id, emotion=emotion, gesture=gesture, intensity=intensity, seconds=seconds, persona=persona))
+
     async def table_state(
         self,
         seats: list[dict[str, Any]],

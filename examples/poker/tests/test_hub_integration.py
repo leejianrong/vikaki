@@ -10,6 +10,7 @@ import os
 import pytest
 
 from vikaki_poker.llm import FakeLlm
+from vikaki_poker.reactions import MirrorReactor
 from vikaki_poker.runner import HubVoice, play_session
 from vikaki_poker.seat import SeatAgent
 
@@ -26,7 +27,7 @@ def test_a_hand_is_spoken_by_three_drivers_on_a_real_hub():
     }
     voice = HubVoice(URL, seats, line_timeout=30)
     try:
-        session = play_session(agents, voice, hands=1, stack=50, seed=3, out=lambda *_: None)
+        session = play_session(agents, voice, hands=1, stack=50, seed=3, out=lambda *_: None, reactor=MirrorReactor())  # the listeners react silently, through the real hub
         spoken = sum(len(r.hand.events) for r in session.results)
         heard = voice.lines_heard
     finally:

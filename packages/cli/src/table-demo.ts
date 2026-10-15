@@ -71,6 +71,16 @@ export function tableState(shown: Shown, turn?: 0 | 1 | 2) {
   });
 }
 
+/** How a listener answers a line's emotion, in silence (the same table the poker example's `MirrorReactor` uses). Plain speech draws none. */
+const ANSWERS: Record<string, { emotion: string; gesture: "nod" | "shake" | "tilt" }> = {
+  smug: { emotion: "worried", gesture: "tilt" },
+  happy: { emotion: "happy", gesture: "nod" },
+  worried: { emotion: "worried", gesture: "nod" },
+  sad: { emotion: "sad", gesture: "tilt" },
+  angry: { emotion: "surprised", gesture: "shake" },
+  surprised: { emotion: "surprised", gesture: "tilt" },
+};
+
 /** The table as the hand begins: everyone has 100 chips. */
 const START: Shown = { pot: 0, street: "preflop", board: [], stacks: [100, 100, 100], bets: [0, 0, 0] };
 
@@ -137,6 +147,12 @@ export async function playHand(o: HandOptions, io: Io): Promise<number> {
         }
       }
       client.send(tableState(beat.shown)); // once the line is said: the chips and cards it changed
+      const answer = ANSWERS[beat.emotion];
+      if (answer) {
+        TABLE_SEATS.forEach((listener, i) => {
+          if (i !== beat.seat) clients[i]!.send(make("react", { seat_id: listener.seat_id, emotion: answer.emotion, gesture: answer.gesture })); // each listener, for its own seat
+        });
+      }
     }
     clients[0]!.send(make("game_over", { outcome: "won", seat_id: TABLE_SEATS[0].seat_id }));
     clients[1]!.send(make("game_over", { outcome: "lost", seat_id: TABLE_SEATS[1].seat_id }));

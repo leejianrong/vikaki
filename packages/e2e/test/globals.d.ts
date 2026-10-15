@@ -24,7 +24,7 @@ interface Window {
     emotionPose?: EmotionPose;
     presetPose?: (emotion: string, intensity: number) => EmotionPose;
     live?: { state: string; soundBlocked: boolean; events: string[] };
-    table?: { seats: { seat: string; persona?: string; avatarUrl: string; x: number; visemes: Record<string, number>; symbol: string | null }[] };
+    table?: { seats: { seat: string; persona?: string; avatarUrl: string; x: number; visemes: Record<string, number>; symbol: string | null; look: number; yaw: number; pitch: number; roll: number }[] };
   };
 }
 

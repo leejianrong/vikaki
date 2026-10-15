@@ -193,3 +193,23 @@ describe("table_state", () => {
     expect(parseMessage({ ...state, board: ["As", "Td", "7c", "2h", "3h", "4h", "5h", "6h", "9h", "9d", "9s"] }).ok).toBe(false);
   });
 });
+
+describe("react", () => {
+  it("is sent by a driver: a seat's emotion, with an optional gesture and hold time, and no speech", () => {
+    expect(DRIVER_MAY_SEND).toContain("react");
+    expect(parseMessage({ protocol_version: 1, type: "react", seat_id: "seat-2", emotion: "surprised", gesture: "shake", seconds: 2 })).toMatchObject({
+      ok: true,
+      message: { type: "react", seat_id: "seat-2", emotion: "surprised", gesture: "shake", seconds: 2 },
+    });
+    expect(parseMessage({ protocol_version: 1, type: "react", seat_id: "seat-2", emotion: "happy" }).ok).toBe(true);
+    expect(parseMessage({ protocol_version: 1, type: "react", seat_id: "seat-2", gesture: "nod" }).ok).toBe(true); // a nod alone is a reaction
+  });
+
+  it("needs a seat and something to show, and refuses an unknown gesture or a hold time that is not a short wait", () => {
+    expect(parseMessage({ protocol_version: 1, type: "react", emotion: "happy" }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "react", seat_id: "s" }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "react", seat_id: "s", gesture: "dance" }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "react", seat_id: "s", emotion: "happy", seconds: 0 }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "react", seat_id: "s", emotion: "happy", seconds: 60 }).ok).toBe(false);
+  });
+});
