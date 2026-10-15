@@ -7,10 +7,12 @@ talks one at a time), and then the engine applies the action. `Voice` is where t
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from .hand import Hand, IllegalAction
+from .reactions import Reaction, Reactor
 from .seat import SeatAgent
 
 
@@ -20,6 +22,7 @@ class Voice(Protocol):
         """Speak one line and return when it has been heard (or could not be)."""
         ...
     def turn_ended(self, seat_id: str) -> None: ...
+    # A voice may also have `react(seat_id, reaction)`, a silent reaction; one that lacks it just shows none (see `_react`).
 
 
 class PrintVoice:
@@ -36,6 +39,9 @@ class PrintVoice:
 
     def turn_ended(self, seat_id: str) -> None:
         pass
+
+    def react(self, seat_id: str, reaction: Reaction) -> None:
+        self._out(f"    {seat_id} reacts: {reaction.emotion or '-'}" + (f", {reaction.gesture}" if reaction.gesture else ""))
 
 
 class HubVoice:
@@ -73,6 +79,14 @@ class HubVoice:
     def turn_ended(self, seat_id: str) -> None:
         self._clients[seat_id].turn_ended(seat_id)
 
+    def react(self, seat_id: str, reaction: Reaction) -> None:
+        from vikaki_client import HubError
+
+        try:
+            self._clients[seat_id].react(seat_id, emotion=reaction.emotion, gesture=reaction.gesture, seconds=reaction.seconds)
+        except HubError as err:  # a reaction is a garnish: say so and carry on
+            self._on_problem(f"  (could not react for {seat_id}: {err.code})")
+
     def close(self) -> None:
         for client in self._clients.values():
             client.close()
@@ -85,8 +99,38 @@ class HandResult:
     log: list[str] = field(default_factory=list)
 
 
-def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None] = print) -> HandResult:
-    """Play `hand` to the end. `talk` is the table's recent chat, shared by all seats; lines spoken here are added to it."""
+def _decide_reactions(reactor: Reactor, pool: ThreadPoolExecutor, speaker: str, listeners: list[str], text: str, emotion: str | None) -> list:
+    """Start each listener's reaction at once, so cheap model calls run while the line is being spoken."""
+
+    def one(listener: str) -> Reaction | None:
+        try:
+            return reactor.react(listener, speaker, text, emotion)
+        except Exception:  # a reactor that breaks must not stall the table
+            return None
+
+    return [(listener, pool.submit(one, listener)) for listener in listeners]
+
+
+def _react(voice: Voice, pending: list) -> None:
+    """Send what the listeners decided, in seat order. A voice with no `react` shows none."""
+    send = getattr(voice, "react", None)
+    for listener, future in pending:
+        reaction = future.result()
+        if reaction is not None and send is not None:
+            send(listener, reaction)
+
+
+def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None] = print, reactor: Reactor | None = None) -> HandResult:
+    """Play `hand` to the end. `talk` is the table's recent chat, shared by all seats; lines spoken here are added to it.
+
+    With a `reactor`, every other seat reacts silently to each line: the reactions are decided while the line is spoken and sent as soon
+    as it has been heard (VIK-58).
+    """
+    with ThreadPoolExecutor(max_workers=max(1, len(agents))) as pool:
+        return _play_hand(hand, agents, voice, talk, out, reactor, pool)
+
+
+def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor) -> HandResult:
     result = HandResult(hand)
 
     def note(line: str) -> None:
@@ -102,7 +146,9 @@ def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list
         decision = agent.decide(hand.view(seat), talk)
         if decision.say:
             talk.append((seat, decision.say))
+            pending = _decide_reactions(reactor, pool, seat, [s for s in agents if s != seat], decision.say, decision.emotion) if reactor else []
             voice.say(seat, decision.say, decision.emotion)
+            _react(voice, pending)
         voice.turn_ended(seat)
         street = hand.street  # the street the move was made on (acting can end it)
         try:
@@ -127,7 +173,7 @@ class Session:
     results: list[HandResult] = field(default_factory=list)
 
 
-def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stack: int = 200, small_blind: int = 1, big_blind: int = 2, seed: int = 0, out: Callable[[str], None] = print) -> Session:
+def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stack: int = 200, small_blind: int = 1, big_blind: int = 2, seed: int = 0, out: Callable[[str], None] = print, reactor: Reactor | None = None) -> Session:
     """Deal up to `hands` hands, moving the button each time and dropping players who run out of chips. The same `seed` deals the same cards."""
     order = list(agents)
     session = Session({s: stack for s in order})
@@ -139,7 +185,7 @@ def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stac
             break
         out(f"--- hand {n + 1}: " + ", ".join(f"{s} {session.stacks[s]}" for s in alive))
         hand = Hand([(s, session.stacks[s]) for s in alive], button % len(alive), small_blind, big_blind, seed=seed + n)
-        session.results.append(play_hand(hand, agents, voice, talk, out))
+        session.results.append(play_hand(hand, agents, voice, talk, out, reactor))
         session.stacks.update(hand.final_stacks())
         session.hands_played += 1
         button += 1

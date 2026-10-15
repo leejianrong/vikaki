@@ -121,3 +121,17 @@ export function addToTranscript(lines: TranscriptLine[], m: { id: string; seat: 
   const next = at < 0 ? [...lines, { id: m.id, seat: m.seat, text: piece }] : lines.map((l, i) => (i === at ? { ...l, text: m.text !== undefined ? piece : l.text + piece } : l));
   return next.slice(-max);
 }
+
+/** The most a head turns to look at a neighbour (radians, about 25 degrees): a glance, not a face turned away from the camera. */
+export const MAX_LOOK = 0.45;
+
+/**
+ * The head yaw that looks from a seat at `fromX` to a speaker at `toX` (metres across the table). Positive turns toward larger x, which
+ * is the right of the screen. It grows with the gap and tops out at `MAX_LOOK`, so a neighbour gets a small turn and the far end of
+ * a wide table the full one. Nobody looks at themselves.
+ */
+export function lookYaw(fromX: number, toX: number): number {
+  const dx = toX - fromX;
+  if (Math.abs(dx) < 1e-6) return 0;
+  return Math.sign(dx) * Math.min(MAX_LOOK, Math.atan2(Math.abs(dx), 3));
+}

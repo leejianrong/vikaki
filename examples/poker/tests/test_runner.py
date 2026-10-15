@@ -167,3 +167,107 @@ def test_a_bad_table_file_is_a_clean_error(monkeypatch, tmp_path, capsys):
     monkeypatch.chdir(tmp_path)
     assert main(["play", "--table", str(tmp_path / "nope.yaml"), "--fake-llm", "--no-hub"]) == 2
     assert "cannot read" in capsys.readouterr().err
+
+
+# ---- silent reactions (VIK-58) ----
+
+from vikaki_poker.reactions import ANSWERS, LlmReactor, MirrorReactor, Reaction, parse_reaction  # noqa: E402
+from vikaki_poker.llm import LlmError  # noqa: E402
+
+
+class ReactingVoice(RecordingVoice):
+    def react(self, seat_id, reaction):
+        self.calls.append(("react", seat_id, reaction.emotion, reaction.gesture))
+
+
+def smug_calls(seats=("a", "b", "c")):
+    say = json.dumps({"action": "call", "say": "Mine.", "emotion": "smug"})
+    return agents_that(*[(s, [say]) for s in seats])
+
+
+def test_mirror_reactor_answers_an_emotion_and_stays_still_for_neutral_speech_or_itself():
+    r = MirrorReactor()
+    assert r.react("b", "a", "Mine.", "smug") == ANSWERS["smug"]
+    assert r.react("b", "a", "Mine.", None) is None
+    assert r.react("b", "a", "Mine.", "neutral") is None
+    assert r.react("a", "a", "Mine.", "smug") is None  # nobody reacts to themselves
+    assert all(a.emotion in ("worried", "happy", "sad", "surprised") for a in ANSWERS.values())
+
+
+def test_every_listener_reacts_to_a_line_after_it_is_heard_and_the_speaker_does_not():
+    voice = ReactingVoice()
+    play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), smug_calls(), voice, [], out=quiet, reactor=MirrorReactor())
+    i = voice.calls.index(("say", "a", "Mine.", "smug"))
+    assert voice.calls[i + 1 : i + 3] == [("react", "b", "worried", "tilt"), ("react", "c", "worried", "tilt")]  # right after the line, in seat order
+    assert not any(c[:2] == ("react", "a") for c in voice.calls[i + 1 : i + 3])  # the speaker does not react to its own line
+    assert ("end", "a") in voice.calls[i + 3 :]
+
+
+def test_without_a_reactor_or_with_a_voice_that_cannot_react_nothing_changes():
+    voice = ReactingVoice()
+    play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), smug_calls(), voice, [], out=quiet)
+    assert not [c for c in voice.calls if c[0] == "react"]
+    plain = RecordingVoice()  # has no `react` at all
+    play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), smug_calls(), plain, [], out=quiet, reactor=MirrorReactor())
+    assert [c[0] for c in plain.calls][:3] == ["start", "say", "end"]
+
+
+def test_a_reactor_that_breaks_does_not_stall_the_table():
+    class Broken:
+        def react(self, *a):
+            raise RuntimeError("boom")
+
+    voice = ReactingVoice()
+    hand = Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4)
+    play_hand(hand, smug_calls(), voice, [], out=quiet, reactor=Broken())
+    assert hand.complete and not [c for c in voice.calls if c[0] == "react"]
+
+
+def test_parse_reaction_reads_a_reply_and_returns_none_for_anything_unusable_or_still():
+    assert parse_reaction('{"emotion": "happy", "gesture": "nod"}') == Reaction("happy", "nod")
+    assert parse_reaction('```json\n{"emotion": "surprised", "gesture": "none"}\n```') == Reaction("surprised", None)
+    assert parse_reaction('{"emotion": "neutral", "gesture": "shake"}') == Reaction(None, "shake")
+    assert parse_reaction('{"emotion": "neutral", "gesture": "none"}') is None
+    assert parse_reaction('{"emotion": "ecstatic", "gesture": "dance"}') is None
+    assert parse_reaction("I would smile.") is None
+
+
+def test_the_model_reactor_asks_each_listener_in_character_and_counts_the_cost():
+    llm = FakeLlm(['{"emotion": "worried", "gesture": "tilt"}'])
+    r = LlmReactor(llm, "cheap-model", {"a": ("ada", "warm"), "b": ("ben", "nervous")})
+    assert r.react("b", "a", "I raise!", "smug") == Reaction("worried", "tilt")
+    req = llm.requests[0]
+    assert req["model"] == "cheap-model" and req["max_tokens"] == 40
+    assert "ben" in req["messages"][0]["content"] and "nervous" in req["messages"][0]["content"]
+    assert 'ada just said: "I raise!" (looking smug)' in req["messages"][1]["content"]
+    assert r.usage.calls == 1
+    assert r.react("a", "a", "I raise!", "smug") is None and len(llm.requests) == 1  # it does not ask a seat about its own line
+
+
+def test_a_model_that_fails_means_no_reaction():
+    class Down:
+        def complete(self, *a, **k):
+            raise LlmError("down")
+
+    assert LlmReactor(Down(), "m", {}).react("b", "a", "hi", None) is None
+
+
+def test_the_dry_run_command_reacts_by_default_and_not_with_no_reactions(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "1"]) == 0
+    assert "reacts:" in capsys.readouterr().out
+    assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "1", "--no-reactions"]) == 0
+    assert "reacts:" not in capsys.readouterr().out
+
+
+def test_a_table_file_may_name_a_reaction_model(tmp_path):
+    from vikaki_poker.table import build_reactor
+
+    text = open(TABLE, encoding="utf-8").read()
+    path = tmp_path / "t.yaml"
+    path.write_text(text.replace("# reaction_model: deepseek/deepseek-chat", "reaction_model: tiny").replace("personas_file: ../../", f"personas_file: {os.path.abspath(os.path.join(HERE, '..', '..', '..'))}/"), encoding="utf-8")
+    table = load_table(str(path))
+    assert table.reaction_model == "tiny"
+    assert isinstance(build_reactor(table, FakeLlm(["{}"])), LlmReactor)
+    assert isinstance(build_reactor(table, None), MirrorReactor)  # no model to ask: the fixed table
+    assert isinstance(build_reactor(load_table(TABLE), FakeLlm(["{}"])), MirrorReactor)

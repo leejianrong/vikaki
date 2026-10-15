@@ -116,6 +116,18 @@ describe("what a seat driver may send", () => {
     expect(viewer.inbox[0]).toEqual(state);
   });
 
+  it("may react silently for its own seats only, and the seat's persona is filled in (VIK-58)", async () => {
+    server = await startServer({ staticDir: dir });
+    const viewer = track(await Client.join(server.wsUrl, "viewer"));
+    await viewer.next();
+    const a = await seatDriver(server.wsUrl, { seat_id: "A", persona: "ada" });
+    a.d.send(make("react", { seat_id: "B", emotion: "happy" }));
+    expect(await a.d.next()).toMatchObject({ type: "error", code: "not_allowed" });
+    a.d.send(make("react", { seat_id: "A", emotion: "surprised", gesture: "shake" }));
+    await until(() => viewer.inbox.length === 1);
+    expect(viewer.inbox[0]).toMatchObject({ type: "react", seat_id: "A", persona: "ada", emotion: "surprised", gesture: "shake" });
+  });
+
   it("gets the seat's persona filled in on its lines and turns, unless it names another", async () => {
     server = await startServer({ staticDir: dir });
     const viewer = track(await Client.join(server.wsUrl, "viewer"));

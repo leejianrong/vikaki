@@ -57,6 +57,15 @@ def test_table_state_goes_out_with_only_what_was_set(hub):
     assert hub.wait_received(2)[1] == {"protocol_version": 1, "type": "table_state", "seats": [{"seat_id": "s", "stack": 50}], "pot": 5, "turn": "s"}
 
 
+def test_react_goes_out_with_only_what_was_set(hub):
+    async def go():
+        async with await VikakiClient.connect(hub.url) as c:
+            await c.react("s", gesture="shake", seconds=1)
+
+    run(go())
+    assert hub.wait_received(2)[1] == {"protocol_version": 1, "type": "react", "seat_id": "s", "gesture": "shake", "seconds": 1}
+
+
 def test_cancel_with_and_without_an_id(hub):
     async def go():
         async with await VikakiClient.connect(hub.url) as c:

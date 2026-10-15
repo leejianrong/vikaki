@@ -83,6 +83,18 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `turn` | string | no | 1 to 128 characters |
 | `seats` | list of object | yes | at most 16 items |
 
+## `react`
+
+| field | type | required | bounds |
+| --- | --- | --- | --- |
+| `session_id` | string | no | 1 to 128 characters |
+| `seat_id` | string | yes | 1 to 128 characters |
+| `persona` | string | no | 1 to 64 characters |
+| `emotion` | string | no | at most 32 characters |
+| `intensity` | number | no | 0 to 1 |
+| `gesture` | one of `nod`, `shake`, `tilt` | no |  |
+| `seconds` | number | no | 0.2 to 10 |
+
 ## `speech_started`
 
 | field | type | required | bounds |

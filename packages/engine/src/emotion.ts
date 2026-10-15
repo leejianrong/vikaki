@@ -111,6 +111,14 @@ export class EmotionState {
     this.thinkingLeft = THINKING_TIMEOUT_SECONDS;
   }
 
+  /** A silent reaction: show `emotion` for `seconds`, then let it go. Refused (false) while a turn is on: the thinking pose wins. */
+  react(emotion: string | undefined, intensity: number | undefined, seconds: number): boolean {
+    if (this.thinkingLeft !== null) return false;
+    this.set(emotion, intensity);
+    this.release(seconds);
+    return true;
+  }
+
   /** Go back to neutral after `seconds`. A later `set` cancels it. */
   release(seconds: number): void {
     this.releaseIn = Math.max(0, seconds);

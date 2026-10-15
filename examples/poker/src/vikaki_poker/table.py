@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import yaml
 
 from .llm import Llm
+from .reactions import LlmReactor, MirrorReactor, Reactor
 from .seat import SeatAgent
 
 
@@ -34,6 +35,7 @@ class Table:
     small_blind: int = 1
     big_blind: int = 2
     max_tokens: int = 200
+    reaction_model: str | None = None  # a cheap model for listeners' silent reactions; without one they follow a fixed table (MirrorReactor)
     problems: list[str] = field(default_factory=list)
 
     def personas(self) -> dict[str, str]:
@@ -81,9 +83,20 @@ def load_table(path: str, *, default_model: str | None = None) -> Table:
             if not isinstance(data[key], int) or isinstance(data[key], bool) or data[key] <= 0:
                 raise TableError(f"`{key}` must be a positive whole number")
             setattr(table, key, data[key])
+    if data.get("reaction_model") is not None:
+        if not isinstance(data["reaction_model"], str) or not data["reaction_model"].strip():
+            raise TableError("`reaction_model` must be a model id")
+        table.reaction_model = data["reaction_model"].strip()
     if table.small_blind > table.big_blind:
         raise TableError("small_blind cannot be larger than big_blind")
     return table
+
+
+def build_reactor(table: Table, llm: Llm | None) -> Reactor:
+    """Listeners ask `reaction_model` when the table names one and there is an LLM; otherwise they follow the fixed `MirrorReactor` table."""
+    if table.reaction_model and llm is not None:
+        return LlmReactor(llm, table.reaction_model, {s.seat_id: (s.persona, s.style) for s in table.seats})
+    return MirrorReactor()
 
 
 def build_agents(table: Table, llm: Llm) -> dict[str, SeatAgent]:

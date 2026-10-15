@@ -26,9 +26,10 @@ def _validator() -> Draft202012Validator:
 
 
 def validate(message: dict[str, Any]) -> None:
-    """Raise `InvalidMessage` unless `message` is allowed by the schema and by the two rules the schema cannot say.
+    """Raise `InvalidMessage` unless `message` is allowed by the schema and by the rules the schema cannot say.
 
-    The rules: an `utterance` has exactly one of `text` or `delta`, and `final` only goes with `delta`.
+    The rules: an `utterance` has exactly one of `text` or `delta`, and `final` only goes with `delta`; a `react` has an `emotion`, a `gesture`
+    or both; a `table_state` lists each seat once.
     """
     errors = sorted(_validator().iter_errors(message), key=lambda e: list(e.path))
     if errors:
@@ -41,6 +42,12 @@ def validate(message: dict[str, Any]) -> None:
             raise InvalidMessage("invalid utterance: send exactly one of `text` or `delta`")
         if "final" in message and "delta" not in message:
             raise InvalidMessage("invalid utterance: `final` only goes with `delta`")
+    if message.get("type") == "react" and "emotion" not in message and "gesture" not in message:
+        raise InvalidMessage("invalid react: send an `emotion`, a `gesture`, or both")
+    if message.get("type") == "table_state":
+        ids = [s.get("seat_id") for s in message.get("seats", [])]
+        if len(set(ids)) != len(ids):
+            raise InvalidMessage("invalid table_state: a seat is listed twice")
 
 
 def _best_detail(message: dict[str, Any]) -> str:

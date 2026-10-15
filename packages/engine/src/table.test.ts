@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addToTranscript, cardFace, frameRow, layoutRow, parseSeats, seatFor } from "./table.ts";
+import { addToTranscript, cardFace, frameRow, layoutRow, lookYaw, MAX_LOOK, parseSeats, seatFor } from "./table.ts";
 
 describe("parseSeats", () => {
   it("a number makes that many seats, named seat-1 to seat-N, with the hub's personas in order", () => {
@@ -128,5 +128,19 @@ describe("addToTranscript", () => {
     const t = ["b", "c", "d"].reduce((acc, id) => addToTranscript(acc, { id, seat: "s", text: id }), first);
     expect(t.map((l) => l.id)).toEqual(["b", "c", "d"]);
     expect(first).toEqual([{ id: "a", seat: "s", text: "one" }]);
+  });
+});
+
+describe("lookYaw", () => {
+  it("turns toward the speaker: positive for one to the right, negative for one to the left, none for oneself", () => {
+    expect(lookYaw(0, 0.8)).toBeGreaterThan(0);
+    expect(lookYaw(0.8, 0)).toBeLessThan(0);
+    expect(lookYaw(0.5, 0.5)).toBe(0);
+    expect(lookYaw(0, 0.8)).toBeCloseTo(-lookYaw(0.8, 0), 10);
+  });
+
+  it("turns further for a speaker further away, and never past a glance", () => {
+    expect(lookYaw(0, 0.8)).toBeGreaterThan(lookYaw(0, 0.4));
+    expect(lookYaw(0, 100)).toBe(MAX_LOOK);
   });
 });

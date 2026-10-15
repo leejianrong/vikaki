@@ -8,6 +8,9 @@ export const EMOTIONS = ["neutral", "happy", "smug", "worried", "surprised", "sa
 export type Emotion = (typeof EMOTIONS)[number];
 
 export const UTTERANCE_KINDS = ["banter", "clue", "table_talk"] as const;
+/** What a seat can do with its head when it reacts without speaking. */
+export const GESTURES = ["nod", "shake", "tilt"] as const;
+export type Gesture = (typeof GESTURES)[number];
 export const OUTCOMES = ["won", "lost", "drew"] as const;
 export const INTERRUPT_REASONS = ["cancelled", "superseded", "human_spoke", "driver_disconnected"] as const;
 export const ERROR_CODES = [
@@ -125,6 +128,25 @@ export const TableState = z
   })
   .refine((m) => new Set(m.seats.map((s) => s.seat_id)).size === m.seats.length, { message: "a seat is listed twice" });
 
+/**
+ * A silent reaction (ADR-0018, VIK-58): a seat shows a feeling and perhaps nods, shakes its head or tilts it, without speaking, so it need not
+ * wait in the speech queue behind whoever is talking. The feeling is one of the seven emotions (an unknown one shows as `neutral`, as on a line),
+ * held for `seconds` (default 1.5) and then eased away. Send `emotion`, `gesture` or both. It is ignored while that seat is speaking or
+ * thinking: a line's own feeling and a turn's thinking pose win. `persona` is filled in from the seat, as for turns.
+ */
+export const React = z
+  .object({
+    ...common,
+    type: z.literal("react"),
+    seat_id: id,
+    persona: z.string().min(1).max(64).optional(),
+    emotion: z.string().max(32).optional(),
+    intensity: z.number().min(0).max(1).optional(),
+    gesture: z.enum(GESTURES).optional(),
+    seconds: z.number().min(0.2).max(10).optional(),
+  })
+  .refine((m) => m.emotion !== undefined || m.gesture !== undefined, { message: "send an `emotion`, a `gesture`, or both" });
+
 // ---- back to the driver, reported by whoever plays the audio ----
 
 export const SpeechStarted = z.object({ ...common, type: z.literal("speech_started"), utterance_id: id, seat_id: id.optional() });
@@ -189,6 +211,7 @@ export const Message = z.discriminatedUnion("type", [
   TurnEnded,
   GameOver,
   TableState,
+  React,
   SpeechStarted,
   SpeechFinished,
   SpeechInterrupted,
@@ -200,7 +223,7 @@ export type MessageType = Message["type"];
 export type MessageOf<T extends MessageType> = Extract<Message, { type: T }>;
 
 /** What each role may send after `hello`. The hub enforces this. `audio` is sent by the hub only. */
-export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state"];
+export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state", "react"];
 /** A controller is not a driver: it never holds the driver slot and may only stop speech (`vikaki cancel`). */
 export const CONTROLLER_MAY_SEND: readonly MessageType[] = ["cancel"];
 export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error"];

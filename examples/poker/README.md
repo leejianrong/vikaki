@@ -19,6 +19,8 @@ uv run --with ../../clients/python python -m vikaki_poker play --table table.exa
 
 Add `--no-hub` to print the lines instead of speaking them (no hub needed).
 
+The seats that are listening react silently to each line: a feeling and a nod, shake or tilt, sent as `react` events as soon as the line is heard. Without a model they follow a fixed table of how listeners tend to answer an emotion (free, and the same every time). Name a cheap model as `reaction_model` in the table file and each listener asks it instead, one short call per listener (counted in the summary). `--no-reactions` keeps the listeners still.
+
 ### With real models (OpenRouter)
 
 Put your key in a git-ignored `.env` in the folder you run from (or export it):
