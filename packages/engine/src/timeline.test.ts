@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentWord, FRAME_FIELDS, MOUTH_SHAPES, pieceWords, TimelineRecorder } from "./timeline.ts";
+import { currentWord, FRAME_FIELDS, MOUTH_SHAPES, pieceWords, TimelineRecorder, utteranceView } from "./timeline.ts";
 
 /** A recorder whose clock the test moves. The clock starts at 1000 so timeline time 0 is not the raw reading. */
 function make(options: ConstructorParameters<typeof TimelineRecorder>[0] = {}) {
@@ -194,5 +194,36 @@ describe("words", () => {
       rec.sentence("u", 1, "b", samples(0.5), 1000);
       expect(currentWord(rec.utterances(), 700)).toEqual({ utteranceId: "u", pieceIndex: 1, wordIndex: 0 });
     });
+  });
+});
+
+describe("the view of one utterance (VIK-63)", () => {
+  // A phrase of the microphone whose audio ends at 3000 ms, but whose `mic:finished` is stamped at 4200 ms: on a page that stalls (software
+  // WebGL on two shared cores) the chunk that shows the quiet has gone by arrives late, and the phrase is only finished then.
+  function phrase() {
+    const { rec, at } = make();
+    at(1000);
+    rec.event("mic:started", "mic-1");
+    rec.micAudio("mic-1", 2000, samples(2), 1000); // placed from 1000 ms to 3000 ms
+    at(4200);
+    rec.event("mic:finished", "mic-1");
+    rec.event("mic:started", "mic-2"); // a later phrase's own event
+    return rec;
+  }
+
+  it("takes in the utterance's own events even when they come well after its audio ends", () => {
+    const rec = phrase();
+    const view = utteranceView(rec.utterances()[0]!, rec.events());
+    expect(view.fromMs).toBeLessThanOrEqual(1000);
+    expect(view.toMs).toBeGreaterThanOrEqual(4200);
+    const json = rec.toJSON({ fromMs: view.fromMs, toMs: view.toMs });
+    expect(json.events.map((e) => e.kind)).toEqual(expect.arrayContaining(["mic:started", "mic:finished"]));
+  });
+
+  it("is not stretched by other utterances' events, and keeps its usual padding when it has none after its audio", () => {
+    const rec = phrase();
+    const view = utteranceView(rec.utterances()[0]!, rec.events().filter((e) => e.utteranceId !== "mic-1"));
+    expect(view.toMs).toBe(3000 + 600); // the end of the audio and the usual 600 ms
+    expect(view.originMs).toBe(1000);
   });
 });

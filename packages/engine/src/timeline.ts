@@ -51,6 +51,16 @@ export interface UtteranceTimeline {
 }
 
 /** A copy of the recorded frames in a time range, oldest first. Frame `i` is `data[i * FRAME_FIELDS ...]`. */
+/**
+ * The stretch of time to show for one utterance: a little before it starts, and to a little after it ends. Its own events count as part of
+ * it, so a `mic:finished` stamped after the last audio (the phrase is only finished when a later chunk shows the quiet, which a stalled page
+ * is slow to read) is not cut from the picture or the export.
+ */
+export function utteranceView(u: Pick<UtteranceTimeline, "id" | "startMs" | "endMs">, events: readonly TimelineEvent[]): { fromMs: number; toMs: number; originMs: number } {
+  const lastOwn = Math.max(-Infinity, ...events.filter((e) => e.utteranceId === u.id).map((e) => e.t));
+  return { fromMs: u.startMs - 300, toMs: Math.max(u.endMs, u.startMs + 500, lastOwn) + 600, originMs: u.startMs };
+}
+
 export interface FrameRange {
   count: number;
   t: Float64Array;

@@ -1,5 +1,5 @@
 import { drawTimeline, GUTTER, layoutLanes, readTheme, type Lane, type View } from "./timeline-draw.ts";
-import { MOUTH_SHAPES, FRAME_FIELDS, type TimelineRecorder, type UtteranceTimeline } from "./timeline.ts";
+import { MOUTH_SHAPES, FRAME_FIELDS, utteranceView, type TimelineRecorder, type UtteranceTimeline } from "./timeline.ts";
 import { attrs, el } from "./ui/dom.ts";
 
 /** The live view shows this much before "now" and this much after it (audio is scheduled a little ahead). */
@@ -57,7 +57,7 @@ export function mountTimeline(rec: TimelineRecorder): TimelineUi {
   const current = (): UtteranceTimeline | undefined => (mode === "live" ? undefined : rec.utterance(mode));
   const view = (): View => {
     const u = current();
-    if (u) return { fromMs: u.startMs - 300, toMs: Math.max(u.endMs, u.startMs + 500) + 600, originMs: u.startMs };
+    if (u) return utteranceView(u, rec.events());
     const now = rec.now();
     return { fromMs: now - LIVE_BEFORE_MS, toMs: now + LIVE_AFTER_MS, originMs: now, nowMs: now };
   };
