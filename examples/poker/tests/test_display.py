@@ -1,3 +1,5 @@
+import pytest
+
 from vikaki_poker import Hand
 from vikaki_poker.display import table_state
 
@@ -67,6 +69,7 @@ def test_a_hand_won_without_a_showdown_keeps_every_hand_hidden():
 
 
 def test_the_state_is_a_valid_table_state_message():
+    pytest.importorskip("vikaki_client")  # the poker example does not depend on the client; with it, the payload is checked against the schema
     from vikaki_client.messages import make
 
     h = fresh()
