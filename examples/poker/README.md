@@ -21,6 +21,8 @@ Add `--no-hub` to print the lines instead of speaking them (no hub needed).
 
 The seats that are listening react silently to each line: a feeling and a nod, shake or tilt, sent as `react` events as soon as the line is heard. Without a model they follow a fixed table of how listeners tend to answer an emotion (free, and the same every time). Name a cheap model as `reaction_model` in the table file and each listener asks it instead, one short call per listener (counted in the summary). `--no-reactions` keeps the listeners still.
 
+The page also shows the table (pot, board, stacks, bets, dealer button, whose turn it is) as a `table_state` the runner sends at the start of each hand and after every move. Hole cards are face down until a showdown; `--show-cards` turns every live hand face up all the time, which is fun for watching an LLM bluff. A folded hand is never shown.
+
 ### With real models (OpenRouter)
 
 Put your key in a git-ignored `.env` in the folder you run from (or export it):

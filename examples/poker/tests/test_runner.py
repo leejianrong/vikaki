@@ -271,3 +271,41 @@ def test_a_table_file_may_name_a_reaction_model(tmp_path):
     assert isinstance(build_reactor(table, FakeLlm(["{}"])), LlmReactor)
     assert isinstance(build_reactor(table, None), MirrorReactor)  # no model to ask: the fixed table
     assert isinstance(build_reactor(load_table(TABLE), FakeLlm(["{}"])), MirrorReactor)
+
+
+# ---- the table state for the overlay (VIK-61) ----
+
+
+class ShowingVoice(RecordingVoice):
+    def table_state(self, state):
+        self.calls.append(("table", state["turn"] if "turn" in state else None, state["street"], state["pot"]))
+
+
+def test_the_overlay_is_told_at_the_start_and_after_every_move_with_the_turn_marker_following_the_play():
+    agents = agents_that(("a", [json.dumps({"action": "call"})]), ("b", [json.dumps({"action": "call"})]), ("c", [json.dumps({"action": "check"})]))
+    voice = ShowingVoice()
+    hand = Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4)
+    play_hand(hand, agents, voice, [], out=quiet)
+    shown = [c for c in voice.calls if c[0] == "table"]
+    moves = [c for c in voice.calls if c[0] == "start"]
+    assert len(shown) == len(moves) + 1  # once at the start, then after each move
+    assert shown[0][1] == moves[0][1] and shown[0][2] == "preflop"  # the first state already points at who plays first
+    assert shown[-1][1] is None and shown[-1][3] == 0  # the last: nobody to act, the pot paid out
+    # the state after a move comes before the next seat's turn starts, so the marker is on the next player when they start thinking
+    for state, nxt in zip(shown[1:], moves[1:]):
+        assert state[1] == nxt[1]
+
+
+def test_the_voice_that_cannot_show_a_table_is_left_alone_and_show_cards_reaches_the_state():
+    plain = RecordingVoice()
+    play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), agents_that(("a", ["{}"]), ("b", ["{}"]), ("c", ["{}"])), plain, [], out=quiet)
+    assert plain.calls[0][0] == "start"  # no table_state method, no error
+
+    seen = []
+
+    class Spy(RecordingVoice):
+        def table_state(self, state):
+            seen.append(state)
+
+    play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), agents_that(("a", ["{}"]), ("b", ["{}"]), ("c", ["{}"])), Spy(), [], out=quiet, show_cards=True)
+    assert seen[0]["seats"][0]["cards"] != ["back", "back"]
