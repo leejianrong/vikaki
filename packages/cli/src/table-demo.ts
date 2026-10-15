@@ -9,6 +9,18 @@ export const TABLE_SEATS = [
   { seat_id: "seat-3", persona: "cy" },
 ] as const;
 
+/** What the table shows after a beat: the game's truth, which the demo script writes out and the page only draws (VIK-59). */
+interface Shown {
+  pot: number;
+  street: string;
+  board: string[];
+  stacks: [number, number, number];
+  bets: [number, number, number];
+  folded?: 0 | 1 | 2;
+  /** Show every hand face up, as at a showdown. */
+  reveal?: boolean;
+}
+
 interface Beat {
   /** Index into TABLE_SEATS. */
   seat: 0 | 1 | 2;
@@ -16,25 +28,51 @@ interface Beat {
   think?: number;
   say: string;
   emotion: string;
+  /** The table once this line is said. */
+  shown: Shown;
 }
 
 /** A short, friendly hand of poker: a raise, a call, a fold, a bluff that is not one. Nobody is rude. */
 const HAND: Beat[] = [
-  { seat: 0, think: 1.2, say: "Before the flop, I raise two chips.", emotion: "smug" },
-  { seat: 1, think: 1.6, say: "Hmm, two chips. I will call.", emotion: "worried" },
-  { seat: 2, think: 1.0, say: "That is too rich for me. I fold!", emotion: "sad" },
-  { seat: 0, think: 0.8, say: "The flop is an ace and two sevens. Lovely.", emotion: "happy" },
-  { seat: 1, think: 2.0, say: "Two sevens... is she bluffing? I check.", emotion: "worried" },
-  { seat: 0, think: 0.6, say: "I bet four chips.", emotion: "smug" },
-  { seat: 1, think: 1.8, say: "Okay, okay. I call. Let us see them.", emotion: "surprised" },
-  { seat: 0, say: "Three sevens! Thank you for the chips.", emotion: "happy" },
-  { seat: 1, say: "Oh no. Well played, ada.", emotion: "sad" },
+  { seat: 0, think: 1.2, say: "Before the flop, I raise two chips.", emotion: "smug", shown: { pot: 2, street: "preflop", board: [], stacks: [98, 100, 100], bets: [2, 0, 0] } },
+  { seat: 1, think: 1.6, say: "Hmm, two chips. I will call.", emotion: "worried", shown: { pot: 4, street: "preflop", board: [], stacks: [98, 98, 100], bets: [2, 2, 0] } },
+  { seat: 2, think: 1.0, say: "That is too rich for me. I fold!", emotion: "sad", shown: { pot: 4, street: "preflop", board: [], stacks: [98, 98, 100], bets: [2, 2, 0], folded: 2 } },
+  { seat: 0, think: 0.8, say: "The flop is an ace and two sevens. Lovely.", emotion: "happy", shown: { pot: 4, street: "flop", board: ["As", "7d", "7c"], stacks: [98, 98, 100], bets: [0, 0, 0], folded: 2 } },
+  { seat: 1, think: 2.0, say: "Two sevens... is she bluffing? I check.", emotion: "worried", shown: { pot: 4, street: "flop", board: ["As", "7d", "7c"], stacks: [98, 98, 100], bets: [0, 0, 0], folded: 2 } },
+  { seat: 0, think: 0.6, say: "I bet four chips.", emotion: "smug", shown: { pot: 8, street: "flop", board: ["As", "7d", "7c"], stacks: [94, 98, 100], bets: [4, 0, 0], folded: 2 } },
+  { seat: 1, think: 1.8, say: "Okay, okay. I call. Let us see them.", emotion: "surprised", shown: { pot: 12, street: "flop", board: ["As", "7d", "7c"], stacks: [94, 94, 100], bets: [4, 4, 0], folded: 2 } },
+  { seat: 0, say: "Three sevens! Thank you for the chips.", emotion: "happy", shown: { pot: 12, street: "showdown", board: ["As", "7d", "7c"], stacks: [94, 94, 100], bets: [0, 0, 0], folded: 2, reveal: true } },
+  { seat: 1, say: "Oh no. Well played, ada.", emotion: "sad", shown: { pot: 0, street: "showdown", board: ["As", "7d", "7c"], stacks: [106, 94, 100], bets: [0, 0, 0], folded: 2, reveal: true } },
 ];
 
 export interface HandOptions extends Target {
   /** Scales the thinking pauses: 1 is as written, 0 skips them (for tests). */
   pace?: number;
 }
+
+/** Hands at showdown: the demo's three seats reveal them, and the others stay face down. */
+const HOLE: [string[], string[], string[]] = [["7h", "Kd"], ["Qs", "Jc"], ["2c", "9h"]];
+
+/** The `table_state` message for a beat, with `turn` set to whoever is speaking (or nobody). */
+export function tableState(shown: Shown, turn?: 0 | 1 | 2) {
+  return make("table_state", {
+    pot: shown.pot,
+    street: shown.street,
+    board: shown.board,
+    dealer: TABLE_SEATS[0].seat_id,
+    ...(turn !== undefined ? { turn: TABLE_SEATS[turn].seat_id } : {}),
+    seats: TABLE_SEATS.map((seat, i) => ({
+      seat_id: seat.seat_id,
+      stack: shown.stacks[i]!,
+      ...(shown.bets[i] ? { bet: shown.bets[i] } : {}),
+      ...(shown.folded === i ? { folded: true } : {}),
+      cards: shown.reveal && shown.folded !== i ? HOLE[i]! : ["back", "back"],
+    })),
+  });
+}
+
+/** The table as the hand begins: everyone has 100 chips. */
+const START: Shown = { pot: 0, street: "preflop", board: [], stacks: [100, 100, 100], bets: [0, 0, 0] };
 
 const sleep = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
 
@@ -77,6 +115,8 @@ export async function playHand(o: HandOptions, io: Io): Promise<number> {
         client.send(make("turn_ended", { seat_id: seat.seat_id }));
       }
       const id = `hand-${++n}`;
+      const before = n > 1 ? HAND[n - 2]!.shown : START;
+      client.send(tableState(before, beat.seat)); // the turn marker moves to whoever is about to speak
       io.out(`${seat.seat_id} (${seat.persona}): ${beat.say}`);
       client.send(make("utterance", { seat_id: seat.seat_id, utterance_id: id, text: beat.say, emotion: beat.emotion })); // the hub fills in the persona
       for (;;) {
@@ -96,6 +136,7 @@ export async function playHand(o: HandOptions, io: Io): Promise<number> {
           return 1;
         }
       }
+      client.send(tableState(beat.shown)); // once the line is said: the chips and cards it changed
     }
     clients[0]!.send(make("game_over", { outcome: "won", seat_id: TABLE_SEATS[0].seat_id }));
     clients[1]!.send(make("game_over", { outcome: "lost", seat_id: TABLE_SEATS[1].seat_id }));

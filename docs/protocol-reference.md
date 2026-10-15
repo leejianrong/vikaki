@@ -71,6 +71,18 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `outcome` | one of `won`, `lost`, `drew` | yes |  |
 | `seat_id` | string | no | 1 to 128 characters |
 
+## `table_state`
+
+| field | type | required | bounds |
+| --- | --- | --- | --- |
+| `session_id` | string | no | 1 to 128 characters |
+| `pot` | number | no | at least 0 |
+| `street` | string | no | 1 to 32 characters |
+| `board` | list of string | no | at most 10 items, each 1 to 8 characters |
+| `dealer` | string | no | 1 to 128 characters |
+| `turn` | string | no | 1 to 128 characters |
+| `seats` | list of object | yes | at most 16 items |
+
 ## `speech_started`
 
 | field | type | required | bounds |

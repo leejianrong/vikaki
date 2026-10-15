@@ -41,4 +41,5 @@ Build it as an example on top of the engine, and add two small, additive pieces 
 - **Cost.** A hand with three seats and reactions is many calls. The token cap and the spend log are part of VIK-57, not afterthoughts.
 - **Two additive protocol messages** (`react`, `table_state`). After they land, run `pnpm --filter @vikaki/protocol schema` (it also updates the schema copy in `clients/python`). Old clients ignore events they do not know.
 - **The 3D look is a separate question.** Seated avatars with hands, cards and chips are a spike (VIK-60). If it changes the `AvatarRenderer` contract, it gets its own ADR.
-- **Open:** whether `table_state` should carry hidden hole cards for a spectator who may see them all (a "reveal" setting), and whether `react` should be limited to the seven emotions or take named poses.
+- **`table_state` shows cards as sent (VIK-59).** The page has no reveal setting: a game that wants hole cards hidden sends `back`, one that wants a spectator to see them sends the cards. Any driver may send it, so the game need not be a driver of the whole table.
+- **Open:** whether `react` should be limited to the seven emotions or take named poses.

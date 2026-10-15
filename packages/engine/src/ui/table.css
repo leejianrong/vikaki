@@ -1,0 +1,83 @@
+/* The table page's overlay (VIK-59): pot and board at the top, a plate under each avatar, a transcript strip at the bottom.
+   Material 3 colour roles from theme.css; type and shape from base.css. It sits over the canvas and takes no clicks. */
+.table-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: var(--md-sys-color-on-surface);
+  font: 400 0.875rem/1.25rem var(--md-ref-typeface-plain);
+}
+.table-overlay [hidden] { display: none; }
+
+.table-info {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: var(--shape-xl);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 92%, transparent);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent);
+}
+.table-info .pot { font: 500 1rem/1.5rem var(--md-ref-typeface-brand); }
+.table-info .street { padding: 2px 10px; border-radius: var(--shape-s); background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); font: 500 0.75rem/1rem var(--md-ref-typeface-plain); text-transform: capitalize; }
+
+.cards { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25em;
+  height: 2.75em;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: var(--shape-s);
+  background: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  font: 600 1rem/1 var(--md-ref-typeface-brand);
+}
+.card.red { color: var(--md-sys-color-error); }
+.card.down { background: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
+.seat-plate .card { min-width: 1.9em; height: 2.3em; font-size: 0.875rem; }
+
+.seat-plate {
+  position: absolute;
+  bottom: 84px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 112px;
+  padding: 8px 12px;
+  border-radius: var(--shape-l);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container) 92%, transparent);
+  border: 2px solid transparent;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent);
+  transition: border-color var(--dur-short3) var(--ease-standard), opacity var(--dur-medium2) var(--ease-standard);
+}
+.seat-plate[aria-current="true"] { border-color: var(--md-sys-color-primary); background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.seat-plate.folded { opacity: 0.55; }
+.seat-plate .name { font: 500 0.875rem/1.25rem var(--md-ref-typeface-brand); }
+.seat-plate .money { font: 400 0.75rem/1rem var(--md-ref-typeface-plain); color: var(--md-sys-color-on-surface-variant); }
+.seat-plate[aria-current="true"] .money { color: inherit; }
+.seat-plate .badge { position: absolute; top: -10px; right: -8px; width: 22px; height: 22px; border-radius: var(--shape-full); display: grid; place-items: center; background: var(--md-sys-color-tertiary); color: var(--md-sys-color-on-tertiary); font: 600 0.75rem/1 var(--md-ref-typeface-plain); }
+
+.transcript {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  width: min(640px, calc(100% - 24px));
+  padding: 8px 16px;
+  border-radius: var(--shape-l);
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 92%, transparent);
+}
+.transcript:empty { display: none; }
+.transcript p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.transcript b { font-weight: 600; margin-inline-end: 6px; color: var(--md-sys-color-primary); }

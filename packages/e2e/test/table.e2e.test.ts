@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { make } from "@vikaki/protocol";
 import { loadPersonas, startServer, type RunningServer } from "@vikaki/server";
 import { FakeTts } from "@vikaki/tts";
 import { SeatDriver, SEATS } from "./seat-driver.ts";
@@ -131,6 +132,47 @@ describe("the table page", () => {
     expect((await seatsOf(page)).map((s) => s.symbol)).toEqual([null, null, "dots"]);
     d3.send("turn_ended");
     await page.waitForFunction(() => window.__vikaki!.table!.seats[2]!.symbol === null, null, { timeout: 15_000 });
+  });
+
+  it("draws the game's table state: pot, board, a plate per seat with stack, bet, cards, dealer and turn, and the lines said (VIK-59)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1, d2] } = await setup();
+    d2.ws.send(
+      JSON.stringify(
+        make("table_state", {
+          pot: 1200,
+          street: "flop",
+          board: ["As", "Td", "7c"],
+          dealer: "seat-1",
+          turn: "seat-2",
+          seats: [
+            { seat_id: "seat-1", stack: 880, bet: 40, cards: ["Kh", "Qh"] },
+            { seat_id: "seat-2", stack: 940, cards: ["back", "back"] },
+            { seat_id: "seat-3", stack: 0, folded: true },
+          ],
+        }),
+      ),
+    );
+    const table = page.getByRole("region", { name: "Table" });
+    await table.getByText("Pot 1,200").waitFor({ timeout: 15_000 });
+    expect(await table.getByRole("list", { name: "Board" }).getByRole("listitem").allInnerTexts()).toEqual(["A♠", "10♦", "7♣"]);
+    const ada = page.getByRole("group", { name: "ada" });
+    expect(await ada.innerText()).toContain("Stack 880");
+    expect(await ada.innerText()).toContain("Bet 40");
+    expect(await ada.getByRole("listitem").allInnerTexts()).toEqual(["K♥", "Q♥"]);
+    await ada.getByLabel("Dealer").waitFor({ timeout: 15_000 });
+    const ben = page.getByRole("group", { name: "ben" });
+    expect(await ben.getAttribute("aria-current")).toBe("true"); // the turn marker
+    expect(await ada.getAttribute("aria-current")).toBeNull();
+    expect(await ben.getByLabel("face-down card").count()).toBe(2);
+    expect(await page.getByRole("group", { name: "cy" }).innerText()).toContain("Folded");
+
+    d1.say("Raise it is.", "t1");
+    await page.getByRole("log", { name: "Transcript" }).getByText("Raise it is.").waitFor({ timeout: 15_000 });
+    expect(await page.getByRole("log", { name: "Transcript" }).innerText()).toContain("ada");
+    // each plate sits under its own avatar, left to right
+    const xs = await Promise.all(["ada", "ben", "cy"].map(async (n) => (await page.getByRole("group", { name: n }).boundingBox())!.x));
+    expect(xs[0]!).toBeLessThan(xs[1]!);
+    expect(xs[1]!).toBeLessThan(xs[2]!);
   });
 
   it("plays `vikaki table-demo`'s scripted hand: each seat thinks, then speaks, in turn, on its own avatar", { timeout: 180_000 }, async () => {

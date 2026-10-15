@@ -161,3 +161,35 @@ describe("published JSON Schema", () => {
     expect(JSON.parse(committed)).toEqual(JSON.parse(JSON.stringify(jsonSchema())));
   });
 });
+
+describe("table_state", () => {
+  const state = {
+    protocol_version: 1,
+    type: "table_state",
+    pot: 120,
+    street: "flop",
+    board: ["As", "Td", "7c"],
+    dealer: "seat-1",
+    turn: "seat-2",
+    seats: [
+      { seat_id: "seat-1", stack: 880, bet: 40, cards: ["Kh", "Qh"] },
+      { seat_id: "seat-2", stack: 940, folded: true, cards: ["back", "back"] },
+    ],
+  };
+
+  it("is sent by a driver, and carries the pot, the board, the dealer, whose turn it is and each seat's stack", () => {
+    expect(DRIVER_MAY_SEND).toContain("table_state");
+    expect(parseMessage(state)).toMatchObject({ ok: true, message: { type: "table_state", pot: 120, board: ["As", "Td", "7c"], turn: "seat-2" } });
+  });
+
+  it("needs only the seats: the pot, board and the rest are optional, so a game that has no pot still works", () => {
+    expect(parseMessage({ protocol_version: 1, type: "table_state", seats: [{ seat_id: "a", stack: 5 }] }).ok).toBe(true);
+  });
+
+  it("refuses a negative pot or stack, a seat twice, and a board that is too long", () => {
+    expect(parseMessage({ ...state, pot: -1 }).ok).toBe(false);
+    expect(parseMessage({ ...state, seats: [{ seat_id: "a", stack: -5 }] }).ok).toBe(false);
+    expect(parseMessage({ ...state, seats: [{ seat_id: "a", stack: 1 }, { seat_id: "a", stack: 2 }] }).ok).toBe(false);
+    expect(parseMessage({ ...state, board: ["As", "Td", "7c", "2h", "3h", "4h", "5h", "6h", "9h", "9d", "9s"] }).ok).toBe(false);
+  });
+});

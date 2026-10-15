@@ -336,6 +336,97 @@
         },
         "type": {
           "type": "string",
+          "const": "table_state"
+        },
+        "pot": {
+          "type": "number",
+          "minimum": 0
+        },
+        "street": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "board": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8
+          }
+        },
+        "dealer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "turn": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "seats": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seat_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "stack": {
+                "type": "number",
+                "minimum": 0
+              },
+              "bet": {
+                "type": "number",
+                "minimum": 0
+              },
+              "folded": {
+                "type": "boolean"
+              },
+              "cards": {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8
+                }
+              }
+            },
+            "required": [
+              "seat_id",
+              "stack"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "seats"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
           "const": "speech_started"
         },
         "utterance_id": {

@@ -44,6 +44,9 @@ def test_the_error_names_the_field_at_fault():
 def test_other_messages_are_checked_too():
     make("turn_started", seat_id="s1", persona="ada")
     make("game_over", outcome="won", seat_id="s1")
+    make("table_state", seats=[{"seat_id": "s1", "stack": 90, "cards": ["As", "back"]}], pot=10, board=["Td"], turn="s1")
+    with pytest.raises(InvalidMessage):
+        make("table_state", seats=[{"seat_id": "s1", "stack": -1}])
     with pytest.raises(InvalidMessage):
         make("game_over", outcome="tied")
     with pytest.raises(InvalidMessage):

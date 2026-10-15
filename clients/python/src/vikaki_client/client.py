@@ -180,6 +180,23 @@ class VikakiClient:
         """`outcome` is `won`, `lost` or `drew`."""
         await self._send(make("game_over", outcome=outcome, seat_id=seat_id))
 
+    async def table_state(
+        self,
+        seats: list[dict[str, Any]],
+        *,
+        pot: float | None = None,
+        street: str | None = None,
+        board: list[str] | None = None,
+        dealer: str | None = None,
+        turn: str | None = None,
+    ) -> None:
+        """The state of the table, for the table page's overlay. Send the whole state each time it changes.
+
+        Each seat is `{"seat_id": ..., "stack": ...}` with optional `bet`, `folded` and `cards`. Cards are the game's short names
+        (`"As"`, `"Td"`) or `"back"` for one face down, and are shown as sent. Any driver may send it; the last one wins.
+        """
+        await self._send(make("table_state", seats=seats, pot=pot, street=street, board=board, dealer=dealer, turn=turn))
+
     async def _send(self, message: Event) -> None:
         try:
             await self._ws.send(json.dumps(message))
