@@ -5,6 +5,14 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # These move together: a lone Playwright bump fails the e2e typecheck (VIK-74).
+      playwright:
+        patterns:
+          - playwright
+          - playwright-core
+          - "@playwright/*"
+          - "@axe-core/playwright"
   - package-ecosystem: github-actions
     directory: /
     schedule:
