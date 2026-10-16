@@ -33,8 +33,12 @@ export class Blinker {
   private sinceStart: number | null = null;
   private closedShown = false;
 
-  constructor(private readonly rng: Rng) {
-    this.untilNext = between(rng, FIRST_BLINK.min, FIRST_BLINK.max);
+  /** `auto` false never blinks on its own, only when `trigger()`ed (`?still=1`). */
+  constructor(
+    private readonly rng: Rng,
+    private readonly auto = true,
+  ) {
+    this.untilNext = auto ? between(rng, FIRST_BLINK.min, FIRST_BLINK.max) : Infinity;
   }
 
   /** Start a blink now (the demo's "blink" button). No effect if one is already running. */
@@ -61,7 +65,7 @@ export class Blinker {
     }
     if (t >= BLINK_SECONDS) {
       this.sinceStart = null;
-      this.untilNext = between(this.rng, BLINK_INTERVAL.min, BLINK_INTERVAL.max);
+      this.untilNext = this.auto ? between(this.rng, BLINK_INTERVAL.min, BLINK_INTERVAL.max) : Infinity;
       return 0;
     }
     if (t < CLOSE_SECONDS) return t / CLOSE_SECONDS;
