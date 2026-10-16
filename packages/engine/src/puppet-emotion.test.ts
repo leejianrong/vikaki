@@ -129,9 +129,27 @@ describe("Puppet with sway off", () => {
     expect(poses[0]).toEqual({ pitch: 0, yaw: 0, roll: 0 });
   });
 
-  it("still lets an emotion move the head", () => {
+  it("does not blink on its own either, or two pictures of a quiet avatar differ by an eyelid (VIK-76)", () => {
     const a = new FakeAvatar();
     const p = new Puppet(a, 1, false);
+    let most = 0;
+    for (let t = 0; t < 60; t += 1 / 60) {
+      p.update(1 / 60, {});
+      most = Math.max(most, a.blink);
+    }
+    expect(most).toBe(0);
+    expect(p.blinks).toBe(0);
+  });
+
+  it("still blinks when asked to, and still lets an emotion move the head", () => {
+    const a = new FakeAvatar();
+    const p = new Puppet(a, 1, false);
+    p.triggerBlink();
+    run(p, 0.1);
+    expect(p.blinks).toBe(1);
+    p.emotion.set("sad", 1);
+    run(p, 1.5);
+    expect(p.blinks).toBe(1);
     p.emotion.set("sad", 1);
     run(p, 1.5);
     expect(a.head.pitch).toBeGreaterThan(0.1);

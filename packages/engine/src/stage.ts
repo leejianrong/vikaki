@@ -70,10 +70,10 @@ export class Puppet {
   constructor(
     private readonly avatar: AvatarRenderer,
     seed: number,
-    /** False holds the head still instead of swaying (`?still=1`), so pictures taken at different moments can be compared. */
+    /** False holds the head still instead of swaying (`?still=1`), and the eyes open (blinking only when asked), so pictures taken at different moments can be compared. */
     private readonly sway = true,
   ) {
-    this.blinker = new Blinker(mulberry32(seed));
+    this.blinker = new Blinker(mulberry32(seed), sway);
   }
 
   get blinks(): number {
