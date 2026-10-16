@@ -36,6 +36,9 @@ const GAP = 0.15; // metres between neighbours
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
 
+/** What a seat showed since the last reset: the head's swing, the widest mouth, every mark over the head. */
+const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>() });
+
 try {
   const res = await fetch(`${baseUrl}personas.json`);
   const known = res.ok ? ((await res.json()) as { name: string; avatarUrl: string }[]) : [];
@@ -91,7 +94,12 @@ try {
   }).observe(canvas);
 
   api.table = {
-    seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0 })),
+    seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0, peak: freshPeak() })),
+    spoke: [],
+    resetPeaks: () => {
+      api.table!.seats.forEach((r) => (r.peak = freshPeak()));
+      api.table!.spoke.length = 0;
+    },
   };
   api.eyeBones = frames.every((f) => f.eyeBones);
 
@@ -183,7 +191,17 @@ try {
       row.yaw = p.head.yaw;
       row.pitch = p.head.pitch;
       row.roll = p.head.roll;
+      // Peaks over every frame drawn, so a short pose cannot fall between two polls on a slow page (VIK-75).
+      const open = Math.max(0, ...Object.values(p.visemes));
+      row.peak.yawMin = Math.min(row.peak.yawMin, row.yaw);
+      row.peak.yawMax = Math.max(row.peak.yawMax, row.yaw);
+      row.peak.mouth = Math.max(row.peak.mouth, open);
+      if (row.symbol) row.peak.symbols.add(row.symbol);
     });
+    const mouths = api.table!.seats.map((r) => Math.max(0, ...Object.values(r.visemes)));
+    const loudest = mouths.indexOf(Math.max(...mouths));
+    const spoke = api.table!.spoke;
+    if (mouths[loudest]! > 0.3 && spoke[spoke.length - 1] !== loudest) spoke.push(loudest);
     const lead = puppets[speaking ?? 0]!;
     api.visemes = lead.visemes;
     api.applied = lead.applied;

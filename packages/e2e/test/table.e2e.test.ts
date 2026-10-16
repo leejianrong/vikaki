@@ -50,16 +50,12 @@ async function setup(query = "seats=3", viewport = { width: 960, height: 540 }, 
 }
 
 const seatsOf = (page: Page) => page.evaluate(() => window.__vikaki!.table!.seats.map((s) => ({ seat: s.seat, persona: s.persona, avatarUrl: s.avatarUrl, x: s.x, symbol: s.symbol })));
-/** The largest mouth opening each seat's avatar showed over `ms`. */
+/** The largest mouth opening each seat's avatar showed over `ms`: the page keeps the peak of every frame it draws, so a slow page cannot miss a short one (VIK-75). */
 const maxMouths = (page: Page, ms: number) =>
   page.evaluate(async (t) => {
-    const max = [0, 0, 0];
-    const end = performance.now() + t;
-    while (performance.now() < end) {
-      window.__vikaki!.table!.seats.forEach((s, i) => (max[i] = Math.max(max[i]!, ...Object.values(s.visemes))));
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    return max;
+    window.__vikaki!.table!.resetPeaks();
+    await new Promise((r) => setTimeout(r, t));
+    return window.__vikaki!.table!.seats.map((s) => s.peak.mouth);
   }, ms);
 
 describe("the table page", () => {
@@ -190,21 +186,14 @@ describe("the table page", () => {
 
   it("shows a silent reaction on its seat only: a feeling for a moment, a shake of the head, and then rest (VIK-58)", { timeout: 90_000 }, async () => {
     const { page, drivers: [, d2] } = await setup();
+    await page.evaluate(() => window.__vikaki!.table!.resetPeaks());
     d2.ws.send(JSON.stringify(make("react", { seat_id: "seat-2", emotion: "surprised", gesture: "shake", seconds: 1 })));
     await page.waitForFunction(() => window.__vikaki!.table!.seats[1]!.symbol === "bang", null, { timeout: 15_000 });
-    const yaws = await page.evaluate(async () => {
-      const seen: number[] = [];
-      const end = performance.now() + 1200;
-      while (performance.now() < end) {
-        seen.push(window.__vikaki!.table!.seats[1]!.yaw);
-        await new Promise((r) => setTimeout(r, 20));
-      }
-      return seen;
-    });
-    expect(Math.max(...yaws) - Math.min(...yaws)).toBeGreaterThan(0.08); // the head swung from side to side
+    await page.waitForFunction(() => window.__vikaki!.table!.seats[1]!.symbol === null, null, { timeout: 15_000 }); // the whole reaction has played
+    const { yawMin, yawMax } = await page.evaluate(() => window.__vikaki!.table!.seats[1]!.peak);
+    expect(yawMax - yawMin).toBeGreaterThan(0.08); // the head swung from side to side
     const others = await seatsOf(page);
     expect([others[0]!.symbol, others[2]!.symbol]).toEqual([null, null]); // only that seat reacted
-    await page.waitForFunction(() => window.__vikaki!.table!.seats[1]!.symbol === null, null, { timeout: 15_000 });
   });
 
   it("leaves a seat that is thinking, or speaking, as it is: a reaction does not talk over them (VIK-58)", { timeout: 90_000 }, async () => {
@@ -223,19 +212,7 @@ describe("the table page", () => {
 
   it("plays `vikaki table-demo`'s scripted hand: each seat thinks, then speaks, in turn, on its own avatar", { timeout: 180_000 }, async () => {
     const { page } = await setup("seats=3", { width: 960, height: 540 }, false);
-    // Watch the whole hand from inside the page: who has the mouth open, and who shows the thinking dots.
-    await page.evaluate(() => {
-      const spoke: number[] = [];
-      const thought = new Set<number>();
-      (window as unknown as { __watch: { spoke: number[]; thought: Set<number> } }).__watch = { spoke, thought };
-      setInterval(() => {
-        const seats = window.__vikaki!.table!.seats;
-        seats.forEach((s, i) => s.symbol === "dots" && thought.add(i));
-        const open = seats.map((s) => Math.max(0, ...Object.values(s.visemes)));
-        const loudest = open.indexOf(Math.max(...open));
-        if (open[loudest]! > 0.3 && spoke[spoke.length - 1] !== loudest) spoke.push(loudest);
-      }, 20);
-    });
+    await page.evaluate(() => window.__vikaki!.table!.resetPeaks()); // the page records who spoke and who showed the thinking dots, on every frame
     const cliDir = fileURLToPath(new URL("../../cli", import.meta.url));
     const cliEntry = join(cliDir, "src/index.ts");
     const child = spawn(process.execPath, ["--import", "tsx", cliEntry, "table-demo", "--url", server!.wsUrl, "--pace", "0.25"], { cwd: cliDir, stdio: ["ignore", "pipe", "pipe"] });
@@ -245,8 +222,8 @@ describe("the table page", () => {
     const code = await new Promise<number | null>((ok) => child.once("exit", ok));
     expect(code, out).toBe(0);
     const { spoke, thought } = await page.evaluate(() => {
-      const w = (window as unknown as { __watch: { spoke: number[]; thought: Set<number> } }).__watch;
-      return { spoke: w.spoke, thought: [...w.thought].sort() };
+      const t = window.__vikaki!.table!;
+      return { spoke: t.spoke, thought: t.seats.flatMap((s, i) => (s.peak.symbols.has("dots") ? [i] : [])) };
     });
     expect(spoke, "who spoke, in order: ada, ben, cy, ada, ben, ada, ben, ada, ben").toEqual([0, 1, 2, 0, 1, 0, 1, 0, 1]);
     expect(thought, "every seat that has a thinking beat showed the dots").toEqual([0, 1, 2]);
