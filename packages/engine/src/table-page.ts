@@ -14,10 +14,13 @@ import { TableProps } from "./table-props.ts";
 import { buildTable, circleSeats, medianHeight, seatLookYaw, type SeatSpot } from "./table3d.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
+import { makeTransparent, parseEmbed } from "./embed.ts";
 
 const params = new URLSearchParams(location.search);
+const embedOpts = parseEmbed(params);
+if (embedOpts.embed) makeTransparent(document);
 const hud = document.getElementById("hud");
-if (hud && params.get("hud") === "0") hud.hidden = true;
+if (hud && !embedOpts.hud) hud.hidden = true;
 const say = (text: string) => {
   if (hud) hud.textContent = text;
 };
@@ -82,7 +85,7 @@ try {
     });
   }
 
-  const overlay = new TableOverlay(seats);
+  const overlay = new TableOverlay(seats, document.body, embedOpts);
   if (spots) overlay.showCards = false; // they are on the table
   const puppets = avatars.map((a, i) => new Puppet(a, seed + i * 101, params.get("still") !== "1"));
   const symbols = avatars.map((a) => {

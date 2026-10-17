@@ -2,6 +2,7 @@
 // turn marker), and a transcript strip. It draws the last `table_state` and the lines it is told of, and holds no game logic: what the
 // plates say is what the game sent. Plain DOM with roles and names, so tests find things the way a person would.
 import type { MessageOf } from "@vikaki/protocol";
+import type { EmbedOptions } from "./embed.ts";
 import { addToTranscript, cardFace, type Seat, type TranscriptLine } from "./table.ts";
 import { el } from "./ui/dom.ts";
 import "./ui/material.ts";
@@ -27,7 +28,13 @@ export class TableOverlay {
   /** False when the cards are drawn on a 3D table: a plate then says only name, stack and bet. */
   showCards = true;
 
-  constructor(private readonly seats: Seat[], parent: HTMLElement = document.body) {
+  /** In embed mode (VIK-64) the pot strip is never drawn, and the plates and transcript only when asked for. */
+  constructor(private readonly seats: Seat[], parent: HTMLElement = document.body, embed?: Pick<EmbedOptions, "embed" | "names" | "captions">) {
+    if (embed?.embed) {
+      this.root.classList.add("embed");
+      this.root.classList.toggle("names", embed.names);
+      this.root.classList.toggle("captions", embed.captions);
+    }
     this.plates = seats.map((s) => el("div", { className: "seat-plate", role: "group", ariaLabel: label(s) }));
     this.root.append(this.info, ...this.plates, this.log);
     parent.append(this.root);
