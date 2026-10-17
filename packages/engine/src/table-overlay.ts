@@ -24,6 +24,8 @@ export class TableOverlay {
   private readonly log = el("div", { className: "transcript", role: "log", ariaLabel: "Transcript" });
   private lines: TranscriptLine[] = [];
   private state: State | undefined;
+  /** False when the cards are drawn on a 3D table: a plate then says only name, stack and bet. */
+  showCards = true;
 
   constructor(private readonly seats: Seat[], parent: HTMLElement = document.body) {
     this.plates = seats.map((s) => el("div", { className: "seat-plate", role: "group", ariaLabel: label(s) }));
@@ -60,7 +62,7 @@ export class TableOverlay {
     if (st && !this.info.hidden) {
       if (st.pot !== undefined) this.info.append(el("span", { className: "pot" }, `Pot ${money(st.pot)}`));
       if (st.street) this.info.append(el("span", { className: "street", textContent: st.street }));
-      if (st.board?.length) this.info.append(el("ul", { className: "cards", ariaLabel: "Board" }, ...st.board.map(cardEl)));
+      if (this.showCards && st.board?.length) this.info.append(el("ul", { className: "cards", ariaLabel: "Board" }, ...st.board.map(cardEl)));
     }
     this.seats.forEach((s, i) => {
       const plate = this.plates[i]!;
@@ -74,7 +76,7 @@ export class TableOverlay {
       if (row) {
         kids.push(el("span", { className: "money" }, row.folded ? "Folded" : `Stack ${money(row.stack)}`));
         if (row.bet) kids.push(el("span", { className: "money" }, `Bet ${money(row.bet)}`));
-        if (row.cards?.length) kids.push(el("ul", { className: "cards", ariaLabel: "Cards" }, ...row.cards.map(cardEl)));
+        if (this.showCards && row.cards?.length) kids.push(el("ul", { className: "cards", ariaLabel: "Cards" }, ...row.cards.map(cardEl)));
       }
       plate.replaceChildren(...kids);
     });
