@@ -15,6 +15,8 @@ import { buildTable, circleSeats, medianHeight, seatLookYaw, type SeatSpot } fro
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
 import { makeTransparent, parseEmbed } from "./embed.ts";
+import { DUET_GLANCE, DUET_TURN, duetFrame, type Rect } from "./duet.ts";
+import { SpeakerLight } from "./duet-light.ts";
 
 const params = new URLSearchParams(location.search);
 const embedOpts = parseEmbed(params);
@@ -51,8 +53,11 @@ try {
   const urls = seats.map((s, i) => known.find((p) => p.name === s.persona)?.avatarUrl ?? LOOKS[i % LOOKS.length]!);
   const avatars = await Promise.all(urls.map((u) => VrmAvatar.load(u)));
 
+  // `?layout=duet` (VIK-68): two avatars facing each other round a clear band. It wins over `?view=table`.
+  const duet = params.get("layout") === "duet";
+  if (duet && seats.length !== 2) throw new Error(`layout=duet needs exactly two seats, got ${seats.length}`);
   // `?view=table` sits the avatars round a table (VIK-62, ADR-0019). An avatar that cannot sit keeps the whole page on the row.
-  const wantTable = params.get("view") === "table";
+  const wantTable = !duet && params.get("view") === "table";
   const spots: SeatSpot[] | undefined = wantTable && avatars.every((a) => a.canSeat) ? circleSeats(avatars.length) : undefined;
   const rowNote = wantTable && !spots ? " · row view (an avatar cannot sit)" : "";
   let xs: number[];
@@ -78,7 +83,9 @@ try {
     for (const a of avatars) a.lowerArms(); // side by side, arms out would cross the neighbours'
 
     // Lay them out in a row, each with room for its own body. Widths are read before anyone moves.
-    xs = layoutRow(avatars.map((a) => a.framing().width), GAP);
+    // A duet is placed by `reframe`, which knows the canvas: the left one turns toward the right, the right one toward the left.
+    xs = duet ? [0, 0] : layoutRow(avatars.map((a) => a.framing().width), GAP);
+    if (duet) avatars.forEach((a, i) => (a.scene.rotation.y += i === 0 ? DUET_TURN : -DUET_TURN));
     avatars.forEach((a, i) => {
       a.scene.position.x = xs[i]!;
       scene.add(a.scene);
@@ -94,10 +101,24 @@ try {
     scene.add(s.group);
     return s;
   });
+  /** Duet only: the speaker's light, and where the band is that nothing is drawn in (CSS pixels). */
+  const lights = duet
+    ? avatars.map((a) => {
+        const { head, top } = a.framing();
+        const l = new SpeakerLight(a.scene, new Vector3(head.x, head.y, head.z), (top - head.y) * 2.1);
+        scene.add(l.group);
+        return l;
+      })
+    : [];
+  let band: Rect | undefined;
+  let stacked = false;
 
   /** The camera at the row's eye line, far enough back for the whole row. Runs again when the canvas changes shape. */
   const bounds = avatars.map((a) => new Box3().setFromObject(a.scene));
   const frames = avatars.map((a) => a.framing());
+  /** A duet keeps each avatar's head and this many head heights below it in view, and measures how wide the avatars are over what it sees. */
+  const BUST = 1.2;
+  const profiles = duet ? avatars.map((a) => a.widthProfile()) : [];
   const reframe = () => {
     if (spots) {
       // A low three-quarter view over the near rim: faces stay readable, the cards and chips show (the spike's `low`).
@@ -106,6 +127,36 @@ try {
       camera.lookAt(0, tableY + 0.3, -0.35);
       camera.updateMatrixWorld();
       overlay.place(frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth));
+      return;
+    }
+    if (duet) {
+      const f = duetFrame({
+        width: canvas.clientWidth || window.innerWidth,
+        height: canvas.clientHeight || window.innerHeight,
+        fov: camera.fov,
+        top: Math.max(...frames.map((x) => x.top)),
+        floor: Math.min(...bounds.map((b) => b.min.y)),
+        bottom: Math.min(...frames.map((x) => x.head.y - BUST * (x.top - x.head.y))),
+        widthIn: (lo, hi) => Math.max(...profiles.map((p) => p(lo, hi))),
+      });
+      band = f.band;
+      stacked = f.stacked;
+      // Stacked, the avatars are cut off at the band's top edge: the band is the host's, and nothing of ours is drawn in it.
+      renderer.setScissorTest(f.stacked);
+      if (f.stacked) renderer.setScissor(0, f.band.height, canvas.clientWidth, canvas.clientHeight - f.band.height);
+      const z = frames[0]!.head.z;
+      camera.position.set(0, f.y, z + f.distance);
+      camera.lookAt(0, f.y, z);
+      camera.updateMatrixWorld();
+      // The avatars, their marks over the head and their halos all sit at the new x. (The marks and halos were built where the avatars started: x = 0.)
+      [-f.x, f.x].forEach((x, i) => {
+        avatars[i]!.scene.position.x = x;
+        symbols[i]!.group.position.x = x;
+        lights[i]!.group.position.x = x;
+        xs[i] = x;
+      });
+      overlay.place(avatars.map((a) => ((new Vector3(a.scene.position.x, 0, z).project(camera).x + 1) / 2) * canvas.clientWidth));
+      if (api.table?.duet) Object.assign(api.table.duet, { band: f.band, stacked: f.stacked });
       return;
     }
     const left = Math.min(...bounds.map((b) => b.min.x));
@@ -143,6 +194,7 @@ try {
       api.table!.spoke.length = 0;
     },
   };
+  if (duet) api.table.duet = { band: band!, stacked, lit: [1, 1], halo: [0, 0], speaker: null };
   api.eyeBones = frames.every((f) => f.eyeBones);
 
   /** Whose line has the mouth: the seat whose line began last. The voice is one node, and the hub speaks one line at a time. */
@@ -151,8 +203,15 @@ try {
   let talker: number | undefined;
   let thinker: number | undefined;
   /** Every seat but the one in focus looks at it: the speaker, else whoever is thinking. The one in focus looks ahead. */
+  let focused: number | undefined;
   const refocus = () => {
     const focus = talker ?? thinker;
+    focused = focus;
+    if (duet) {
+      puppets.forEach((p, j) => p.reaction.look(focus === undefined || focus === j ? 0 : (j === 0 ? 1 : -1) * DUET_GLANCE));
+      lights.forEach((l, j) => l.set(focus === undefined ? undefined : focus === j));
+      return;
+    }
     puppets.forEach((p, j) => p.reaction.look(focus === undefined || focus === j ? 0 : spots ? seatLookYaw(spots[j]!, spots[focus]!) : lookYaw(xs[j]!, xs[focus]!)));
   };
   const live = { state: "connecting" as LiveState, soundBlocked: true, events: [] as string[] };
@@ -244,6 +303,10 @@ try {
       row.peak.mouth = Math.max(row.peak.mouth, open);
       if (row.symbol) row.peak.symbols.add(row.symbol);
     });
+    if (duet) {
+      lights.forEach((l) => l.update(dt));
+      Object.assign(api.table!.duet!, { lit: lights.map((l) => l.level), halo: lights.map((l) => l.halo), speaker: focused === undefined ? null : seats[focused]!.seat });
+    }
     const mouths = api.table!.seats.map((r) => Math.max(0, ...Object.values(r.visemes)));
     const loudest = mouths.indexOf(Math.max(...mouths));
     const spoke = api.table!.spoke;
