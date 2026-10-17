@@ -10,6 +10,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
+import { TableProps } from "./table-props.ts";
 import { buildTable, circleSeats, medianHeight, seatLookYaw, type SeatSpot } from "./table3d.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
@@ -53,6 +54,7 @@ try {
   const rowNote = wantTable && !spots ? " · row view (an avatar cannot sit)" : "";
   let xs: number[];
   let tableY = 0;
+  let props: TableProps | undefined;
   if (spots) {
     const poses = seats.map((s) => known.find((p) => p.name === s.persona)?.pose);
     avatars.forEach((a, i) => {
@@ -65,6 +67,8 @@ try {
     const handsY = medianHeight(avatars.map((a) => a.handHeight()).filter((y): y is number => y !== undefined));
     tableY = handsY - 0.03;
     scene.add(buildTable(tableY));
+    props = new TableProps(tableY, spots, seats.map((x) => x.seat));
+    scene.add(props.group);
     avatars.forEach((a) => scene.add(a.scene));
     xs = spots.map((s) => s.x);
   } else {
@@ -79,6 +83,7 @@ try {
   }
 
   const overlay = new TableOverlay(seats);
+  if (spots) overlay.showCards = false; // they are on the table
   const puppets = avatars.map((a, i) => new Puppet(a, seed + i * 101, params.get("still") !== "1"));
   const symbols = avatars.map((a) => {
     const { head, top } = a.framing();
@@ -93,9 +98,9 @@ try {
   const reframe = () => {
     if (spots) {
       // A low three-quarter view over the near rim: faces stay readable, the cards and chips show (the spike's `low`).
-      const back = 2.2 * Math.max(1, 1.5 / Math.max(camera.aspect, 0.1));
-      camera.position.set(0, tableY + 0.75, back);
-      camera.lookAt(0, tableY + 0.35, -0.5);
+      const back = 3.1 * Math.max(1, 1.5 / Math.max(camera.aspect, 0.1));
+      camera.position.set(0, tableY + 1.1, back);
+      camera.lookAt(0, tableY + 0.3, -0.35);
       camera.updateMatrixWorld();
       overlay.place(frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth));
       return;
@@ -129,6 +134,7 @@ try {
     seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0, peak: freshPeak() })),
     spoke: [],
     view: spots ? "table" : "row",
+    props: props?.drawn,
     resetPeaks: () => {
       api.table!.seats.forEach((r) => (r.peak = freshPeak()));
       api.table!.spoke.length = 0;
@@ -190,7 +196,10 @@ try {
       else if (thinker === i) thinker = undefined;
       refocus();
     },
-    onTableState: (state) => overlay.setState(state),
+    onTableState: (state) => {
+      overlay.setState(state);
+      props?.setState(state);
+    },
     onText: (line) => overlay.addText(line),
     onReport: (what) => live.events.push(what),
     onState: (state, soundBlocked) => {

@@ -236,16 +236,44 @@ describe("the table page", () => {
     const xs = await Promise.all(["ada", "ben", "cy"].map(async (n) => (await page.getByRole("group", { name: n }).boundingBox())!.x));
     expect(xs[0]!).toBeLessThan(xs[1]!);
     expect(xs[1]!).toBeLessThan(xs[2]!);
-    const watching = maxMouths(page, 2500);
+    await page.evaluate(() => window.__vikaki!.table!.resetPeaks());
     d2.say("x".repeat(60), "u1");
     await page.waitForFunction(() => window.__vikaki!.table!.seats[0]!.look > 0.1, null, { timeout: 15_000 });
     const looks = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.look));
     expect(looks[0]!).toBeGreaterThan(0); // the left seat turns toward the speaker in the middle
     expect(looks[2]!).toBeLessThan(0);
     expect(looks[1]).toBe(0);
-    const [m1, m2, m3] = await watching;
+    await d2.waitFor((m) => m.type === "speech_finished" && m.utterance_id === "u1");
+    const [m1, m2, m3] = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.peak.mouth)); // peaks of every frame since the reset, whenever the line began
     expect(m2).toBeGreaterThan(0.3);
     expect(Math.max(m1!, m3!)).toBeLessThan(0.05);
+  });
+
+  it("puts table_state on the 3D table: the board and each seat's cards, chips, and the dealer button; a folded seat's cards go (VIK-62)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const state = (seat3: Record<string, unknown>) =>
+      d1.ws.send(
+        JSON.stringify(
+          make("table_state", {
+            pot: 130,
+            board: ["As", "Td", "7c"],
+            dealer: "seat-1",
+            seats: [
+              { seat_id: "seat-1", stack: 880, bet: 40, cards: ["Kh", "Qh"] },
+              { seat_id: "seat-2", stack: 940, cards: ["back", "back"] },
+              { seat_id: "seat-3", stack: 60, cards: ["back", "back"], ...seat3 },
+            ],
+          }),
+        ),
+      );
+    state({});
+    await page.waitForFunction(() => window.__vikaki!.table!.props!.boardCards === 3, null, { timeout: 15_000 });
+    const props = () => page.evaluate(() => ({ ...window.__vikaki!.table!.props! }));
+    expect(await props()).toMatchObject({ boardCards: 3, seatCards: [2, 2, 2], dealer: "seat-1" });
+    expect((await props()).chips).toBeGreaterThan(20);
+    state({ folded: true });
+    await page.waitForFunction(() => window.__vikaki!.table!.props!.seatCards[2] === 0, null, { timeout: 15_000 });
+    expect((await props()).seatCards).toEqual([2, 2, 0]);
   });
 
   it("stays on the row when the view is anything but table", { timeout: 90_000 }, async () => {
