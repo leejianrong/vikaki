@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { DebugRecorder, EventLog, findFreePort, loadPersonas, PersonaError, startServer } from "@vikaki/server";
+import { DEFAULT_FRAME_ANCESTORS, DebugRecorder, EventLog, findFreePort, loadPersonas, parseFrameAncestors, PersonaError, startServer } from "@vikaki/server";
 import { HeadlessRenderer, MjpegFeed, RendererUnavailable, startScreencast } from "@vikaki/render";
 import { cancel, replay, say, type Io } from "./commands.ts";
 import { runMcp } from "./mcp.ts";
@@ -17,7 +17,7 @@ import { FakeTts, KokoroTts, type Tts } from "@vikaki/tts";
 
 const USAGE = `usage: vikaki doctor            check that everything the demos need is in place
        vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
-                    [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>] [--debug-dir <dir|off>]
+                    [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>] [--frame-ancestors <origins|none>] [--debug-dir <dir|off>]
                     [--event-log <file.jsonl>] [--personas <personas.yaml>]
                     [--headless [--audio-only] [--gpu] [--chrome <path>]]
        vikaki stream [serve options] [--size 1280x720] [--fps 15] [--quality 80] [--background fff1e8|green] [--stream-persona <name>]
@@ -44,6 +44,7 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
   --debug-dir  save each spoken utterance (wav, spectrogram, metrics, text, timings) under <dir>.
              On by default for --speech-demo, into .vikaki/debug. "off" turns it off.
   --token    require this token from the driver (or set VIKAKI_TOKEN)
+  --frame-ancestors  origins whose pages may embed the avatar page in an iframe, comma-separated (default: localhost on any port; none: nobody)
   --headless  also open the avatar page in a hidden Chromium (one tab per persona), so lines are rendered with no one at a screen.
              Needs the optional browser: \`make install-renderer\`. --audio-only opens audio-only pages that draw nothing;
              --gpu uses the machine's GPU instead of software WebGL; --chrome (or VIKAKI_CHROME) names a browser to use.
@@ -108,6 +109,7 @@ async function serve(argv: string[]): Promise<void> {
       tts: { type: "string", default: "auto" },
       voice: { type: "string" },
       token: { type: "string" },
+      "frame-ancestors": { type: "string" },
       "debug-dir": { type: "string" },
       "event-log": { type: "string" },
       personas: { type: "string" },
@@ -143,6 +145,13 @@ async function serve(argv: string[]): Promise<void> {
     console.error(`no built page at ${values.static}; run \`pnpm build\` first`);
     process.exit(1);
   }
+  let frameAncestors: string[] | undefined;
+  try {
+    frameAncestors = values["frame-ancestors"] !== undefined ? parseFrameAncestors(values["frame-ancestors"]) : undefined;
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
   const host = values.host!;
   const port = values.port !== undefined ? Number(values.port) : await findFreePort(8787, host);
   const chosen = await chooseTts(values.tts!, values.voice).catch((err) => {
@@ -174,6 +183,7 @@ async function serve(argv: string[]): Promise<void> {
     host,
     personas,
     routes: feed ? { "/stream.mjpg": (req, res) => feed.handle(req, res), "/stream.jpg": (req, res) => feed.snapshot(req, res) } : undefined,
+    frameAncestors,
     hub: { ...(token ? { token } : {}), onEvent: eventLog?.record },
     speech: tts
       ? { tts, defaultVoice: chosen?.voice, observer: recorder, onTiming: (t) => console.log(`  ${t.utterance_id}: first audio made ${t.firstAudioAt - t.textAt} ms after the text arrived`) }
@@ -182,6 +192,7 @@ async function serve(argv: string[]): Promise<void> {
   const url = values["speech-demo"] ? `${server.url}?demo=speech&live=1` : values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
   console.log(`vikaki serving ${url}`);
   console.log(`  drivers connect to ${server.wsUrl}${token ? " (token required)" : ""}; speech: ${tts ? tts.name : "off"}`);
+  console.log(`  framing: ${frameAncestors ? (frameAncestors.length ? frameAncestors.join(", ") : "no other page") : DEFAULT_FRAME_ANCESTORS.join(", ")} may embed the avatar page${frameAncestors ? "" : " (--frame-ancestors to change)"}`);
   let renderer: HeadlessRenderer | undefined;
   let stopCast: (() => Promise<void>) | undefined;
   if (values.headless || streaming) {

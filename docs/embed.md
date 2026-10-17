@@ -89,3 +89,29 @@ Rules, all of them tested:
 - The page also writes a note to the browser console when it finds sound blocked, saying what to do.
 
 Tested in Chromium. Firefox and Safari were not tested: check your target browser once by hand (open your page, do not touch the frame, press your start button, speak a line). If `unlock` does not work there, the in-frame button is the fallback.
+
+## Who may embed it, and the Host and token rules
+
+```bash
+vikaki serve --port 8787 --frame-ancestors http://127.0.0.1:8765        # your game page's origin (a bare origin, exactly as the browser shows it)
+vikaki serve --frame-ancestors http://127.0.0.1:8765,https://game.example   # several
+vikaki serve --frame-ancestors none                                      # nobody (the page itself still may)
+```
+
+([ADR-0021](adr/0021-who-may-frame-the-avatar-page.md).)
+
+- **Default: localhost on any port.** With no flag, pages on `http://127.0.0.1:<any port>` and `http://localhost:<any port>` may frame `/avatar`. Pages anywhere else may not.
+- **A list replaces the default.** If you list `https://game.example`, localhost pages stop working until you list them too.
+- **Exact origins, no wildcards.** `http://127.0.0.1:8765` is an origin: scheme, host, port. No path, no trailing slash, no `*`. The hub refuses to start on anything else and says what is wrong.
+- **The browser enforces it.** `/avatar` is served with `Content-Security-Policy: frame-ancestors 'self' <your list>`. A page not on the list gets the browser's error page in its frame (Chrome's console says `Framing '...' violates the following Content Security Policy directive: "frame-ancestors ..."`), and nothing connects to the hub.
+- **`?parent=` must be on the list.** The hub answers 403 for a page URL whose `parent` is not an allowed origin, and says which flag to add. That is the origin you named in the Sound section above, so one value serves both.
+- **The hub's WebSocket rules do not change, and need nothing from you.** The framed page is the hub's own page, so its connection has the right `Origin`. Your game page never opens the socket (the hub refuses browser origins it does not know, on purpose: do not ask it to loosen that). The hub also refuses a `Host` header that is not `127.0.0.1`, `localhost` or `[::1]` (DNS rebinding), so reach it by one of those names, not by a machine name or an IP such as `192.168...`.
+- **Tokens.** `--token` (or `VIKAKI_TOKEN`) is for drivers: your game server sends it in `hello` (`vikaki-client` takes `token=`). The avatar page is a viewer and needs none, so **do not put the token in the iframe URL**: your page's scripts can read it. The MJPEG feed is the one URL that takes `?token=`; embedding does not use it.
+- **Your game server is not a browser.** A Python driver sends no `Origin` and is let in by the token alone, from any address that reaches the hub.
+
+### WSL users (hub in WSL, browser in Windows)
+
+- Open everything as **`http://localhost:<port>`** (or `http://127.0.0.1:<port>`) in the Windows browser: both are in the default list, both pass the Host check, and WSL forwards `localhost` ports to Windows. Do **not** use the WSL machine's own address (`172.x.x.x`, or the name `wsl.localhost`): the hub refuses that `Host`, and the page would load but never connect (the corner says `connecting`).
+- The hub binds `127.0.0.1` inside WSL by default, which is what you want. If Windows cannot reach it, turn on mirrored networking (`networkingMode=mirrored` under `[wsl2]` in `%UserProfile%\.wslconfig`, then `wsl --shutdown`), rather than binding `--host 0.0.0.0`.
+- Your game page may be served from WSL or from Windows: what matters is the origin the browser shows. If you reach it as `http://localhost:8765`, that is the origin to list (with a list, `http://localhost:8765` and `http://127.0.0.1:8765` are different origins).
+- The Python game server runs in WSL next to the hub and uses `ws://127.0.0.1:8787/ws`: nothing to configure.
