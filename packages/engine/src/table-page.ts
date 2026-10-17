@@ -5,11 +5,12 @@
 import { Box3, Clock, Vector3 } from "three";
 import { AudioSession } from "./audio-session.ts";
 import { FirstFrameTimer } from "./first-frame.ts";
-import type { VisemeWeights } from "./renderer.ts";
+import type { SeatPose, VisemeWeights } from "./renderer.ts";
 import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
+import { buildTable, circleSeats, medianHeight, seatLookYaw, type SeatSpot } from "./table3d.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
 
@@ -41,19 +42,41 @@ const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<stri
 
 try {
   const res = await fetch(`${baseUrl}personas.json`);
-  const known = res.ok ? ((await res.json()) as { name: string; avatarUrl: string }[]) : [];
+  const known = res.ok ? ((await res.json()) as { name: string; avatarUrl: string; pose?: SeatPose }[]) : [];
   const seats = parseSeats(params.get("seats") ?? "", known.map((p) => p.name));
   const urls = seats.map((s, i) => known.find((p) => p.name === s.persona)?.avatarUrl ?? LOOKS[i % LOOKS.length]!);
   const avatars = await Promise.all(urls.map((u) => VrmAvatar.load(u)));
 
-  for (const a of avatars) a.lowerArms(); // side by side, arms out would cross the neighbours'
+  // `?view=table` sits the avatars round a table (VIK-62, ADR-0019). An avatar that cannot sit keeps the whole page on the row.
+  const wantTable = params.get("view") === "table";
+  const spots: SeatSpot[] | undefined = wantTable && avatars.every((a) => a.canSeat) ? circleSeats(avatars.length) : undefined;
+  const rowNote = wantTable && !spots ? " · row view (an avatar cannot sit)" : "";
+  let xs: number[];
+  let tableY = 0;
+  if (spots) {
+    const poses = seats.map((s) => known.find((p) => p.name === s.persona)?.pose);
+    avatars.forEach((a, i) => {
+      a.seat(poses[i]);
+      a.scene.position.set(spots[i]!.x, 0, spots[i]!.z);
+      a.scene.rotation.y += spots[i]!.facing; // added to what the loader set (VRM 0.x is turned by pi to face the camera)
+    });
+    avatars.forEach((a) => a.scene.updateMatrixWorld(true));
+    // Pose first, then set the table where the hands ended up (ADR-0019).
+    const handsY = medianHeight(avatars.map((a) => a.handHeight()).filter((y): y is number => y !== undefined));
+    tableY = handsY - 0.03;
+    scene.add(buildTable(tableY));
+    avatars.forEach((a) => scene.add(a.scene));
+    xs = spots.map((s) => s.x);
+  } else {
+    for (const a of avatars) a.lowerArms(); // side by side, arms out would cross the neighbours'
 
-  // Lay them out in a row, each with room for its own body. Widths are read before anyone moves.
-  const xs = layoutRow(avatars.map((a) => a.framing().width), GAP);
-  avatars.forEach((a, i) => {
-    a.scene.position.x = xs[i]!;
-    scene.add(a.scene);
-  });
+    // Lay them out in a row, each with room for its own body. Widths are read before anyone moves.
+    xs = layoutRow(avatars.map((a) => a.framing().width), GAP);
+    avatars.forEach((a, i) => {
+      a.scene.position.x = xs[i]!;
+      scene.add(a.scene);
+    });
+  }
 
   const overlay = new TableOverlay(seats);
   const puppets = avatars.map((a, i) => new Puppet(a, seed + i * 101, params.get("still") !== "1"));
@@ -68,6 +91,15 @@ try {
   const bounds = avatars.map((a) => new Box3().setFromObject(a.scene));
   const frames = avatars.map((a) => a.framing());
   const reframe = () => {
+    if (spots) {
+      // A low three-quarter view over the near rim: faces stay readable, the cards and chips show (the spike's `low`).
+      const back = 2.2 * Math.max(1, 1.5 / Math.max(camera.aspect, 0.1));
+      camera.position.set(0, tableY + 0.75, back);
+      camera.lookAt(0, tableY + 0.35, -0.5);
+      camera.updateMatrixWorld();
+      overlay.place(frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth));
+      return;
+    }
     const left = Math.min(...bounds.map((b) => b.min.x));
     const right = Math.max(...bounds.map((b) => b.max.x));
     const centre = (left + right) / 2;
@@ -96,6 +128,7 @@ try {
   api.table = {
     seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0, peak: freshPeak() })),
     spoke: [],
+    view: spots ? "table" : "row",
     resetPeaks: () => {
       api.table!.seats.forEach((r) => (r.peak = freshPeak()));
       api.table!.spoke.length = 0;
@@ -111,14 +144,14 @@ try {
   /** Every seat but the one in focus looks at it: the speaker, else whoever is thinking. The one in focus looks ahead. */
   const refocus = () => {
     const focus = talker ?? thinker;
-    puppets.forEach((p, j) => p.reaction.look(focus === undefined || focus === j ? 0 : lookYaw(xs[j]!, xs[focus]!)));
+    puppets.forEach((p, j) => p.reaction.look(focus === undefined || focus === j ? 0 : spots ? seatLookYaw(spots[j]!, spots[focus]!) : lookYaw(xs[j]!, xs[focus]!)));
   };
   const live = { state: "connecting" as LiveState, soundBlocked: true, events: [] as string[] };
   api.live = live;
   const firstFrame = new FirstFrameTimer();
   const url = new URL("/ws", location.href);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  const who = ` · table of ${seats.length}`;
+  const who = ` · table of ${seats.length}${rowNote}`;
   const showHud = () => say(live.state !== "connected" ? `vikaki${who} · ${live.state}` : live.soundBlocked ? `vikaki${who} · click the page to hear the avatars` : `vikaki${who} · live`);
   const player = new SpeechPlayer({
     url: url.href,

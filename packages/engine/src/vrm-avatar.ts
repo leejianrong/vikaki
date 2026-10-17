@@ -51,8 +51,13 @@ export class VrmAvatar implements SceneAvatar {
 
   private readonly bone: BoneOf = (name) => this.vrm.humanoid.getNormalizedBoneNode(name);
 
+  /** True when the model has the hips bone `seat` needs. */
+  get canSeat(): boolean {
+    return this.bone("hips") != null;
+  }
+
   seat(pose?: SeatPose): boolean {
-    if (!this.bone("hips")) return false;
+    if (!this.canSeat) return false;
     applySeat(this.bone, pose);
     this.vrm.update(0); // the normalized bones reach the skeleton on update
     return true;
