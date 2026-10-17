@@ -101,7 +101,7 @@ async function chooseTts(kind: string, voice: string | undefined): Promise<{ tts
 
 /** `vikaki embed-demo`: the hub and a stand-in game page on another port, to see the embed work (docs/embed.md). */
 async function embedDemo(argv: string[]): Promise<void> {
-  const { values } = parseArgs({ args: argv, options: { port: { type: "string" }, "hub-port": { type: "string" }, tts: { type: "string", default: "auto" }, voice: { type: "string" }, open: { type: "boolean", default: false } } });
+  const { values } = parseArgs({ args: argv, options: { port: { type: "string" }, "hub-port": { type: "string" }, tts: { type: "string", default: "auto" }, voice: { type: "string" }, static: { type: "string", default: defaultStatic }, open: { type: "boolean", default: false } } });
   // Free ports by default (from 8765 and 8787): another project's hub or game may already be on them.
   const hostPort = values.port !== undefined ? Number(values.port) : await findFreePort(8765);
   const hubPort = values["hub-port"] !== undefined ? Number(values["hub-port"]) : await findFreePort(hostPort === 8787 ? 8788 : 8787);
@@ -109,8 +109,8 @@ async function embedDemo(argv: string[]): Promise<void> {
     console.error("usage: vikaki embed-demo [--port N] [--hub-port N] [--tts auto|kokoro|fake] [--open]   (two different ports)");
     process.exit(1);
   }
-  if (!existsSync(defaultStatic)) {
-    console.error(`no built page at ${defaultStatic}; run \`pnpm build\` first`);
+  if (!existsSync(values.static!)) {
+    console.error(`no built page at ${values.static}; run \`pnpm build\` first`);
     process.exit(1);
   }
   const chosen = await chooseTts(values.tts!, values.voice).catch((err) => {
@@ -120,7 +120,7 @@ async function embedDemo(argv: string[]): Promise<void> {
   const hostOrigin = `http://127.0.0.1:${hostPort}`;
   // The stand-in page is another origin from the hub, as a game's would be, so the hub is told it may frame the avatar page.
   const server = await startServer({
-    staticDir: defaultStatic,
+    staticDir: values.static!,
     port: hubPort,
     frameAncestors: [hostOrigin],
     speech: chosen ? { tts: chosen.tts, defaultVoice: chosen.voice } : undefined,

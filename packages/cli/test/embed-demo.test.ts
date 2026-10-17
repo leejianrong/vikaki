@@ -1,4 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -8,7 +11,10 @@ afterEach(() => children.splice(0).forEach((c) => c.kill("SIGINT")));
 
 /** Start `vikaki embed-demo --tts fake` on free ports and say where the page is. */
 async function start(extra: string[] = []): Promise<{ host: string; hub: string; out: () => string }> {
-  const child = spawn(process.execPath, ["--import", "tsx", entry, "embed-demo", "--tts", "fake", ...extra], { stdio: ["ignore", "pipe", "pipe"] });
+  // Any folder will do as the hub's page: CI's unit job does not build the real one.
+  const pageDir = await mkdtemp(join(tmpdir(), "vikaki-embed-demo-page-"));
+  await writeFile(join(pageDir, "index.html"), "hi");
+  const child = spawn(process.execPath, ["--import", "tsx", entry, "embed-demo", "--tts", "fake", "--static", pageDir, ...extra], { stdio: ["ignore", "pipe", "pipe"] });
   children.push(child);
   let out = "";
   child.stdout.on("data", (d) => (out += d));
