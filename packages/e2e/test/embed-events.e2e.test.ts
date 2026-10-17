@@ -35,10 +35,10 @@ afterEach(async () => {
 
 type Heard = { type: string; utterance_id?: string; seat_id?: string; reason?: string };
 
-async function setup(parent: (hostOrigin: string) => string | undefined = (o) => o) {
+async function setup(parent: (hostOrigin: string) => string | undefined = (o) => o, firstChunkDelayMs = 0) {
   const dir = await mkdtemp(join(tmpdir(), "vikaki-embed-events-e2e-"));
   await writeFile(join(dir, "personas.yaml"), `personas:\n  ada:\n    avatar: ${join(avatars, "cookieman.vrm")}\n  ben:\n    avatar: ${join(avatars, "snowy.vrm")}\n`);
-  server = await startServer({ staticDir, personas: await loadPersonas(join(dir, "personas.yaml")), speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: 40, chunkMs: 100 }) } });
+  server = await startServer({ staticDir, personas: await loadPersonas(join(dir, "personas.yaml")), speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: 40, chunkMs: 100, firstChunkDelayMs }) } });
   const hubOrigin = new URL(server.url).origin;
   host = await serveHost((origin) => {
     const p = parent(origin);
@@ -111,5 +111,30 @@ describe("speech events for the framing page", () => {
       await server?.close();
       host = server = undefined;
     }
+  });
+
+  it("a seat driver that cancels its own line hears speech_interrupted straight away, whether the page is playing it or the voice is still making it", { timeout: 120_000 }, async () => {
+    // playing: the page reports it
+    const playing = await setup();
+    playing.d1.say("x".repeat(80), "playing");
+    await until(() => playing.speechOnly().some((m) => m.type === "speech_started"), "speech_started");
+    const t0 = Date.now();
+    playing.d1.ws.send(JSON.stringify({ protocol_version: 1, type: "cancel", utterance_id: "playing" }));
+    await playing.d1.waitFor((m) => m.type === "speech_interrupted" && m.utterance_id === "playing");
+    expect(Date.now() - t0).toBeLessThan(process.env.CI ? 2000 : 500);
+    for (const d of drivers.splice(0)) d.ws.terminate();
+    await pages.pop()!.close();
+    await host?.close();
+    await server?.close();
+    host = server = undefined;
+    // synthesising: the hub answers (a 4 s voice, a cancel after 300 ms)
+    const making = await setup((o) => o, 4000);
+    making.d1.say("x".repeat(20), "making");
+    await new Promise((r) => setTimeout(r, 300));
+    const t1 = Date.now();
+    making.d1.ws.send(JSON.stringify({ protocol_version: 1, type: "cancel", utterance_id: "making" }));
+    await making.d1.waitFor((m) => m.type === "speech_interrupted" && m.utterance_id === "making");
+    expect(Date.now() - t1).toBeLessThan(process.env.CI ? 2000 : 500); // not the 4 s the voice needs
+    expect(making.speechOnly()).toEqual([]); // the page never heard of it, so says nothing to its host
   });
 });

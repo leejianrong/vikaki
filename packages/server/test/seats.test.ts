@@ -209,6 +209,37 @@ describe("cancel with several drivers", () => {
     expect(viewer.inbox.map((m) => [m.type, m.utterance_id])).toEqual([["cancel", "ub"]]); // "ua" was already cancelled by its own driver
   });
 
+  it("a seat driver that cancels its own line still hears how it ended: the page's speech_interrupted reaches it, and the other seat's driver hears nothing (VIK-71)", async () => {
+    server = await startServer({ staticDir: dir });
+    const viewer = track(await Client.join(server.wsUrl, "viewer"));
+    await viewer.next();
+    const a = await seatDriver(server.wsUrl, { seat_id: "A" });
+    const b = await seatDriver(server.wsUrl, { seat_id: "B" });
+    a.d.send(utterance({ seat_id: "A", utterance_id: "ua" }));
+    await until(() => viewer.inbox.some((m) => m.type === "utterance"));
+    a.d.send(make("cancel", { utterance_id: "ua" }));
+    await until(() => viewer.inbox.some((m) => m.type === "cancel"));
+    // the page was playing it and reports the interruption, as a page does: with the line's id and nothing else
+    viewer.send(make("speech_interrupted", { utterance_id: "ua", reason: "cancelled" }));
+    expect(await a.d.next()).toMatchObject({ type: "speech_interrupted", utterance_id: "ua", reason: "cancelled" });
+    await new Promise((r) => setTimeout(r, 150));
+    expect(b.d.inbox).toEqual([]);
+  });
+
+  it("a seat driver that cancels a line still being synthesised hears the hub's answer; the other seat's driver does not (VIK-71)", async () => {
+    server = await startServer({ staticDir: dir, speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: 5, firstChunkDelayMs: 3000 }) } });
+    const viewer = track(await Client.join(server.wsUrl, "viewer"));
+    await viewer.next();
+    const a = await seatDriver(server.wsUrl, { seat_id: "A" });
+    const b = await seatDriver(server.wsUrl, { seat_id: "B" });
+    a.d.send(utterance({ seat_id: "A", utterance_id: "ua", text: "Slow to start." }));
+    await until(() => viewer.inbox.some((m) => m.type === "utterance"));
+    a.d.send(make("cancel", { utterance_id: "ua" }));
+    expect(await a.d.next()).toMatchObject({ type: "speech_interrupted", utterance_id: "ua", reason: "cancelled" });
+    await new Promise((r) => setTimeout(r, 150));
+    expect(b.d.inbox).toEqual([]);
+  });
+
   it("when a seat driver leaves, only its lines are stopped and the other seat goes on speaking", async () => {
     const tts = fake();
     server = await startServer({ staticDir: dir, speech: { tts } });

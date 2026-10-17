@@ -60,6 +60,12 @@ export class Hub {
   private readonly seen = new Set<string>();
   /** Utterances a driver has sent that no one has reported finished or interrupted yet, and whose they are: what "cancel everything" stops. */
   private readonly inFlight = new Map<string, WebSocket>();
+  /**
+   * Lines their driver has cancelled, until how they ended has been told to it. A cancelled line is no longer "in flight" (an id-less cancel
+   * must not stop it twice), but the page's `speech_interrupted` (which names no seat) and the engine's own answer (VIK-71) still have to find
+   * the seat driver it belongs to.
+   */
+  private readonly cancelledBy = new Map<string, WebSocket>();
   /** Lines refused for an unknown persona, so the rest of a streamed one is ignored rather than scolded again. */
   private readonly refused = new Set<string>();
 
@@ -146,6 +152,7 @@ export class Hub {
       if (this.drivers.delete(ws)) {
         const lines = [...this.inFlight].filter(([, owner]) => owner === ws).map(([id]) => id);
         for (const id of lines) this.inFlight.delete(id);
+        for (const [id, owner] of this.cancelledBy) if (owner === ws) this.cancelledBy.delete(id);
         // The next driver starts afresh and may reuse ids (a reloaded page counts from demo-1 again).
         if (this.drivers.size === 0) this.seen.clear();
         else for (const id of lines) for (const t of ["speech_started", "speech_finished", "speech_interrupted", "error"]) this.seen.delete(`${t}:${id}`);
@@ -239,9 +246,15 @@ export class Hub {
         (this.opts.warn ?? console.warn)(`utterance ${message.utterance_id}: unknown emotion "${message.emotion}", showing neutral`);
       }
       this.inFlight.set(message.utterance_id, ws);
+      this.cancelledBy.delete(message.utterance_id); // the id is in use again
       if (this.inFlight.size > DEDUP_LIMIT) this.inFlight.delete(this.inFlight.keys().next().value as string);
     } else if (message.type === "cancel" && message.utterance_id !== undefined) {
+      const owner = this.inFlight.get(message.utterance_id);
       this.inFlight.delete(message.utterance_id);
+      if (owner) {
+        this.cancelledBy.set(message.utterance_id, owner);
+        if (this.cancelledBy.size > DEDUP_LIMIT) this.cancelledBy.delete(this.cancelledBy.keys().next().value as string);
+      }
     }
     for (const v of this.viewers) this.send(v, message);
     this.opts.onEvent?.({ at: Date.now(), from, to: "viewers", message });
@@ -270,7 +283,7 @@ export class Hub {
   /** The driver a report is for: the one that sent the line, else the driver of the whole table, else the one that has the seat. */
   private driverFor(message: Message): WebSocket | undefined {
     const uid = "utterance_id" in message ? message.utterance_id : undefined;
-    const owner = uid !== undefined ? this.inFlight.get(uid) : undefined;
+    const owner = uid !== undefined ? (this.inFlight.get(uid) ?? this.cancelledBy.get(uid)) : undefined;
     if (owner) return owner;
     for (const [ws, info] of this.drivers) if (!info.seats) return ws;
     const seat = "seat_id" in message ? message.seat_id : undefined;
@@ -279,7 +292,10 @@ export class Hub {
   }
 
   private noteReport(message: Message): void {
-    if (message.type === "speech_finished" || message.type === "speech_interrupted") this.inFlight.delete(message.utterance_id);
+    if (message.type === "speech_finished" || message.type === "speech_interrupted") {
+      this.inFlight.delete(message.utterance_id);
+      this.cancelledBy.delete(message.utterance_id);
+    }
   }
 
   private admit(ws: WebSocket, hello: Extract<Message, { type: "hello" }>): void {
