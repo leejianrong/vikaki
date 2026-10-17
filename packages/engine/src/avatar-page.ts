@@ -70,7 +70,7 @@ declare global {
       /** True if the avatar has eye bones; false means eye level is estimated. */
       eyeBones?: boolean;
       /** On the table page (`?seats=`) only: one entry per seat, left to right. `symbol` is the mark over the head ("dots" while thinking), or null. */
-      table?: { seats: { seat: string; persona?: string; avatarUrl: string; x: number; visemes: VisemeWeights; symbol: string | null; /** Where the head is turned to look at the speaker, and the whole head pose now, in radians. */ look: number; yaw: number; pitch: number; roll: number; /** Since the last `resetPeaks()`, over every frame drawn. */ peak: { yawMin: number; yawMax: number; mouth: number; symbols: Set<string> } }[]; /** Seats whose mouth was the widest (over 0.3), in order, one entry per change. */ spoke: number[]; resetPeaks(): void; /** `table` when the seats sit round a 3D table (`?view=table`), else `row`. */ view: "row" | "table" };
+      table?: { seats: { seat: string; persona?: string; avatarUrl: string; x: number; visemes: VisemeWeights; symbol: string | null; /** Where the head is turned to look at the speaker, and the whole head pose now, in radians. */ look: number; yaw: number; pitch: number; roll: number; /** Since the last `resetPeaks()`, over every frame drawn. */ peak: { yawMin: number; yawMax: number; mouth: number; symbols: Set<string>; /** The seat was told it is thinking, whether or not a frame drew the dots. */ thought: boolean } }[]; /** Seats whose mouth was the widest (over 0.3), in order, one entry per change. */ spoke: number[]; resetPeaks(): void; /** `table` when the seats sit round a 3D table (`?view=table`), else `row`. */ view: "row" | "table" };
     };
   }
 }

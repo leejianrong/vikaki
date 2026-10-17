@@ -223,10 +223,10 @@ describe("the table page", () => {
     expect(code, out).toBe(0);
     const { spoke, thought } = await page.evaluate(() => {
       const t = window.__vikaki!.table!;
-      return { spoke: t.spoke, thought: t.seats.flatMap((s, i) => (s.peak.symbols.has("dots") ? [i] : [])) };
+      return { spoke: t.spoke, thought: t.seats.flatMap((s, i) => (s.peak.thought ? [i] : [])) };
     });
     expect(spoke, "who spoke, in order: ada, ben, cy, ada, ben, ada, ben, ada, ben").toEqual([0, 1, 2, 0, 1, 0, 1, 0, 1]);
-    expect(thought, "every seat that has a thinking beat showed the dots").toEqual([0, 1, 2]);
+    expect(thought, "every seat that has a thinking beat was asked to think (the drawn dots are checked by the thinking-turn test: a 250 ms beat can fall between two frames)").toEqual([0, 1, 2]);
     expect(out).toContain("hand over");
   });
 
