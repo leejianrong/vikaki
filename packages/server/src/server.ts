@@ -2,6 +2,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer as createNetServer, type AddressInfo } from "node:net";
+import { frameAncestorAllowed, frameAncestorsPolicy } from "./frame-ancestors.ts";
+export { parseFrameAncestors, DEFAULT_FRAME_ANCESTORS } from "./frame-ancestors.ts";
 import { Hub, type HubOptions } from "./hub.ts";
 import type { PersonaBook } from "./personas.ts";
 import { SpeechEngine, type SpeechOptions } from "./speech.ts";
@@ -38,6 +40,11 @@ export interface VikakiServerOptions {
   routes?: Record<string, (req: IncomingMessage, res: ServerResponse) => void | Promise<void>>;
   /** Turn on speech: utterances from the driver are spoken with this engine. */
   speech?: SpeechOptions;
+  /**
+   * Origins whose pages may frame the avatar page: bare origins such as `http://127.0.0.1:8765`. Not set, it is localhost on any port. An
+   * empty list lets nobody (the page itself still can). Sent as `Content-Security-Policy: frame-ancestors`, so the browser enforces it.
+   */
+  frameAncestors?: string[];
 }
 
 export interface RunningServer {
@@ -94,13 +101,21 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
         return;
       }
       const rel = path.slice("/avatar".length).replace(/^\/+/, "") || "index.html";
+      const framing = { "content-security-policy": frameAncestorsPolicy(opts.frameAncestors) };
+      // A page that says who frames it (`?parent=`, which turns on its messages to that page) names one the list allows, or it is not served:
+      // a typo or a stale origin fails here, loudly, instead of by silence in the browser.
+      const parent = new URL(req.url ?? "/", "http://localhost").searchParams.get("parent");
+      if (rel === "index.html" && parent !== null && !frameAncestorAllowed(parent, opts.frameAncestors)) {
+        res.writeHead(403, { "content-type": "text/plain", ...framing }).end(`parent=${parent} is not an allowed frame ancestor. Start the hub with --frame-ancestors ${parent} (a bare origin such as http://127.0.0.1:8765).`);
+        return;
+      }
       const file = normalize(join(root, rel));
       if (file !== root && !file.startsWith(root + sep)) {
         res.writeHead(403).end("forbidden");
         return;
       }
       const body = await readFile(file);
-      res.writeHead(200, { "content-type": MIME[extname(file)] ?? "application/octet-stream" });
+      res.writeHead(200, { "content-type": MIME[extname(file)] ?? "application/octet-stream", ...framing });
       res.end(body);
     } catch {
       res.writeHead(404).end("not found");
