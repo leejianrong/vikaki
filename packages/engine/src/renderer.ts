@@ -54,4 +54,16 @@ export interface SceneAvatar extends AvatarRenderer {
   /** What to add to the scene. */
   readonly scene: Object3D;
   framing(): AvatarFraming;
+  /** Sit (ADR-0019): legs, hips and arms for a seat at a table. Returns false when this avatar cannot, and the table view falls back to the row. */
+  seat?(pose?: SeatPose): boolean;
+  /** World height where the hands rest now, after `seat`, so the page can put the table top there. Undefined when it cannot say. */
+  handHeight?(): number | undefined;
+}
+
+/** How an avatar sits (ADR-0019). The numbers belong to the avatar, so they live beside it in the personas file. */
+export interface SeatPose {
+  /** Arms forward, down and elbow-in, in radians. `"hang"` leaves them at the sides (a stick-armed model). Default: the spike's numbers. */
+  arms?: { forward: number; down: number; elbow: number } | "hang";
+  /** How far the hips drop, as a fraction of their standing height. Default 0.45. */
+  hipDrop?: number;
 }
