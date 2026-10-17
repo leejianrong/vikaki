@@ -9,6 +9,7 @@ personas:
     voice: af_heart       # a voice id for the speech engine (Kokoro voice names)
     emotion: happy        # used for lines that name no emotion of their own
     style: warm, quick-witted, a little teasing   # a note for whoever writes the lines; never spoken
+    pose: { arms: { forward: 1.0, down: 1.0, elbow: 0.9 }, hip_drop: 0.45 }   # optional: how it sits in the 3D table view (ADR-0019)
 ```
 
 ```bash
@@ -20,7 +21,8 @@ pnpm --silent vikaki say --persona ada "Good morning everyone."
 
 - **Voice.** A line naming `ada` is spoken with ada's voice. A persona with no `voice` uses the engine's own default. (Without a personas file, the persona name itself is passed as the voice id, as before.)
 - **Default emotion.** A line that names a persona but no `emotion` gets the persona's. An explicit `emotion` on the line wins.
-- **Look.** `/avatar/personas.json` lists the personas (name, avatar URL, voice, emotion, style) and `/avatar/personas/<name>.vrm` serves each avatar by name, never by path, so only the avatars the file names can be fetched. A page that shows one persona uses these (V3.5).
+- **Look.** `/avatar/personas.json` lists the personas (name, avatar URL, voice, emotion, style, pose) and `/avatar/personas/<name>.vrm` serves each avatar by name, never by path, so only the avatars the file names can be fetched. A page that shows one persona uses these (V3.5).
+- **Pose.** Only the 3D table view reads `pose` (ADR-0019). `arms` is `hang` (leave them at the sides: for stick-armed models) or `forward`, `down` and `elbow` in radians; `hip_drop` is 0 to 1 of the hips' standing height. Leave it out for the defaults, which suit Cookieman.
 - **Unknown names.** With a personas file, a line naming a persona that is not in it is refused with `error` `unknown_persona` (the message lists the known names), nothing is spoken or shown, and the rest of a streamed line is ignored without a second error. The hub stays usable. `welcome` carries `personas` (the names) so a driver can check first. The MCP `set_persona` tool does that over HTTP, keeps the previous persona on a mistake, and returns the persona's `style` on success.
 
 ## One page per persona

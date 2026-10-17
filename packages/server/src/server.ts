@@ -73,6 +73,7 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
           ...(p.voice ? { voice: p.voice } : {}),
           ...(p.emotion ? { emotion: p.emotion } : {}),
           ...(p.style ? { style: p.style } : {}),
+          ...(p.pose ? { pose: p.pose } : {}),
         }));
         res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(list));
         return;

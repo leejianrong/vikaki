@@ -15,6 +15,8 @@ export interface Persona {
   emotion?: (typeof EMOTIONS)[number];
   /** Free text for whoever writes the lines (an LLM prompt, a script author). Never spoken. */
   style?: string;
+  /** How it sits at a table (ADR-0019): arm angles in radians, or `"hang"`, and how far the hips drop. Defaults live in the page. */
+  pose?: { arms?: { forward: number; down: number; elbow: number } | "hang"; hipDrop?: number };
 }
 
 /** The problem with a personas file, in words a person can act on. */
@@ -32,6 +34,13 @@ const PersonaEntry = z
     voice: z.string().min(1).max(64).optional(),
     emotion: z.enum(EMOTIONS, { error: `\`emotion\` must be one of ${EMOTIONS.join(", ")}` }).optional(),
     style: z.string().max(2000).optional(),
+    pose: z
+      .object({
+        arms: z.union([z.literal("hang"), z.object({ forward: z.number().min(-3.2).max(3.2), down: z.number().min(-3.2).max(3.2), elbow: z.number().min(-3.2).max(3.2) }).strict()], { error: "`pose.arms` must be `hang` or a map of forward, down and elbow (radians)" }).optional(),
+        hip_drop: z.number({ error: "`pose.hip_drop` must be a number from 0 to 1" }).min(0, "`pose.hip_drop` must be from 0 to 1").max(1, "`pose.hip_drop` must be from 0 to 1").optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -77,7 +86,8 @@ export function parsePersonas(text: string, baseDir: string): PersonaBook {
     if (!entry.success) {
       const issue = entry.error.issues[0]!;
       const unknownKey = issue.code === "unrecognized_keys" ? (issue as { keys: string[] }).keys.join(", ") : undefined;
-      throw new PersonaError(unknownKey ? `persona "${name}": unknown field ${unknownKey} (known: avatar, voice, emotion, style)` : `persona "${name}": ${issue.message}`);
+      const where = issue.path.length > 1 ? `${issue.path.join(".")}: ` : "";
+      throw new PersonaError(unknownKey ? `persona "${name}": unknown field ${where}${unknownKey} (known: ${issue.path.length > 0 ? "arms, hip_drop" : "avatar, voice, emotion, style, pose"})` : `persona "${name}": ${where}${issue.message}`);
     }
     const e = entry.data;
     return {
@@ -86,6 +96,7 @@ export function parsePersonas(text: string, baseDir: string): PersonaBook {
       ...(e.voice ? { voice: e.voice } : {}),
       ...(e.emotion ? { emotion: e.emotion } : {}),
       ...(e.style ? { style: e.style } : {}),
+      ...(e.pose ? { pose: { ...(e.pose.arms ? { arms: e.pose.arms } : {}), ...(e.pose.hip_drop !== undefined ? { hipDrop: e.pose.hip_drop } : {}) } } : {}),
     };
   });
   return new PersonaBook(personas);
