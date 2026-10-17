@@ -84,4 +84,19 @@ describe("EmbedBridge", () => {
     expect(bridge.handle({ origin: "https://game.example", source: parent, data: { type: "audio_status" } })).toBe(true);
     expect(posted.map((p) => (p.message as { type: string }).type)).toEqual(["audio_locked", "audio_locked"]);
   });
+
+  it("sends speech events to the named origin only, with the seat, and nothing when messages are off", () => {
+    const { bridge, posted } = setup();
+    expect(bridge.send({ type: "speech_started", utterance_id: "u1", seat_id: "seat-1" })).toBe(true);
+    expect(bridge.send({ type: "speech_interrupted", utterance_id: "u1", seat_id: "seat-1", reason: "cancelled" })).toBe(true);
+    expect(posted).toEqual([
+      { message: { type: "speech_started", utterance_id: "u1", seat_id: "seat-1" }, to: "https://game.example" },
+      { message: { type: "speech_interrupted", utterance_id: "u1", seat_id: "seat-1", reason: "cancelled" }, to: "https://game.example" },
+    ]);
+    for (const o of [{ parentOrigin: undefined }, { noParent: true }, { ancestorOrigin: "https://evil.example" }]) {
+      const off = setup(o);
+      expect(off.bridge.send({ type: "speech_finished", utterance_id: "u1" })).toBe(false);
+      expect(off.posted, JSON.stringify(o)).toEqual([]);
+    }
+  });
 });

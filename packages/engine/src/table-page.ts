@@ -44,7 +44,7 @@ const GAP = 0.15; // metres between neighbours
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
 api.audio = { get state() { return session.state; }, get played() { return session.played; }, get time() { return session.time; } };
-mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
+const embedAudio = mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
 
 /** What a seat showed since the last reset: the head's swing, the widest mouth, every mark over the head, and whether it was asked to think. */
 const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>(), thought: false });
@@ -266,6 +266,7 @@ try {
       props?.setState(state);
     },
     onText: (line) => overlay.addText(line),
+    onLifecycle: (e) => embedAudio?.bridge.send(e), // embed mode: tell the framing page (ADR-0020), if it named itself
     onReport: (what) => live.events.push(what),
     onState: (state, soundBlocked) => {
       live.state = state;

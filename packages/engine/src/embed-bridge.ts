@@ -5,8 +5,17 @@
 //   - Incoming messages count only when they come from the parent window itself AND from that origin.
 //   - Where the browser says who the ancestor is (`location.ancestorOrigins`), it must agree with `?parent=`.
 
-/** What the page tells the host. `audio_locked` while the browser blocks sound, `audio_unlocked` once it does not. */
-export type ToParent = { type: "audio_locked" } | { type: "audio_unlocked" };
+/**
+ * A line's life as the page plays it (VIK-67): the same three events the page reports to the hub, with the seat that spoke. `reason` is only
+ * on an interruption (`cancelled`, `human_spoke`, ...).
+ */
+export type SpeechEvent =
+  | { type: "speech_started"; utterance_id: string; seat_id?: string }
+  | { type: "speech_finished"; utterance_id: string; seat_id?: string }
+  | { type: "speech_interrupted"; utterance_id: string; seat_id?: string; reason?: string };
+
+/** What the page tells the host. `audio_locked` while the browser blocks sound, `audio_unlocked` once it does not, and the speech events. */
+export type ToParent = { type: "audio_locked" } | { type: "audio_unlocked" } | SpeechEvent;
 /** What the host may say. `unlock` after a click on the host page; `audio_status` asks the page to say where it stands (a host that attached its listener late). */
 export type FromParent = { type: "unlock" } | { type: "audio_status" };
 
@@ -41,7 +50,7 @@ export interface BridgeOptions {
 export class EmbedBridge {
   /** False when messages are off: no parent named, nobody to talk to, or the browser's idea of the ancestor disagrees. */
   readonly active: boolean;
-  private last: ToParent["type"] | undefined;
+  private last: "audio_locked" | "audio_unlocked" | undefined;
 
   constructor(private readonly o: BridgeOptions) {
     this.active = o.parentOrigin !== undefined && o.parent !== null && (o.ancestorOrigin === undefined || o.ancestorOrigin === o.parentOrigin);
@@ -52,10 +61,17 @@ export class EmbedBridge {
     if (!this.active) return;
     const locked = this.o.isLocked();
     if (locked === undefined) return;
-    const type: ToParent["type"] = locked ? "audio_locked" : "audio_unlocked";
+    const type = locked ? "audio_locked" : "audio_unlocked";
     if (type === this.last && !again) return;
     this.last = type;
     this.o.parent!.postMessage({ type } satisfies ToParent, this.o.parentOrigin!);
+  }
+
+  /** Tell the host how a line is going: to the named origin only, and only if messages are on. Returns whether it was sent. */
+  send(event: SpeechEvent): boolean {
+    if (!this.active) return false;
+    this.o.parent!.postMessage(event satisfies ToParent, this.o.parentOrigin!);
+    return true;
   }
 
   /** A `message` event. Returns true if it was an accepted message from the host. */

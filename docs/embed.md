@@ -77,6 +77,7 @@ A browser keeps the avatar page silent until the person has clicked on it, and a
 | page to host | `{ "type": "audio_locked" }` | The browser is blocking sound. Sent once the page knows, and again if it becomes locked. |
 | page to host | `{ "type": "audio_unlocked" }` | Sound is allowed now. |
 | host to page | `{ "type": "unlock" }` | Send it from a click handler on your page. The page resumes its audio. |
+| page to host | `{ "type": "speech_started" \| "speech_finished" \| "speech_interrupted", "utterance_id", "seat_id", "reason"? }` | How a line is going, to light up who is speaking or to wait for the end ([protocol.md](protocol.md#messages-to-the-page-that-frames-the-avatar-page)). `reason` only on an interruption. |
 | host to page | `{ "type": "audio_status" }` | Ask the page to say again which of the two it is (if your listener started after the frame loaded). |
 
 Rules, all of them tested:
@@ -85,6 +86,7 @@ Rules, all of them tested:
 - **`?parent=` must be your page's origin.** The page posts only to that origin and accepts only messages whose `source` is the parent window and whose `origin` is that one. With no `?parent=` (or a wrong one) it posts nothing and ignores `unlock`.
 - **Send `unlock` from your click handler.** A click on your page alone does nothing: the page has to be told.
 - **A small "Click for sound" button** shows in the frame's top-left corner while the browser blocks sound. A click on it always works, with or without the handshake. Keep the frame visible and clickable (no overlay on top of it) so that this way out stays open.
+- The speech events need no unlock: the page keeps time silently while locked and reports on schedule. A line cancelled before any audio exists is not reported here (the page never heard of it); your game server, as a driver, gets that one.
 - A line spoken while locked is **silent, not delayed**: it is shown (its mouth moves) and gone. Show your "start" button before the first line.
 - The page also writes a note to the browser console when it finds sound blocked, saying what to do.
 

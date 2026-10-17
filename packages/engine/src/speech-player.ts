@@ -4,6 +4,7 @@ import { decodePcm16, make, parseMessage, type Gesture, type Message, type Messa
 import type { AudioSession } from "./audio-session.ts";
 import { Playback, type Output, type ScheduledSlice } from "./playback.ts";
 import { SentenceAssembler, type CompleteSentence } from "./sentences.ts";
+import type { SpeechEvent } from "./embed-bridge.ts";
 
 /** How long a reaction's feeling is held when the driver does not say. */
 export const DEFAULT_REACT_SECONDS = 1.5;
@@ -27,6 +28,8 @@ export interface SpeechPlayerOptions {
   onState?: (state: LiveState, soundBlocked: boolean) => void;
   /** Every event this player reported, for diagnostics and tests: "started:u1", "finished:u1", ... */
   onReport?: (what: string) => void;
+  /** A line began, ended or was cut off as this page played it, with the seat that spoke it: for the page that frames this one (embed mode). */
+  onLifecycle?: (event: SpeechEvent) => void;
   /** Called for every slice of audio as it is handed to the speakers, with when it will be heard. */
   onScheduled?: (slice: ScheduledSlice) => void;
   /** A line with this emotion has begun to be heard (`phase: "start"`), or has ended or been cut off (`"end"`). */
@@ -81,16 +84,21 @@ export class SpeechPlayer {
           const f = this.feelings.get(id);
           o.onEmotion?.(f?.emotion, f?.intensity, "start", f ? { id, seat: f.seat, persona: f.persona } : undefined);
           this.report(make("speech_started", { utterance_id: id, ...(seat ? { seat_id: seat } : {}) }), `started:${id}`);
+          this.lifecycle({ type: "speech_started", utterance_id: id }, seat ?? f?.seat);
         },
         finished: (id) => {
+          const seat = this.feelings.get(id)?.seat;
           this.endFeeling(id);
           const timing = o.timer?.take(id);
           this.report(make("speech_finished", { utterance_id: id, ...(timing ? { timing } : {}) }), `finished:${id}`);
+          this.lifecycle({ type: "speech_finished", utterance_id: id }, seat);
         },
         interrupted: (id, reason) => {
+          const seat = this.feelings.get(id)?.seat;
           this.endFeeling(id);
           o.session.lipsync?.mute(); // the node's own smoothing takes ~200 ms to close the mouth; a cut-off should look instant
           this.report(make("speech_interrupted", { utterance_id: id, reason }), `interrupted:${id}`);
+          this.lifecycle({ type: "speech_interrupted", utterance_id: id, reason }, seat);
         },
       },
       { scheduled: (slice) => o.onScheduled?.(slice) },
@@ -204,6 +212,10 @@ export class SpeechPlayer {
     const f = this.feelings.get(id);
     this.feelings.delete(id);
     if (f) this.o.onEmotion?.(f.emotion, f.intensity, "end", { id, seat: f.seat, persona: f.persona });
+  }
+
+  private lifecycle(event: SpeechEvent, seat: string | undefined): void {
+    this.o.onLifecycle?.({ ...event, ...(seat ? { seat_id: seat } : {}) } as SpeechEvent);
   }
 
   private report(message: Message, what: string): void {

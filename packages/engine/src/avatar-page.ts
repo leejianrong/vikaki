@@ -94,7 +94,7 @@ const demo = params.get("demo") === "1";
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
 api.audio = { get state() { return session.state; }, get played() { return session.played; }, get time() { return session.time; } };
-mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
+const embedAudio = mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
 
 try {
   if (persona && !params.has("avatar")) {
@@ -201,6 +201,7 @@ try {
       },
       session,
       sessionId: params.get("session") ?? undefined,
+      onLifecycle: (e) => embedAudio?.bridge.send(e), // embed mode: tell the framing page (ADR-0020), if it named itself
       onReport: (what) => {
         live.events.push(what);
         const [kind, ...id] = what.split(":");
