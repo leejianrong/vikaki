@@ -90,6 +90,23 @@ When the hub has a speech engine, it speaks each `utterance` and sends the resul
 - **With no viewer connected** the hub plays the speech itself in real time and sends the driver the same `speech_started` and `speech_finished` (or `speech_interrupted`), so a game never waits on a face that is not there.
 - A viewer whose browser has not yet been allowed to make sound (no click yet) does the same: it keeps time silently and reports on schedule.
 
+## Messages to the page that frames the avatar page
+
+Not hub messages: they go over `window.postMessage` from an embedded avatar page (`?embed=1`) to the page that frames it, and are not part of `protocol.schema.json`. They are described for hosts in [embed.md](embed.md); [ADR-0020](adr/0020-audio-unlock-handshake-for-embedded-pages.md) has the rules.
+
+| Message | Fields | When |
+| --- | --- | --- |
+| `speech_started` | `utterance_id`, `seat_id` | The first sound of a line is heard (or would be: see below). |
+| `speech_finished` | `utterance_id`, `seat_id` | The last sound of a line ended. |
+| `speech_interrupted` | `utterance_id`, `seat_id`, `reason` | A line being played was cut off (`cancelled`, `human_spoke`, ...). |
+| `audio_locked`, `audio_unlocked` | none | The browser blocks or allows sound. |
+
+- **Only to the host the page was told about.** The page posts to the origin in `?parent=` and no other, never `*`, and only if the browser's own idea of its ancestor (where it has one) agrees. With no `?parent=`, or one that is not a bare origin, it posts nothing. The hub refuses to serve a page whose `?parent=` is not an allowed frame ancestor (`--frame-ancestors`).
+- **Same events the page reports to the hub**, at the same moments (they are the same calls), with the seat that spoke the line. `seat_id` is the seat the line was sent for; it is left out only for a line that named none.
+- **Lines the page never played are not reported here.** A line cancelled while still queued or being synthesised (VIK-71) is answered to the *driver* by the hub, and the page, which never heard of it, says nothing. A host that must know every outcome listens as a driver, or through its game server (`vikaki-client`), which gets all of them.
+- **They keep coming while sound is locked.** A page that cannot make sound keeps time silently and reports on schedule, so the host's UI follows the lines whether or not the player has clicked.
+- **Read-only.** The host cannot speak, cancel or skip through the page; only `unlock` and `audio_status` are accepted from it. Speech belongs to the driver.
+
 ## Event log and replay
 
 `vikaki serve --event-log run.jsonl` writes every message the hub sees, one JSON object per line: `{ "at": <ms>, "from": "driver"|"controller"|"viewer"|"hub", "to": "driver"|"viewers", "message": {...} }`. Audio keeps only `pcm_bytes`, not the samples. `vikaki replay run.jsonl [--speed N]` connects as the driver and sends the recorded driver and controller messages again, with their original gaps divided by N, then waits for the speech to finish. Through a hub with the same engine it produces the same event sequence.

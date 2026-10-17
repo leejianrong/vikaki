@@ -62,5 +62,5 @@ export const unlockHostHtml = (frameOrigin: string, src: string, allow = 'allow=
   `<!doctype html><meta charset=utf-8><body style="margin:0;background:#ff00ff"><button id="go" style="height:60px;width:120px">Start</button>` +
   `<iframe id="avatar" src="${src}" ${allow} style="border:0;width:100%;height:calc(100% - 60px);position:fixed;top:60px;left:0"></iframe>` +
   `<script>window.heard=[];const f=document.getElementById("avatar");` +
-  `addEventListener("message",e=>{if(e.origin===${JSON.stringify(frameOrigin)}&&e.source===f.contentWindow){window.heard.push(e.data);console.log("HEARD:"+e.data.type)}});` +
+  `addEventListener("message",e=>{if(e.origin===${JSON.stringify(frameOrigin)}&&e.source===f.contentWindow){window.heard.push(e.data);console.log("HEARD:"+e.data.type);console.log("MSG:"+JSON.stringify(e.data))}});` +
   `document.getElementById("go").addEventListener("click",()=>f.contentWindow.postMessage({type:"unlock"},${JSON.stringify(frameOrigin)}));</script>`;
