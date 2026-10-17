@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { decodePcm16, make, PROTOCOL_VERSION } from "@vikaki/protocol";
-import { FakeTts, type FakeTtsOptions } from "@vikaki/tts";
+import { FakeTts, type AudioChunk, type FakeTtsOptions, type SynthesisRequest, type Tts } from "@vikaki/tts";
 import { startServer, type RunningServer, type SpeechOptions, type SpeechTiming } from "../src/server.ts";
 import { Client, until, utterance } from "./helpers.ts";
 
@@ -211,6 +211,110 @@ describe("which sentence a slice belongs to", () => {
   });
 });
 
+describe("cancelling a line the page has not heard of yet (VIK-71)", () => {
+  /** A voice that ignores the abort signal and takes `ms` to produce its one chunk, as a real engine can for the first sentence. */
+  class DeafTts implements Tts {
+    readonly name = "deaf";
+    readonly requests: string[] = [];
+    finished: Promise<void> = Promise.resolve();
+    constructor(private readonly ms: number) {}
+    async *synthesize(r: SynthesisRequest): AsyncGenerator<AudioChunk> {
+      this.requests.push(r.text);
+      let done!: () => void;
+      this.finished = new Promise((ok) => (done = ok));
+      await wait(this.ms);
+      done();
+      yield { samples: new Float32Array(1600).fill(0.1), sampleRate: 16000 };
+    }
+  }
+
+  it("answers a cancel with speech_interrupted at once while the line is still being synthesised", async () => {
+    const { driver, fake } = await setup({ tts: { firstChunkDelayMs: 3000 } }); // one page, a slow voice
+    driver.send(utterance({ utterance_id: "a", text: x(20) }));
+    await until(() => fake.requests.length === 1, 2000, "synthesis to start");
+    const t0 = Date.now();
+    driver.send(make("cancel", { utterance_id: "a" }));
+    expect(await driver.next()).toEqual({ protocol_version: PROTOCOL_VERSION, type: "speech_interrupted", utterance_id: "a", reason: "cancelled" });
+    expect(Date.now() - t0).toBeLessThan(process.env.CI ? 1500 : 300); // not the 3 s the voice needs
+    await wait(150);
+    expect(driver.inbox).toEqual([]); // once, and never a finish
+  });
+
+  it("answers the same with no page open (the case Wavelength's spike hit)", async () => {
+    const { driver, fake } = await setup({ viewers: 0, tts: { firstChunkDelayMs: 3000 } });
+    driver.send(utterance({ utterance_id: "a", text: x(20) }));
+    await until(() => fake.requests.length === 1, 2000, "synthesis to start");
+    driver.send(make("cancel", { utterance_id: "a" }));
+    expect(await driver.next()).toMatchObject({ type: "speech_interrupted", utterance_id: "a", reason: "cancelled" });
+    await wait(150);
+    expect(driver.inbox).toEqual([]);
+  });
+
+  it("answers for a line that is still queued behind another, and the line in front goes on", async () => {
+    const { driver, viewer, fake } = await setup({ tts: { msPerChar: 20, firstChunkDelayMs: 500 } }); // the voice is slow to start, so b waits its turn
+    driver.send(utterance({ utterance_id: "a", text: x(40) }));
+    driver.send(utterance({ utterance_id: "b", text: "Second." }));
+    await until(() => fake.requests.length === 1, 2000, "a to start");
+    driver.send(make("cancel", { utterance_id: "b" }));
+    expect(await driver.next()).toMatchObject({ type: "speech_interrupted", utterance_id: "b", reason: "cancelled" });
+    const seen = await readUntil(viewer, (m) => isFinal(m) && m.utterance_id === "a");
+    expect(audioOf(seen, "b")).toEqual([]);
+    expect(fake.requests).toEqual([x(40)]); // b was never synthesised
+  });
+
+  it("drops the audio of a voice that cannot be stopped, when it finishes, and then speaks the next line", async () => {
+    const tts = new DeafTts(300);
+    server = await startServer({ staticDir: dir, speech: { tts } });
+    const viewer = await Client.join(server.wsUrl, "viewer");
+    clients.push(viewer);
+    await viewer.next();
+    const driver = await Client.join(server.wsUrl, "driver");
+    clients.push(driver);
+    await driver.next();
+    driver.send(utterance({ utterance_id: "a", text: "Hello there." }));
+    await until(() => tts.requests.length === 1, 2000, "synthesis to start");
+    const t0 = Date.now();
+    driver.send(make("cancel", { utterance_id: "a" }));
+    expect(await driver.next()).toMatchObject({ type: "speech_interrupted", utterance_id: "a", reason: "cancelled" });
+    expect(Date.now() - t0).toBeLessThan(process.env.CI ? 250 : 150); // before the voice is done (300 ms)
+    await tts.finished;
+    driver.send(utterance({ utterance_id: "b", text: "Now this." }));
+    const seen = await readUntil(viewer, (m) => isFinal(m) && m.utterance_id === "b");
+    expect(audioOf(seen, "a")).toEqual([]); // what the deaf voice made for a was thrown away
+    expect(audioOf(viewer.inbox as Msg[], "a")).toEqual([]);
+    expect(audioOf(seen, "b").length).toBeGreaterThan(0);
+  });
+
+  it("does not answer twice for a line the page is already playing: the page reports that one", async () => {
+    const { driver, viewer } = await setup();
+    driver.send(utterance({ utterance_id: "a", text: x(40) })); // 2 s
+    await readUntil(viewer, (m) => m.type === "audio" && m.utterance_id === "a"); // audio has reached the page
+    driver.send(make("cancel", { utterance_id: "a" }));
+    await readUntil(viewer, (m) => m.type === "cancel");
+    await wait(200);
+    expect(driver.inbox).toEqual([]); // the engine says nothing: a page that was playing sends speech_interrupted itself
+  });
+
+  it("says nothing about an id it never heard of, or one that already finished, or when the driver leaves", async () => {
+    const { driver } = await setup({ viewers: 0 });
+    driver.send(make("cancel", { utterance_id: "ghost" }));
+    driver.send(utterance({ utterance_id: "a", text: "Hi." }));
+    expect(await driver.next()).toMatchObject({ type: "speech_started" });
+    expect(await driver.next()).toMatchObject({ type: "speech_finished" });
+    driver.send(make("cancel", { utterance_id: "a" })); // too late
+    await wait(200);
+    expect(driver.inbox).toEqual([]);
+  });
+
+  it("does not add an interruption to a line that failed: the driver gets the error", async () => {
+    const { driver } = await setup({ tts: { failOn: "boom" } });
+    driver.send(utterance({ utterance_id: "a", text: "boom" }));
+    expect(await driver.next()).toMatchObject({ type: "error", code: "tts_failed", utterance_id: "a" });
+    await wait(200);
+    expect(driver.inbox).toEqual([]);
+  });
+});
+
 describe("cancelling", () => {
   it("stops an utterance before any audio is made, tells the viewers, and carries on with the next", async () => {
     const { viewer, driver, fake } = await setup({ tts: { firstChunkDelayMs: 400 } });
@@ -257,7 +361,8 @@ describe("cancelling", () => {
     driver.send(make("cancel", { utterance_id: "u1" }));
     driver.send(utterance({ text: undefined, delta: "More that nobody wants. ", final: true }));
     await wait(500);
-    expect(driver.inbox).toEqual([]);
+    // the cancel is answered once (VIK-71); the text that came after it draws no error and no second answer
+    expect(driver.inbox).toEqual([{ protocol_version: PROTOCOL_VERSION, type: "speech_interrupted", utterance_id: "u1", reason: "cancelled" }]);
     expect(fake.requests.join(" ")).not.toContain("nobody wants");
   });
 
