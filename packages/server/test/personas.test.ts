@@ -35,6 +35,18 @@ describe("parsePersonas", () => {
     expect(book.get("nobody")).toBeUndefined();
   });
 
+  it("reads a seated pose: arm angles and hip drop, or arms: hang (ADR-0019)", () => {
+    const book = parsePersonas("personas:\n  ada:\n    avatar: a.vrm\n    pose: { arms: { forward: 0.8, down: 1.1, elbow: 0.5 }, hip_drop: 0.4 }\n  snow:\n    avatar: s.vrm\n    pose: { arms: hang }\n", base);
+    expect(book.get("ada")!.pose).toEqual({ arms: { forward: 0.8, down: 1.1, elbow: 0.5 }, hipDrop: 0.4 });
+    expect(book.get("snow")!.pose).toEqual({ arms: "hang" });
+  });
+
+  it("rejects a pose with a number out of range or a word it does not know, naming the persona", () => {
+    expect(problem("personas:\n  ada:\n    avatar: a.vrm\n    pose: { hip_drop: 2 }\n")).toMatch(/ada.*hip_drop/i);
+    expect(problem("personas:\n  ada:\n    avatar: a.vrm\n    pose: { arms: flap }\n")).toMatch(/ada.*arms/i);
+    expect(problem("personas:\n  ada:\n    avatar: a.vrm\n    pose: { legs: 1 }\n")).toMatch(/ada.*legs/i);
+  });
+
   it("rejects a persona with no VRM path, naming the persona", () => {
     expect(problem("personas:\n  ada:\n    voice: af_heart\n")).toMatch(/ada.*avatar/i);
     expect(problem("personas:\n  ada:\n    avatar: ''\n")).toMatch(/ada.*avatar/i);

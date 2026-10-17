@@ -17,7 +17,7 @@ beforeEach(async () => {
   await writeFile(join(dir, "ben.vrm"), "BEN-BYTES");
   await writeFile(
     join(dir, "personas.yaml"),
-    "personas:\n  ada:\n    avatar: ada.vrm\n    voice: af_heart\n    emotion: happy\n    style: warm\n  ben:\n    avatar: ben.vrm\n    voice: am_adam\n  quiet:\n    avatar: ada.vrm\n",
+    "personas:\n  ada:\n    avatar: ada.vrm\n    voice: af_heart\n    emotion: happy\n    style: warm\n  ben:\n    avatar: ben.vrm\n    voice: am_adam\n    pose: { arms: hang, hip_drop: 0.3 }\n  quiet:\n    avatar: ada.vrm\n",
   );
 });
 afterEach(async () => {
@@ -120,7 +120,7 @@ describe("persona files over HTTP", () => {
     const list = (await (await fetch(`${base}/avatar/personas.json`)).json()) as { name: string; avatarUrl: string; emotion?: string; style?: string }[];
     expect(list).toEqual([
       { name: "ada", avatarUrl: "/avatar/personas/ada.vrm", emotion: "happy", style: "warm", voice: "af_heart" },
-      { name: "ben", avatarUrl: "/avatar/personas/ben.vrm", voice: "am_adam" },
+      { name: "ben", avatarUrl: "/avatar/personas/ben.vrm", voice: "am_adam", pose: { arms: "hang", hipDrop: 0.3 } },
       { name: "quiet", avatarUrl: "/avatar/personas/quiet.vrm" },
     ]);
     expect(JSON.stringify(list)).not.toContain(dir); // no filesystem paths leak
