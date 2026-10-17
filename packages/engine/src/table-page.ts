@@ -36,8 +36,8 @@ const GAP = 0.15; // metres between neighbours
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
 
-/** What a seat showed since the last reset: the head's swing, the widest mouth, every mark over the head. */
-const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>() });
+/** What a seat showed since the last reset: the head's swing, the widest mouth, every mark over the head, and whether it was asked to think. */
+const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>(), thought: false });
 
 try {
   const res = await fetch(`${baseUrl}personas.json`);
@@ -152,6 +152,7 @@ try {
       const i = seatFor(seats, { seat, persona });
       if (i === undefined) return;
       puppets[i]!.emotion.think(thinking);
+      if (thinking) api.table!.seats[i]!.peak.thought = true; // a beat shorter than a frame gap is never drawn on a slow page (VIK-77)
       if (thinking) thinker = i;
       else if (thinker === i) thinker = undefined;
       refocus();
