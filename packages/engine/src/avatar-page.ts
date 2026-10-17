@@ -15,6 +15,7 @@ import { TimelineRecorder } from "./timeline.ts";
 import type { TimelineUi } from "./timeline-ui.ts";
 import type { VisemeWeights } from "./renderer.ts";
 import { makeTransparent, parseEmbed } from "./embed.ts";
+import { mountEmbedAudio } from "./embed-audio.ts";
 
 const params = new URLSearchParams(location.search);
 const embedOpts = parseEmbed(params);
@@ -70,6 +71,8 @@ declare global {
       setVisemes(w: VisemeWeights): void;
       /** Set when the page is connected to a hub (`?live=1`). `events` lists what it reported to the driver. */
       live?: { state: LiveState; soundBlocked: boolean; events: string[] };
+      /** The audio context's state, how many buffers have gone to the speakers, and the audio clock (it only runs while the state is "running"). */
+      audio?: { state: string; played: number; time: number | undefined };
       /** True if the avatar has eye bones; false means eye level is estimated. */
       eyeBones?: boolean;
       /** On the table page (`?seats=`) only: one entry per seat, left to right. `symbol` is the mark over the head ("dots" while thinking), or null. */
@@ -90,6 +93,8 @@ let avatarUrl = params.get("avatar") ?? `${baseUrl}avatars/cookieman.vrm`;
 const demo = params.get("demo") === "1";
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
+api.audio = { get state() { return session.state; }, get played() { return session.played; }, get time() { return session.time; } };
+mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
 
 try {
   if (persona && !params.has("avatar")) {

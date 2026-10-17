@@ -17,6 +17,7 @@ Each section below says which card added it. Pin to the commit named on that car
 | `embed=1` | Avatars only (VIK-64). See below. |
 | `bg=00b140` | A solid background, six hex digits. Without it the background is transparent. |
 | `layout=duet` | Two seats facing each other round a clear central band (VIK-68). See below. |
+| `parent=<origin>` | The origin of the page that frames this one, such as `http://127.0.0.1:8765`: a bare `http(s)` origin, no path, never `*`. Turns on the messages in "Sound" below. Without it the page sends and obeys nothing. |
 | `names=1`, `captions=1` | In embed mode, bring back the name plates under the avatars and the transcript strip. Off by default. |
 | `hud=1` | In embed mode, show the small status line in the corner. Off by default (it is on outside embed mode). |
 
@@ -47,3 +48,44 @@ A test samples the band while a seat speaks and fails on any pixel of the page i
 | ![](img/duet-desktop.png) | ![](img/duet-laptop.png) | ![](img/duet-phone.png) |
 
 (The dashed outline marks the band and is drawn by the screenshot script, not by the page. The seat on the left is speaking.)
+
+## Sound: `audio_locked` and `unlock`
+
+A browser keeps the avatar page silent until the person has clicked on it, and a click on your page does not count: it is another origin. So the first lines would be mute. In embed mode the page tells you, and you can unlock it from your own click. ([ADR-0020](adr/0020-audio-unlock-handshake-for-embedded-pages.md) has the evidence.)
+
+```html
+<iframe id="avatar" allow="autoplay"
+        src="http://127.0.0.1:8787/avatar?seats=2&embed=1&layout=duet&hud=0&parent=http%3A%2F%2F127.0.0.1%3A8765"></iframe>
+<button id="start">Start</button>
+
+<script>
+  const frame = document.getElementById("avatar");
+  const HUB = "http://127.0.0.1:8787"; // the origin of the hub that serves the page
+  addEventListener("message", (e) => {
+    if (e.origin !== HUB || e.source !== frame.contentWindow) return; // ignore everyone else
+    if (e.data.type === "audio_locked") showStartButton();
+    if (e.data.type === "audio_unlocked") hideStartButton();
+  });
+  document.getElementById("start").addEventListener("click", () => {
+    frame.contentWindow.postMessage({ type: "unlock" }, HUB); // from the click handler, to the hub's origin, never "*"
+  });
+</script>
+```
+
+| Direction | Message | Meaning |
+| --- | --- | --- |
+| page to host | `{ "type": "audio_locked" }` | The browser is blocking sound. Sent once the page knows, and again if it becomes locked. |
+| page to host | `{ "type": "audio_unlocked" }` | Sound is allowed now. |
+| host to page | `{ "type": "unlock" }` | Send it from a click handler on your page. The page resumes its audio. |
+| host to page | `{ "type": "audio_status" }` | Ask the page to say again which of the two it is (if your listener started after the frame loaded). |
+
+Rules, all of them tested:
+
+- **`allow="autoplay"` on the iframe is required.** Without it the browser refuses, and neither your click nor `unlock` changes anything.
+- **`?parent=` must be your page's origin.** The page posts only to that origin and accepts only messages whose `source` is the parent window and whose `origin` is that one. With no `?parent=` (or a wrong one) it posts nothing and ignores `unlock`.
+- **Send `unlock` from your click handler.** A click on your page alone does nothing: the page has to be told.
+- **A small "Click for sound" button** shows in the frame's top-left corner while the browser blocks sound. A click on it always works, with or without the handshake. Keep the frame visible and clickable (no overlay on top of it) so that this way out stays open.
+- A line spoken while locked is **silent, not delayed**: it is shown (its mouth moves) and gone. Show your "start" button before the first line.
+- The page also writes a note to the browser console when it finds sound blocked, saying what to do.
+
+Tested in Chromium. Firefox and Safari were not tested: check your target browser once by hand (open your page, do not touch the frame, press your start button, speak a line). If `unlock` does not work there, the in-frame button is the fallback.

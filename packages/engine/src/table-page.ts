@@ -15,6 +15,7 @@ import { buildTable, circleSeats, medianHeight, seatLookYaw, type SeatSpot } fro
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
 import { makeTransparent, parseEmbed } from "./embed.ts";
+import { mountEmbedAudio } from "./embed-audio.ts";
 import { DUET_GLANCE, DUET_TURN, duetFrame, type Rect } from "./duet.ts";
 import { SpeakerLight } from "./duet-light.ts";
 
@@ -42,6 +43,8 @@ const LOOKS = [`${baseUrl}avatars/cookieman.vrm`, `${baseUrl}avatars/snowy.vrm`]
 const GAP = 0.15; // metres between neighbours
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
+api.audio = { get state() { return session.state; }, get played() { return session.played; }, get time() { return session.time; } };
+mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
 
 /** What a seat showed since the last reset: the head's swing, the widest mouth, every mark over the head, and whether it was asked to think. */
 const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>(), thought: false });

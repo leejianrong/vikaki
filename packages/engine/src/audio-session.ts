@@ -36,6 +36,14 @@ export class AudioSession {
     return this.ctx?.state ?? "none";
   }
 
+  /** How many buffers have been handed to the speakers (a line heard while the browser blocked sound goes nowhere and is not counted). For tests. */
+  played = 0;
+
+  /** The audio clock in seconds, which only advances while the context is running; undefined before it exists. For tests. */
+  get time(): number | undefined {
+    return this.ctx?.currentTime;
+  }
+
   /**
    * Create the audio context and mouth driver once, however many callers ask at the same time
    * (the page's speech player and a button press can both ask on load).
@@ -86,6 +94,7 @@ export class AudioSession {
         ls.connect(source);
         source.connect(ctx.destination);
         source.start(at);
+        this.played++;
         return {
           stop: () => {
             try {

@@ -42,6 +42,10 @@ To put a test in it, tag it: `it("…", { tags: ["smoke"] }, async () => { … }
 - Tests never call a paid or non-deterministic service.
 - Look at screenshots of any visual change yourself; for audio use the spectrograms and metrics (`docs/observability.md`).
 
+## Testing the browser's sound gate
+
+A page keeps its `AudioContext` suspended until the person has clicked, in headless Chromium too. It looks open because Playwright's `evaluate`, `waitForSelector` and a context made inside `evaluate` all count as a user gesture. A test of the gate (`embed-audio.e2e.test.ts`) must not touch the page before it has said it is locked: it reads state from the page's `postMessage`s to its host and from its console, polls with `isVisible` only after that, and fails loudly if the gate turns out to be open. Other e2e tests launch with `--autoplay-policy=no-user-gesture-required` and do not care.
+
 ## When an e2e test fails on CI
 
 The job uploads `e2e-failures` (14 days): for each failing test, a screenshot and the console log of every page that was open. `packages/e2e/test/setup.ts` does this for every test with no change to the tests. Download it from the run's Artifacts section, or locally find it under `packages/e2e/artifacts/` (git-ignored). A failing axe scan prints its violations, with the selectors, in the assertion message.

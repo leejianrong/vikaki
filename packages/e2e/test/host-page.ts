@@ -53,3 +53,14 @@ export async function pixelAt(browser: Browser, png: Buffer, points: [number, nu
     await scratch.close();
   }
 }
+
+/**
+ * A host page with a button that sends `unlock` to the frame (to `frameOrigin` only) and a log of every message it got from the frame
+ * (`window.heard`, and `HEARD:<type>` on the console, which a test can read without running anything in the page), ignoring any that do not come from the frame's window and origin: what a real host should do (docs/embed.md).
+ */
+export const unlockHostHtml = (frameOrigin: string, src: string, allow = 'allow="autoplay"') =>
+  `<!doctype html><meta charset=utf-8><body style="margin:0;background:#ff00ff"><button id="go" style="height:60px;width:120px">Start</button>` +
+  `<iframe id="avatar" src="${src}" ${allow} style="border:0;width:100%;height:calc(100% - 60px);position:fixed;top:60px;left:0"></iframe>` +
+  `<script>window.heard=[];const f=document.getElementById("avatar");` +
+  `addEventListener("message",e=>{if(e.origin===${JSON.stringify(frameOrigin)}&&e.source===f.contentWindow){window.heard.push(e.data);console.log("HEARD:"+e.data.type)}});` +
+  `document.getElementById("go").addEventListener("click",()=>f.contentWindow.postMessage({type:"unlock"},${JSON.stringify(frameOrigin)}));</script>`;
