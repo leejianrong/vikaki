@@ -1,7 +1,8 @@
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { Box3, Vector3, type Mesh, type Object3D } from "three";
-import { VISEMES, type AvatarFraming, type HeadPose, type SceneAvatar, type VisemeWeights } from "./renderer.ts";
+import { VISEMES, type AvatarFraming, type HeadPose, type SceneAvatar, type SeatPose, type VisemeWeights } from "./renderer.ts";
+import { applySeat, handHeight, type BoneOf } from "./seat-pose.ts";
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
@@ -46,6 +47,20 @@ export class VrmAvatar implements SceneAvatar {
     const h = this.vrm.humanoid;
     h.getNormalizedBoneNode("leftUpperArm")?.rotation.set(0, 0, radians);
     h.getNormalizedBoneNode("rightUpperArm")?.rotation.set(0, 0, -radians);
+  }
+
+  private readonly bone: BoneOf = (name) => this.vrm.humanoid.getNormalizedBoneNode(name);
+
+  seat(pose?: SeatPose): boolean {
+    if (!this.bone("hips")) return false;
+    applySeat(this.bone, pose);
+    this.vrm.update(0); // the normalized bones reach the skeleton on update
+    return true;
+  }
+
+  handHeight(): number | undefined {
+    this.vrm.scene.updateMatrixWorld(true);
+    return handHeight(this.bone);
   }
 
   /** World position of the head bone, for camera framing. */
