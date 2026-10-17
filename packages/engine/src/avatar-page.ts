@@ -14,10 +14,13 @@ import { MicTimeline } from "./mic-timeline.ts";
 import { TimelineRecorder } from "./timeline.ts";
 import type { TimelineUi } from "./timeline-ui.ts";
 import type { VisemeWeights } from "./renderer.ts";
+import { makeTransparent, parseEmbed } from "./embed.ts";
 
 const params = new URLSearchParams(location.search);
+const embedOpts = parseEmbed(params);
+if (embedOpts.embed) makeTransparent(document);
 const hud = document.getElementById("hud");
-if (hud && params.get("hud") === "0") hud.hidden = true;
+if (hud && !embedOpts.hud) hud.hidden = true;
 const say = (text: string) => {
   if (hud) hud.textContent = text;
 };

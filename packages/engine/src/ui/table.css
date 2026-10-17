@@ -81,3 +81,8 @@
 .transcript:empty { display: none; }
 .transcript p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .transcript b { font-weight: 600; margin-inline-end: 6px; color: var(--md-sys-color-primary); }
+
+/* Embed mode (VIK-64): the host page draws its own state, so nothing here unless asked for. */
+.table-overlay.embed .table-info { display: none; }
+.table-overlay.embed:not(.names) .seat-plate { display: none; }
+.table-overlay.embed:not(.captions) .transcript { display: none; }
