@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { loadPersonas, startServer, type RunningServer } from "@vikaki/server";
 import { FakeTts } from "@vikaki/tts";
 import { frameHtml, pixelAt, serveHost, type HostPage } from "./host-page.ts";
+import { SeatDriver, SEATS } from "./seat-driver.ts";
 
 // Embed mode (VIK-64): /avatar?embed=1 framed by a page on another origin shows the avatars and nothing else, on a see-through background.
 const staticDir = fileURLToPath(new URL("../../engine/dist", import.meta.url));
@@ -95,5 +96,80 @@ describe("embed mode", () => {
   it("changes nothing without ?embed=1: the plates are there", { timeout: 90_000 }, async () => {
     const { frame } = await embed("seats=2");
     expect((await chrome(frame)).some((s) => s.startsWith("span.name"))).toBe(true);
+  });
+});
+
+describe("the duet layout (VIK-68)", () => {
+  type Duet = NonNullable<NonNullable<Window["__vikaki"]>["table"]>["duet"] & {};
+  const duetOf = (frame: Frame) => frame.evaluate(() => window.__vikaki!.table!.duet as Duet);
+  const MAGENTA = [255, 0, 255];
+  /** Every pixel sampled in the rectangle shows the host's colour (within a rounding of 3), so nothing of the page is drawn there. */
+  async function bandIsClear(page: Page, band: Duet["band"]) {
+    const pts: [number, number][] = [];
+    for (let x = band.left + 1; x < band.left + band.width - 1; x += 10) for (let y = band.top + 1; y < band.top + band.height - 1; y += 10) pts.push([Math.round(x), Math.round(y)]);
+    const dirty = (await pixelAt(browser, await page.screenshot(), pts)).map((p, i) => ({ at: pts[i], p })).filter(({ p }) => p.some((c, k) => k < 3 && Math.abs(c - MAGENTA[k]!) > 3));
+    return { sampled: pts.length, dirty: dirty.slice(0, 5) };
+  }
+  const speak = async (frame: Frame, text = "x".repeat(120)) => {
+    const [d1, d2] = await Promise.all(SEATS.slice(0, 2).map((s) => SeatDriver.connect(server!.wsUrl, s)));
+    drivers.push(d1!, d2!);
+    d1!.say(text, "u1");
+    await frame.waitForFunction(() => window.__vikaki!.table!.duet!.speaker === "seat-1" && window.__vikaki!.table!.duet!.halo[0]! > 0.95, null, { timeout: 15_000 });
+    return { d1: d1!, d2: d2! };
+  };
+  const drivers: SeatDriver[] = [];
+  afterEach(() => {
+    for (const d of drivers.splice(0)) d.ws.terminate();
+  });
+
+  for (const [name, viewport, stacked] of [["desktop", { width: 1280, height: 720 }, false], ["a small laptop", { width: 960, height: 540 }, false], ["a phone", { width: 390, height: 844 }, true]] as const) {
+    it(`on ${name}: the speaker is lit, the other dimmed, and the band is clear of any pixel of ours`, { timeout: 120_000, tags: name === "desktop" ? ["smoke"] : [] }, async () => {
+      const { page, frame } = await embed("seats=2&embed=1&layout=duet", viewport);
+      expect(await chrome(frame)).toEqual([]);
+      const idle = await duetOf(frame);
+      expect(idle.stacked).toBe(stacked);
+      expect(idle.speaker).toBeNull();
+      expect(idle.lit).toEqual([1, 1]); // nobody speaking: both look normal
+      expect(idle.halo).toEqual([0, 0]);
+      expect((await bandIsClear(page, idle.band)).dirty).toEqual([]);
+
+      await speak(frame);
+      const d = await duetOf(frame);
+      expect(d.speaker).toBe("seat-1");
+      expect(d.lit[0]).toBe(1);
+      expect(d.lit[1]).toBeLessThan(0.1); // dimmed (eased to its floor)
+      expect(d.halo[1]).toBe(0);
+      const looks = await frame.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.look));
+      expect(looks[0]).toBe(0); // the speaker looks ahead
+      expect(looks[1]).toBeLessThan(0); // the listener, on the right, glances left toward the speaker
+      const { sampled, dirty } = await bandIsClear(page, d.band);
+      expect(sampled).toBeGreaterThan(100);
+      expect(JSON.stringify(dirty), "pixels drawn inside the band while the left seat speaks").toBe("[]");
+      // something is drawn on both sides of it, so the clear band is not a blank frame
+      const outside: [number, number][] = [];
+      for (let x = 10; x < viewport.width; x += 20) for (let y = 10; y < viewport.height; y += 20) if (x < d.band.left || x > d.band.left + d.band.width || y < d.band.top) outside.push([x, y]);
+      const drawn = (await pixelAt(browser, await page.screenshot(), outside)).filter(([r, g, b]) => !(r === 255 && g === 0 && b === 255));
+      expect(drawn.length).toBeGreaterThan(20);
+    });
+  }
+
+  it("moves the light when the other seat speaks", { timeout: 120_000 }, async () => {
+    const { frame } = await embed("seats=2&embed=1&layout=duet");
+    const { d1, d2 } = await speak(frame, "x".repeat(20));
+    await d1.waitFor((m) => m.type === "speech_finished" && m.utterance_id === "u1");
+    d2.say("x".repeat(120), "u2");
+    await frame.waitForFunction(() => window.__vikaki!.table!.duet!.speaker === "seat-2" && window.__vikaki!.table!.duet!.halo[1]! > 0.95 && window.__vikaki!.table!.duet!.halo[0]! < 0.05, null, { timeout: 15_000 });
+    const d = await duetOf(frame);
+    expect([d.lit[1], d.lit[0]! < 0.1]).toEqual([1, true]);
+  });
+
+  it("refuses a table that is not two seats, and says so", { timeout: 90_000 }, async () => {
+    const dir = await mkdtemp(join(tmpdir(), "vikaki-embed-e2e-"));
+    await writeFile(join(dir, "personas.yaml"), `personas:\n  ada:\n    avatar: ${join(avatars, "cookieman.vrm")}\n`);
+    server = await startServer({ staticDir, personas: await loadPersonas(join(dir, "personas.yaml")) });
+    const page = await browser.newPage();
+    pages.push(page);
+    await page.goto(`${server.url}?seats=3&layout=duet`);
+    await page.waitForFunction(() => document.getElementById("hud")?.textContent?.includes("layout=duet needs exactly two seats, got 3"), null, { timeout: 30_000 });
   });
 });

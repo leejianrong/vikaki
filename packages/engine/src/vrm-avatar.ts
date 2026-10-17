@@ -1,6 +1,6 @@
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
-import { Box3, Vector3, type Mesh, type Object3D } from "three";
+import { Box3, Vector3, type Mesh, type Object3D, type SkinnedMesh } from "three";
 import { VISEMES, type AvatarFraming, type HeadPose, type SceneAvatar, type SeatPose, type VisemeWeights } from "./renderer.ts";
 import { applySeat, handHeight, type BoneOf } from "./seat-pose.ts";
 
@@ -37,6 +37,44 @@ export class VrmAvatar implements SceneAvatar {
     if (l && r) return Math.max(0.3, l.getWorldPosition(new Vector3()).distanceTo(r.getWorldPosition(new Vector3())) * 1.5);
     const box = new Box3().setFromObject(this.vrm.scene);
     return box.max.x - box.min.x;
+  }
+
+  /**
+   * How wide the avatar is between two heights, as posed now (skinning applied, so lowered arms and a turned body count). The shoulder
+   * estimate in `bodyWidth` misses arms, sticks and hats, and a layout that promises a clear band needs the real thing. The vertices are
+   * read once, into 2 cm bands of world height; the returned function answers for any range from those.
+   */
+  widthProfile(): (lo: number, hi: number) => number {
+    this.vrm.update(0); // the normalized bones reach the skeleton on update
+    this.vrm.scene.updateMatrixWorld(true);
+    const STEP = 0.02;
+    const min = new Map<number, number>();
+    const max = new Map<number, number>();
+    const v = new Vector3();
+    this.vrm.scene.traverse((o) => {
+      const mesh = o as SkinnedMesh;
+      const pos = mesh.isMesh ? mesh.geometry.getAttribute("position") : undefined;
+      if (!pos) return;
+      mesh.skeleton?.update();
+      for (let i = 0; i < pos.count; i++) {
+        if (mesh.isSkinnedMesh) mesh.getVertexPosition(i, v);
+        else v.fromBufferAttribute(pos, i);
+        v.applyMatrix4(mesh.matrixWorld);
+        const band = Math.floor(v.y / STEP);
+        if (v.x < (min.get(band) ?? Infinity)) min.set(band, v.x);
+        if (v.x > (max.get(band) ?? -Infinity)) max.set(band, v.x);
+      }
+    });
+    const fallback = this.bodyWidth();
+    return (lo, hi) => {
+      let l = Infinity;
+      let r = -Infinity;
+      for (let band = Math.floor(lo / STEP); band <= Math.floor(hi / STEP); band++) {
+        l = Math.min(l, min.get(band) ?? Infinity);
+        r = Math.max(r, max.get(band) ?? -Infinity);
+      }
+      return r > l ? r - l : fallback;
+    };
   }
 
   /**
