@@ -8,6 +8,7 @@ import { HeadlessRenderer, MjpegFeed, RendererUnavailable, startScreencast } fro
 import { cancel, replay, say, type Io } from "./commands.ts";
 import { runMcp } from "./mcp.ts";
 import { playHand } from "./table-demo.ts";
+import { startEmbedDemo } from "./embed-demo.ts";
 import { fromHere } from "./paths.ts";
 import { hubUrl } from "./hub-client.ts";
 import { resolve } from "node:path";
@@ -31,6 +32,8 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
                                      With --seat it speaks for that seat of a table only (repeat it for several): one server per LLM
        vikaki table-demo [--pace N]      a scripted hand of poker with one driver per seat; watch it at /avatar?seats=3
                                      (start the hub with --personas personas.table.example.yaml)
+       vikaki embed-demo [--port N] [--hub-port N] [--tts auto|kokoro|fake] [--open]
+                                     the embed work on one screen: a stand-in game page frames the duet layout, with a box to speak for either seat
        vikaki replay <file.jsonl> [--speed N]   send a recorded session's driver messages again
 
   say, cancel, replay and mcp talk to a running \`vikaki serve\`: add [--port N | --url ws://host:port/ws] [--token <secret>].
@@ -94,6 +97,58 @@ async function chooseTts(kind: string, voice: string | undefined): Promise<{ tts
   console.log("loading the voice (the first run downloads a model of about 90 MB)...");
   const tts = await KokoroTts.create({ voice, importFrom: found?.entry });
   return { tts, voice: voice ?? "af_heart" };
+}
+
+/** `vikaki embed-demo`: the hub and a stand-in game page on another port, to see the embed work (docs/embed.md). */
+async function embedDemo(argv: string[]): Promise<void> {
+  const { values } = parseArgs({ args: argv, options: { port: { type: "string" }, "hub-port": { type: "string" }, tts: { type: "string", default: "auto" }, voice: { type: "string" }, static: { type: "string", default: defaultStatic }, open: { type: "boolean", default: false } } });
+  // Free ports by default (from 8765 and 8787): another project's hub or game may already be on them.
+  const hostPort = values.port !== undefined ? Number(values.port) : await findFreePort(8765);
+  const hubPort = values["hub-port"] !== undefined ? Number(values["hub-port"]) : await findFreePort(hostPort === 8787 ? 8788 : 8787);
+  if (!(hostPort > 0 && hubPort > 0 && hostPort !== hubPort) || !["auto", "kokoro", "fake"].includes(values.tts!)) {
+    console.error("usage: vikaki embed-demo [--port N] [--hub-port N] [--tts auto|kokoro|fake] [--open]   (two different ports)");
+    process.exit(1);
+  }
+  if (!existsSync(values.static!)) {
+    console.error(`no built page at ${values.static}; run \`pnpm build\` first`);
+    process.exit(1);
+  }
+  const chosen = await chooseTts(values.tts!, values.voice).catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
+  const hostOrigin = `http://127.0.0.1:${hostPort}`;
+  // The stand-in page is another origin from the hub, as a game's would be, so the hub is told it may frame the avatar page.
+  const server = await startServer({
+    staticDir: values.static!,
+    port: hubPort,
+    frameAncestors: [hostOrigin],
+    speech: chosen ? { tts: chosen.tts, defaultVoice: chosen.voice } : undefined,
+  }).catch((err) => {
+    console.error(`cannot start the hub on port ${hubPort}: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  });
+  const demo = await startEmbedDemo({ hubWs: server.wsUrl, hubOrigin: new URL(server.url).origin, port: hostPort }).catch(async (err) => {
+    console.error(`cannot start the demo page on port ${hostPort}: ${err instanceof Error ? err.message : err}`);
+    await server.close();
+    process.exit(1);
+  });
+  console.log(`vikaki embed demo: open ${demo.origin}`);
+  console.log(`  the page is the host (${demo.origin}); it frames the hub's avatar page (${new URL(server.url).origin}) with ?seats=2&embed=1&layout=duet`);
+  console.log("  type a line and press Speak; press Start sound once (the frame is silent until the host sends `unlock`)");
+  console.log("press Ctrl+C to stop");
+  if (values.open) openBrowser(demo.origin);
+  let stopping = false;
+  const stop = async () => {
+    if (stopping) process.exit(130);
+    stopping = true;
+    console.log("\nStopping...");
+    await demo.close();
+    await Promise.race([Promise.all([server.close(), chosen?.tts.close?.()]), new Promise((ok) => setTimeout(ok, 12_000))]);
+    process.exit(0);
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
 }
 
 async function serve(argv: string[]): Promise<void> {
@@ -313,6 +368,8 @@ async function clientCommand(command: string, argv: string[]): Promise<number> {
 const [command, ...rest] = process.argv.slice(2);
 if (command === "serve") {
   await serve(rest);
+} else if (command === "embed-demo") {
+  await embedDemo(rest);
 } else if (command === "stream") {
   await serve([...rest, "--stream"]);
 } else if (command === "say" || command === "cancel" || command === "replay" || command === "mcp" || command === "table-demo") {
