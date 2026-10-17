@@ -182,6 +182,10 @@ export class SpeechEngine {
     if (tellViewers) this.hub?.toViewers(make("cancel", { utterance_id: id }));
     // With no avatar page connected, the engine is the one playing, so it reports the interruption.
     if (u.virtual && u.spoken) this.hub?.toDriver(make("speech_interrupted", { utterance_id: id, reason }));
+    // A line that never reached a page (still queued, or being synthesised: a real voice can take seconds for its first sentence, and may not
+    // stop when told) is one no page will ever report on, so answer at once. Whatever the voice makes for it is thrown away in `speak`.
+    // A failed line has had its error; a driver that left needs no answer.
+    else if (!u.spoken && !u.failure && reason === "cancelled") this.hub?.toDriver(make("speech_interrupted", { utterance_id: id, reason }));
   }
 
   private fail(u: Utterance, err: unknown): void {
