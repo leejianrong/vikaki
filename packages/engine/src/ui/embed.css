@@ -1,0 +1,19 @@
+/* The "click for sound" button of the embedded page (VIK-66): small, in the top-left corner (clear of the middle, where a host draws), and
+   shown only while the browser blocks sound. Material 3 roles from theme.css. */
+.sound-pill {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font: 500 0.875rem/1.25rem var(--md-ref-typeface-plain);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent);
+  cursor: pointer;
+}
+.sound-pill[hidden] { display: none; }
+.sound-pill:hover { background: color-mix(in srgb, var(--md-sys-color-on-secondary-container) 8%, var(--md-sys-color-secondary-container)); }
+.sound-pill:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; }

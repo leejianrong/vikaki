@@ -24,6 +24,8 @@ interface Window {
     emotionPose?: EmotionPose;
     presetPose?: (emotion: string, intensity: number) => EmotionPose;
     live?: { state: string; soundBlocked: boolean; events: string[] };
+    /** The audio context's state, buffers sent to the speakers, and the audio clock. */
+    audio?: { state: string; played: number; time: number | undefined };
     table?: { seats: { seat: string; persona?: string; avatarUrl: string; x: number; visemes: Record<string, number>; symbol: string | null; look: number; yaw: number; pitch: number; roll: number; /** Since the last `resetPeaks()`, over every frame drawn. */ peak: { yawMin: number; yawMax: number; mouth: number; symbols: Set<string>; /** The seat was told it is thinking, whether or not a frame drew the dots. */ thought: boolean } }[]; /** Seats whose mouth was the widest (over 0.3), in order, one entry per change. */ spoke: number[]; resetPeaks(): void; /** `table` when the seats sit round a 3D table (`?view=table`), else `row`. */ view: "row" | "table"; /** `?layout=duet`: the band the host draws over, whether the avatars are stacked above it, each avatar's brightness and halo, and the seat in the light. */ duet?: { band: { left: number; top: number; width: number; height: number }; stacked: boolean; lit: number[]; halo: number[]; speaker: string | null }; /** In the 3D view: what `table_state` has put on the table, for tests. */ props?: { boardCards: number; seatCards: number[]; chips: number; dealer: string | undefined } };
   };
 }
