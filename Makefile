@@ -2,7 +2,7 @@
 
 # Run the CLI directly, not through pnpm: pnpm reports a clean Ctrl+C stop as a failed command.
 CLI = cd packages/cli && exec ../../node_modules/.bin/tsx src/index.ts
-.PHONY: help lipsync-scorecard install install-voice install-renderer docker-build docker-test doctor build serve demo demo-speech extension e2e-smoke check hooks
+.PHONY: demo-embed help lipsync-scorecard install install-voice install-renderer docker-build docker-test doctor build serve demo demo-speech extension e2e-smoke check hooks
 
 help: ## List available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -44,6 +44,9 @@ demo-speech: install-voice build ## Install the real voice if needed, then open 
 demo-table: build ## Serve a table of three avatars (the real voice if installed); then run `make table-hand` in another terminal to play a hand
 	@echo "Open http://127.0.0.1:8787/avatar?seats=3 and, in another terminal, run: make table-hand"
 	@$(CLI) serve --port 8787 --personas $(CURDIR)/personas.table.example.yaml
+
+demo-embed: build ## See the embed work: a stand-in game page frames the duet layout; type a line for either seat, press Start sound, press Cancel
+	@$(CLI) embed-demo --open
 
 table-hand: ## Play the scripted hand of poker at the running table, one driver per seat
 	@$(CLI) table-demo --port 8787

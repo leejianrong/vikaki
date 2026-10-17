@@ -2,6 +2,8 @@
 
 For a game that frames `/avatar` in an `<iframe>` so its players have faces and voices (first user: Wavelength, VIK-E6). The hub and the avatar page keep the voice, faces and audio; the game page draws nothing of the avatars and plays no sound itself. A game server drives the hub with `vikaki-client`, one driver per seat ([ADR-0017](adr/0017-one-driver-per-seat.md)); the browser never talks to the hub except through this page.
 
+**To see all of this working, run `make demo-embed`.** It builds, starts a hub and a stand-in game page on two different ports (free ones, starting at 8765 and 8787, so it does not clash with another project) and opens the page: the duet layout in a frame with a placeholder dial in the clear band, a box to type a line for either seat, Start sound (the `unlock` message), Cancel, and two logs, one for what the frame posts to the page and one for what the game server's drivers hear. Add `--tts kokoro` through `pnpm --silent vikaki embed-demo` for the real voice after `make install-voice`.
+
 Each section below says which card added it. Pin to the commit named on that card.
 
 ## The URL
