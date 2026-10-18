@@ -10,17 +10,21 @@ import json
 import re
 from dataclasses import dataclass, field
 
+from .brain import STRATEGY_PRIMER, Traits, briefing, history_text, personality_text, turn_facts
 from .llm import Llm, LlmError, Message, Usage
 
 EMOTIONS = ("neutral", "happy", "smug", "worried", "surprised", "sad", "angry")
 MAX_SAY = 240
 
-SYSTEM = """You are {persona}, a friendly cartoon character playing no-limit Texas Hold'em at a small table with other cartoon characters.
-Character: {style}
-Play to win, but keep the table light and kind. Speak in short natural sentences, as if aloud, and react to what others said.
+SYSTEM = """You are {persona}, a cartoon character playing no-limit Texas Hold'em at a small table with other cartoon characters. You play to win.
+
+{primer}
+
+{personality}
+
 Reply with ONLY one JSON object, nothing else:
-{{"action": "fold" | "check" | "call" | "raise", "amount": <total to raise to, only for raise>, "say": "<one short sentence of table talk, or empty>", "emotion": "<one of: {emotions}>"}}
-Never reveal your cards in "say" unless you want to bluff about them. Use only the legal actions you are given."""
+{{"action": "fold" | "check" | "call" | "raise", "amount": <total to raise to, only for raise>, "say": "<table talk, in character, or empty>", "emotion": "<one of: {emotions}>"}}
+Use only the legal actions you are given."""
 
 
 @dataclass
@@ -32,26 +36,12 @@ class Decision:
     note: str = ""  # empty when the answer was used as given; otherwise what was fixed or why a fallback was taken
 
 
-def build_messages(persona: str, style: str, view: dict, talk: list[tuple[str, str]], recent: int = 8) -> list[Message]:
-    legal = view["legal"]
-    me = next(p for p in view["players"] if p["seat_id"] == view["to_act"])
-    lines = [
-        f"Street: {view['street']}. Board: {' '.join(view['board']) or 'none yet'}. Your cards: {' '.join(view['hole'])}.",
-        f"Pot: {view['pot']}. Current bet to match: {view['current_bet']}. You have {me['stack']} behind and {me['bet']} bet this street. Dealer button: {view['button']}.",
-        "Players: " + "; ".join(f"{p['seat_id']} stack {p['stack']}, bet {p['bet']}" + (", folded" if p["folded"] else "") + (", all in" if p["all_in"] else "") for p in view["players"]) + ".",
-    ]
-    if talk:
-        lines.append("Recent table talk: " + " | ".join(f"{who}: {text}" for who, text in talk[-recent:]))
-    options = []
-    for kind in legal["kinds"]:
-        if kind == "call":
-            options.append(f"call (costs {legal['call_amount']})")
-        elif kind == "raise":
-            options.append(f"raise (to a total between {legal['min_raise_to']} and {legal['max_raise_to']})")
-        else:
-            options.append(kind)
-    lines.append("Your legal actions: " + ", ".join(options) + ".")
-    return [{"role": "system", "content": SYSTEM.format(persona=persona, style=style or "friendly", emotions=", ".join(EMOTIONS))}, {"role": "user", "content": "\n".join(lines)}]
+def build_messages(persona: str, style: str, view: dict, talk: list[tuple[str, str]], recent: int = 8, *, traits: Traits | None = None, history: str = "", names: dict[str, str] | None = None, facts: dict | None = None) -> list[Message]:
+    """The two messages a seat's model gets: who it is and how to play (the same every turn), and this turn's situation, numbers and legal moves."""
+    names = names or {}
+    facts = facts if facts is not None else turn_facts(view)
+    system = SYSTEM.format(persona=persona, primer=STRATEGY_PRIMER, personality=personality_text(persona, traits or Traits(), style or "friendly"), emotions=", ".join(EMOTIONS))
+    return [{"role": "system", "content": system}, {"role": "user", "content": briefing(view, facts, history, talk, names, recent)}]
 
 
 def _json_object(text: str) -> dict | None:
@@ -117,10 +107,12 @@ class SeatAgent:
     model: str
     style: str = ""
     max_tokens: int = 200
+    traits: Traits = field(default_factory=Traits)
     usage: Usage = field(default_factory=Usage)
 
-    def decide(self, view: dict, talk: list[tuple[str, str]] | None = None) -> Decision:
-        messages = build_messages(self.persona, self.style, view, talk or [])
+    def decide(self, view: dict, talk: list[tuple[str, str]] | None = None, events: list[dict] | None = None, names: dict[str, str] | None = None) -> Decision:
+        """`events` are the hand's events so far (`Hand.events`), told as the story of the hand; `names` map seat ids to the characters' names."""
+        messages = build_messages(self.persona, self.style, view, talk or [], traits=self.traits, history=history_text(events or [], names or {}), names=names)
         try:
             reply = self.llm.complete(messages, model=self.model, max_tokens=self.max_tokens)
         except LlmError as err:

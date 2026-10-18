@@ -7,6 +7,7 @@ import os
 import sys
 from typing import Sequence
 
+from .stats import style_lines, style_stats
 from .llm import KEY_ENV, FakeLlm, Llm, LlmError, OpenRouterLlm, Usage, load_dotenv
 from .runner import HubVoice, PrintVoice, Voice, play_session
 from .table import TableError, build_agents, build_reactor, load_table
@@ -34,6 +35,7 @@ def _parser() -> argparse.ArgumentParser:
     play.add_argument("--fake-llm", action="store_true", help=f"no model calls: a scripted stand-in (no {KEY_ENV} needed)")
     play.add_argument("--no-reactions", action="store_true", help="the seats that are listening stay still (no silent reactions)")
     play.add_argument("--show-cards", action="store_true", help="show every live hand face up on the page (the default: the table page is a spectator's view, with each seat's hand and chance to win)")
+    play.add_argument("--no-rebuy", action="store_true", help="a player who goes broke is out, and the session ends when one player has every chip (default: they buy back in)")
     play.add_argument("--hide-cards", action="store_true", help="keep the hands face down until a showdown, with no hand names or odds on the page")
     play.add_argument("--model", help="play every seat with this model instead of the table file's")
     play.add_argument("--reasoning", action="store_true", help="let a thinking model think before it answers (default: off; slower, and it needs a larger max_tokens in the table file)")
@@ -80,11 +82,13 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
                 print(f"vikaki_poker: could not join the table at {args.url} ({code}). Is `pnpm serve --personas personas.table.example.yaml` running?", file=sys.stderr)
                 return 1
     try:
-        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=args.seed, reactor=reactor, show_cards=not args.hide_cards)
+        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=args.seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy)
     finally:
         if own_voice and hasattr(voice, "close"):
             voice.close()  # type: ignore[union-attr]
-    print("chips: " + ", ".join(f"{s} {n}" for s, n in session.stacks.items()))
+    print("chips: " + ", ".join(f"{s} {n}" for s, n in session.stacks.items()) + (f" (rebuys: {', '.join(f'{s} {n}' for s, n in session.rebuys.items())})" if session.rebuys else ""))
+    for row in style_lines(style_stats(session.results, list(agents)), {s: a.persona for s, a in agents.items()}):
+        print(row)
     _summary(agents, print, reactor)
     return 0
 

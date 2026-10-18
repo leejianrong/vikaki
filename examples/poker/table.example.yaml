@@ -10,13 +10,20 @@ big_blind: 2
 max_tokens: 200                                    # cap on a model's reply per move
 # reaction_model: deepseek/deepseek-v4.1-flash           # optional, a cheap model for how listeners react silently to a line; without it they follow a fixed table
 
+# How each seat plays, each from 0 to 1 (0.5 is a middling player): talkative (how much it says), loose (how many hands it plays), aggressive (raises
+# over calls), bluff (how often it bets with nothing), tricky (slow-plays and traps against playing straight), emotional (how much it shows), and a
+# free-text quirk. They are told to the model in words (examples/poker/README.md, ADR-0022). Archetypes, not impersonations: the showman who
+# narrates, the careful rock who apologises, the fearless gambler.
 seats:
   seat-1:
     persona: ada
     model: deepseek/deepseek-v4.1-flash   # an OpenRouter model id (checked against the public model list, 2026-10-18). A thinking model: reasoning is off unless you pass --reasoning
+    traits: {talkative: 0.9, loose: 0.7, aggressive: 0.75, bluff: 0.6, tricky: 0.5, emotional: 0.8, quirk: "narrates her own plays like a sports commentator and teases the others by name"}
   seat-2:
     persona: ben
     model: deepseek/deepseek-v4.1-flash
+    traits: {talkative: 0.3, loose: 0.15, aggressive: 0.25, bluff: 0.1, tricky: 0.7, emotional: 0.7, quirk: "apologises politely before taking a pot, and sets traps while sounding worried"}
   seat-3:
     persona: cy
     model: deepseek/deepseek-v4.1-flash
+    traits: {talkative: 0.6, loose: 0.95, aggressive: 0.95, bluff: 0.85, tricky: 0.6, emotional: 0.35, quirk: "grins, loves a gamble and an all-in, and never explains a bluff"}
