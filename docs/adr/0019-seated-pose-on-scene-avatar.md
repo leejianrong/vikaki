@@ -47,3 +47,4 @@ interface SceneAvatar {
 - **A fixed table height.** The spike hid the forearms of seated avatars with one.
 - **Make `seat` mandatory.** Forces a doodle or sprite avatar to fake a skeleton.
 - **A separate `SeatedAvatar` type.** One more interface for the page to check; optional methods say the same thing with less.
+- **Correction (VIK-81, 2026-10-18):** the first numbers bent the thighs the wrong way round for the real VRM 0.x models: the legs ran away from the table while the torso and arms faced it, which the low default camera hid. The thigh and shin signs are now reversed, and the page reports `kneeReach` (metres the knees are toward the table from the hips) so a test can see it. Check a new avatar with the `?cam=x,y,z,tx,ty,tz` debug camera from the side.

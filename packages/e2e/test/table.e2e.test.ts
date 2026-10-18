@@ -230,6 +230,13 @@ describe("the table page", () => {
     expect(out).toContain("hand over");
   });
 
+  it("seats every avatar with the thighs running under the table, not away from it (VIK-81)", { timeout: 90_000 }, async () => {
+    const { page } = await setup("seats=3&view=table", undefined, false);
+    const reach = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.kneeReach));
+    // a thigh is about 0.4 m: the knees must be well toward the table's middle from the hips (the bug put them a few tenths the other way)
+    for (const r of reach) expect(r).toBeGreaterThan(0.15);
+  });
+
   it("seats the avatars round a 3D table with ?view=table: each plate under its own head, the speaker's mouth, the others' heads turned to look (VIK-62)", { timeout: 90_000 }, async () => {
     const { page, drivers: [, d2] } = await setup("seats=3&view=table");
     expect(await page.evaluate(() => window.__vikaki!.table!.view)).toBe("table");

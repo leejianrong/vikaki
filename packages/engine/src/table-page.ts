@@ -122,7 +122,16 @@ try {
   /** A duet keeps each avatar's head and this many head heights below it in view, and measures how wide the avatars are over what it sees. */
   const BUST = 1.2;
   const profiles = duet ? avatars.map((a) => a.widthProfile()) : [];
+  // `?cam=x,y,z,tx,ty,tz` puts the camera there, looking at the target (a dev aid for judging a pose or a prop from the side or above).
+  const cam = (params.get("cam") ?? "").split(",").map(Number);
+  const debugCamera = cam.length === 6 && cam.every(Number.isFinite) ? cam : undefined;
   const reframe = () => {
+    if (debugCamera) {
+      camera.position.set(debugCamera[0]!, debugCamera[1]!, debugCamera[2]!);
+      camera.lookAt(debugCamera[3]!, debugCamera[4]!, debugCamera[5]!);
+      camera.updateMatrixWorld();
+      return;
+    }
     if (spots) {
       // A low three-quarter view over the near rim: faces stay readable, the cards and chips show (the spike's `low`).
       const back = 3.1 * Math.max(1, 1.5 / Math.max(camera.aspect, 0.1));
@@ -188,7 +197,7 @@ try {
   }).observe(canvas);
 
   api.table = {
-    seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0, peak: freshPeak() })),
+    seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0, peak: freshPeak(), kneeReach: spots ? avatars[i]!.kneeReach(-spots[i]!.x / Math.hypot(spots[i]!.x, spots[i]!.z), -spots[i]!.z / Math.hypot(spots[i]!.x, spots[i]!.z)) : undefined })),
     spoke: [],
     view: spots ? "table" : "row",
     props: props?.drawn,
