@@ -56,6 +56,32 @@ describe("splitLong", () => {
   });
 });
 
+describe("splitLong with a short first piece (VIK-116)", () => {
+  const text = "Well now, that is a lot of chips to put in the middle on a flop like this, but fine, I will call and see what you have got.";
+
+  it("makes the first piece short, so sound can start sooner, and the rest at the usual size", () => {
+    const plain = splitLong(text, 70);
+    const quick = splitLong(text, 70, 20, 40);
+    expect(quick[0]!.length).toBeLessThanOrEqual(Math.floor(40 * 1.25));
+    expect(quick[0]!.length).toBeLessThan(plain[0]!.length);
+    for (const p of quick.slice(1)) expect(p.length).toBeLessThanOrEqual(Math.floor(70 * 1.25));
+    expect(quick.join(" ").replace(/\s+/g, " ")).toBe(text);
+  });
+
+  it("leaves a line that fits in the first piece whole", () => {
+    expect(splitLong("I call, and I like it.", 70, 20, 40)).toEqual(["I call, and I like it."]);
+  });
+
+  it("keeps every character in order, whatever the text and the limits (property)", () => {
+    fc.assert(
+      fc.property(fc.string({ unit: fc.constantFrom("a", "b", "c", " ", " ", ",", ".", ";"), maxLength: 300 }), fc.integer({ min: 20, max: 60 }), (text, first) => {
+        expect(splitLong(text, 70, 20, first).join("").replace(/\s+/g, "")).toBe(text.replace(/\s+/g, ""));
+      }),
+      { numRuns: 200 },
+    );
+  });
+});
+
 describe("gapAfter", () => {
   it("is a natural pause after a stronger or comma cut, and a breath after a cut with no punctuation", () => {
     expect(gapAfter("It rained all week;")).toBeGreaterThan(gapAfter("It rained all week,"));

@@ -45,3 +45,22 @@ Measured with `scripts/probe-cancel-cost.ts` (Kokoro on this machine's CPU): a s
 - **One at a time, and let the loop turn.** The worker handles one request at a time (an abort applies while a request waits, so one cancelled in the queue never reaches the engine), and yields to its event loop between pieces and before each request: a message to a worker is only handled when its loop turns, and Kokoro's work holds the thread and is awaited by microtasks, so without the yield the abort was not seen until every piece had been made.
 
 Result: the line after a cancel waits for the piece in progress, not the sentence: 2.8 s (60 characters), 3.1 s (120), 3.1 s (200). Restarting the worker instead was ruled out: a second Kokoro load in the same process fails (the native runtime does not load twice). I could not listen to the result; the instrument checks are the speech-or-buzz classification, the pauses and the spectrogram.
+
+## Update: first audio in about a second (VIK-116, 2026-10-19)
+
+Jian found about 3 s from a line to its first sound too slow for the poker table. The model is not reloaded per line (it loads once in the worker; the hub path adds under 50 ms); the time was Kokoro itself, so `scripts/probe-first-audio.ts` times it two ways (the engine alone, and a driver's utterance to the first `audio` message at a viewer). Findings, on a 16-core machine with other work running (load 7 to 10):
+
+- The 8-bit `q8` weights this project chose for their 90 MB size are about three times slower than full precision on this CPU, for the same audio: "Check." 1.4 s against 0.46 s, a 44-character line 3.4 s against 1.1 s (median of 5; fp16 within 15% of fp32). The CPU has no fast 8-bit path. Phonemizing is under 100 ms and thread count made no difference.
+- The first call after loading paid about a second for the runtime's set-up.
+- The first piece of a long line was up to 70 characters, so its first sound waited for 70 characters of speech.
+
+Changes: full-precision weights by default (`VIKAKI_KOKORO_DTYPE=q8|fp16|q4` chooses another; one table, `kokoro-defaults.mjs`, serves the engine, `install-voice` and `doctor`), a warm-up call at load, and a first piece of at most 40 characters (the rest still 70, made while the first plays).
+
+| Utterance to first audio, at the hub | Before (q8, 70-char first piece) | After (fp32, 40-char first piece, warm) |
+| --- | --- | --- |
+| "Check." (6 characters) | 1.5 s | 0.58 s |
+| 22 characters | 2.1 s | 0.85 s |
+| 44 characters | 2.4 s | 0.98 s |
+| 123 characters, one sentence | about 7 s | 1.17 s |
+
+Costs: a model download of about 330 MB instead of 90 MB, and a model load of about 4 to 10 s instead of 1 to 2 s. A machine with fast 8-bit maths may do better with `q8`: the probe takes `--dtype` to compare. The probe's engine timing reads each line to the end; reading only the first chunk left the worker finishing a piece and inflated the next hub measurement by 1.5 s.

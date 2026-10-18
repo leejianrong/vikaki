@@ -28,12 +28,31 @@ async function fakeKokoro() {
      }`,
   );
   const href = pathToFileURL(file).href;
-  return { href, calls: async () => (await import(href)).calls as string[] };
+  const raw = async () => (await import(href)).calls as string[];
+  // `calls` is what was made for the lines spoken; the warm-up at load ("Ready.") is counted apart
+  return { href, calls: async () => (await raw()).filter((t) => t !== "Ready."), raw };
 }
 
 const LONG = "When the committee finally met on Tuesday morning to discuss the budget, nobody had read the report that everybody had been sent, so the meeting ran long, and several people left before it ended, which surprised no one at all.";
 
 describe("the Kokoro engine and long sentences", () => {
+  it("warms up once when it loads, so the first line a player speaks does not pay for the runtime's set-up (VIK-116)", async () => {
+    const fake = await fakeKokoro();
+    const engine = await create({ importFrom: fake.href });
+    expect(await fake.raw()).toEqual(["Ready."]);
+    for await (const _ of engine.synthesize({ text: "Check." })) void _;
+    expect(await fake.raw()).toEqual(["Ready.", "Check."]);
+  });
+
+  it("makes the first piece of a long line short, so sound starts sooner", async () => {
+    const fake = await fakeKokoro();
+    const engine = await create({ importFrom: fake.href });
+    for await (const _ of engine.synthesize({ text: LONG })) void _;
+    const calls = await fake.calls();
+    expect(calls[0]!.length).toBeLessThanOrEqual(50);
+    expect(Math.max(...calls.slice(1).map((t) => t.length))).toBeGreaterThan(50); // later pieces are the usual size
+  });
+
   it("makes a long sentence in several smaller calls, so a cancel can land between them", async () => {
     const fake = await fakeKokoro();
     const engine = await create({ importFrom: fake.href });
