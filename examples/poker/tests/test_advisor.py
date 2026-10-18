@@ -34,3 +34,10 @@ def test_the_weak_bots_do_what_they_say():
     r = RandomBot("r", seed=5)
     seen = {r.decide(view).action for _ in range(60)}
     assert seen <= set(view["legal"]["kinds"]) and len(seen) >= 2
+
+
+def test_the_engine_bot_plays_whole_hands_legally_and_conserves_chips():
+    from vikaki_poker.advisor import EngineBot
+
+    net = simulate({"a": EngineBot("a", samples=40, seed=1), "b": AdvisorBot("b", samples=40), "c": CallingStation("c")}, hands=6, seed=3)
+    assert sum(net.values()) == 0 and set(net) == {"a", "b", "c"}
