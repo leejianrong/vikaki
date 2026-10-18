@@ -4,6 +4,7 @@ dist/
 .DS_Store
 .env
 .env.*
+!.env.example
 .claude/settings.local.json
 .vikaki/
 packages/e2e/artifacts/
