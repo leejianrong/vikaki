@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 import pytest
 
@@ -265,7 +266,7 @@ def test_a_table_file_may_name_a_reaction_model(tmp_path):
 
     text = open(TABLE, encoding="utf-8").read()
     path = tmp_path / "t.yaml"
-    path.write_text(text.replace("# reaction_model: deepseek/deepseek-chat", "reaction_model: tiny").replace("personas_file: ../../", f"personas_file: {os.path.abspath(os.path.join(HERE, '..', '..', '..'))}/"), encoding="utf-8")
+    path.write_text(re.sub(r"# reaction_model: \S+", "reaction_model: tiny", text).replace("personas_file: ../../", f"personas_file: {os.path.abspath(os.path.join(HERE, '..', '..', '..'))}/"), encoding="utf-8")
     table = load_table(str(path))
     assert table.reaction_model == "tiny"
     assert isinstance(build_reactor(table, FakeLlm(["{}"])), LlmReactor)
