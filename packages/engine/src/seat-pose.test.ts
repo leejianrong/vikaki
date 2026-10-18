@@ -1,6 +1,6 @@
 import { Object3D, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { applySeat, handHeight, type BoneOf } from "./seat-pose.ts";
+import { applySeat, handHeight, kneeReach, type BoneOf } from "./seat-pose.ts";
 
 /** A bare skeleton: hips at 1 m, legs hanging from them, arms out from the shoulders (the left along -x, as in a VRM's normalized bones, where +z lowers it), a hand at the end of each arm. */
 function skeleton(without: string[] = []) {
@@ -33,7 +33,9 @@ describe("applySeat (ADR-0019)", () => {
     root.updateMatrixWorld(true);
     expect(bones.hips!.getWorldPosition(new Vector3()).y).toBeCloseTo(0.6, 5);
     const knee = bones.leftLowerLeg!.getWorldPosition(new Vector3());
-    expect(knee.z).toBeGreaterThan(0.3); // the thigh points forward
+    // The thigh runs toward -z in these bones. In the real VRM 0.x models the legs bend toward the table with this sign, and the arms with the opposite
+    // z (VIK-81: the signs were once the other way round and the legs ran away from the table). `kneeReach` below and the table e2e test check the real thing.
+    expect(knee.z).toBeLessThan(-0.3);
   });
 
   it("brings the hands forward and down from the T-pose, or leaves the arms at the sides for 'hang'", () => {
@@ -63,5 +65,24 @@ describe("applySeat (ADR-0019)", () => {
     const l = bones.leftHand!.getWorldPosition(new Vector3()).y;
     const r = bones.rightHand!.getWorldPosition(new Vector3()).y;
     expect(handHeight(bone)).toBeCloseTo((l + r) / 2, 8);
+  });
+});
+
+describe("kneeReach (VIK-81)", () => {
+  it("is how far the knees are ahead of the hips along a floor direction, and negative for legs that run the other way", () => {
+    const { root, bone, bones } = skeleton();
+    // standing: the knees are straight below the hips
+    expect(kneeReach(bone, 0, 1)).toBeCloseTo(0, 5);
+    bones.leftLowerLeg!.position.set(0.1, -0.1, 0.4); // a knee 0.4 m toward +z
+    bones.rightLowerLeg!.position.set(-0.1, -0.1, 0.4);
+    root.updateMatrixWorld(true);
+    expect(kneeReach(bone, 0, 1)).toBeCloseTo(0.4, 5);
+    expect(kneeReach(bone, 0, -1)).toBeCloseTo(-0.4, 5);
+    expect(kneeReach(bone, 1, 0)).toBeCloseTo(0, 5);
+  });
+
+  it("is undefined for a model with no hips or no knees", () => {
+    expect(kneeReach(skeleton(["hips"]).bone, 0, 1)).toBeUndefined();
+    expect(kneeReach(skeleton(["leftLowerLeg", "rightLowerLeg"]).bone, 0, 1)).toBeUndefined();
   });
 });

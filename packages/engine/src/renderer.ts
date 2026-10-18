@@ -58,6 +58,8 @@ export interface SceneAvatar extends AvatarRenderer {
   seat?(pose?: SeatPose): boolean;
   /** World height where the hands rest now, after `seat`, so the page can put the table top there. Undefined when it cannot say. */
   handHeight?(): number | undefined;
+  /** Metres the knees are ahead of the hips along a floor direction: positive when the legs run under the table (a seated pose that bends the wrong way is negative). */
+  kneeReach?(dirX: number, dirZ: number): number | undefined;
 }
 
 /** How an avatar sits (ADR-0019). The numbers belong to the avatar, so they live beside it in the personas file. */

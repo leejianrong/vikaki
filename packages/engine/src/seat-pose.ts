@@ -26,8 +26,8 @@ export function applySeat(bone: BoneOf, pose: SeatPose = {}): void {
   }
   for (const side of ["left", "right"] as const) {
     const s = side === "left" ? 1 : -1; // the left arm points along +x in the T-pose
-    bone(`${side}UpperLeg`)?.quaternion.setFromEuler(new Euler(-Math.PI / 2 + 0.1, 0, 0));
-    bone(`${side}LowerLeg`)?.quaternion.setFromEuler(new Euler(Math.PI / 2 - 0.1, 0, 0));
+    bone(`${side}UpperLeg`)?.quaternion.setFromEuler(new Euler(Math.PI / 2 - 0.1, 0, 0));
+    bone(`${side}LowerLeg`)?.quaternion.setFromEuler(new Euler(-Math.PI / 2 + 0.1, 0, 0));
     if (arms === "hang") {
       bone(`${side}UpperArm`)?.quaternion.setFromEuler(new Euler(0, 0, s * 1.2));
       continue;
@@ -35,6 +35,23 @@ export function applySeat(bone: BoneOf, pose: SeatPose = {}): void {
     bone(`${side}UpperArm`)?.quaternion.copy(new Quaternion().setFromEuler(new Euler(0, -s * arms.forward, 0)).multiply(new Quaternion().setFromEuler(new Euler(0, 0, s * arms.down))));
     bone(`${side}LowerArm`)?.quaternion.setFromEuler(new Euler(0, -s * arms.elbow, 0));
   }
+}
+
+/**
+ * How far the knees are ahead of the hips, in metres along (`dirX`, `dirZ`) (a unit direction on the floor: toward the table's middle), the mean of both
+ * legs; undefined without leg bones. A seat whose thighs run toward the table is positive; one whose legs run away from it (the VIK-81 bug) is negative.
+ * Call after `applySeat` and a scene update.
+ */
+export function kneeReach(bone: BoneOf, dirX: number, dirZ: number): number | undefined {
+  const hips = bone("hips");
+  const knees = (["leftLowerLeg", "rightLowerLeg"] as const).map(bone).filter((n): n is Object3D => n != null);
+  if (!hips || knees.length === 0) return undefined;
+  const h = hips.getWorldPosition(new Vector3());
+  const reach = knees.map((k) => {
+    const p = k.getWorldPosition(new Vector3());
+    return (p.x - h.x) * dirX + (p.z - h.z) * dirZ;
+  });
+  return reach.reduce((a, b) => a + b, 0) / reach.length;
 }
 
 /** World height of the hands (their mean), or undefined when the model has no hand bones. Call after `applySeat` and a scene update. */
