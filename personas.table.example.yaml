@@ -12,6 +12,6 @@ personas:
     voice: am_adam
     style: careful, a worrier, always polite
   cy:
-    avatar: packages/engine/public/avatars/cookieman.vrm
+    avatar: packages/engine/public/avatars/cactusboy.vrm
     voice: bf_emma
     style: cheerful, fearless, loves a gamble
