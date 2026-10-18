@@ -37,10 +37,11 @@ def _last_action(hand: Hand, seat_id: str) -> str | None:
     return None
 
 
-def table_state(hand: Hand, *, show_cards: bool = False) -> dict[str, Any]:
-    """The keyword arguments of `VikakiClient.table_state` for this moment of `hand`."""
+def table_state(hand: Hand, *, show_cards: bool = False, event: dict[str, Any] | None = None, hand_no: int | None = None, winners: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """The keyword arguments of `VikakiClient.table_state` for this moment of `hand`. `event` is the beat just played (VIK-113), `hand_no` which hand this
+    is and `winners` who took the pot, once it has been paid (VIK-94): all for the page to show, and none of them about the cards."""
     done = hand.complete
-    street = ("showdown" if hand.showdown else "complete") if done else hand.street
+    street = ("showdown" if hand.showdown else "complete") if done else "showdown" if hand.showdown else hand.street
     seats = []
     spectating = (show_cards or hand.showdown) and all(p.hole for p in hand.seats)
     live = [(p.seat_id, tuple(p.hole)) for p in hand.seats if not p.folded and p.hole]
@@ -71,4 +72,10 @@ def table_state(hand: Hand, *, show_cards: bool = False) -> dict[str, Any]:
     }
     if hand.to_act is not None:
         state["turn"] = hand.to_act
+    if event is not None:
+        state["event"] = event
+    if hand_no is not None:
+        state["hand_no"] = hand_no
+    if winners:
+        state["winners"] = winners
     return state

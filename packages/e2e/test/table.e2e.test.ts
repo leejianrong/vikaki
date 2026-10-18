@@ -380,6 +380,23 @@ describe("the table page", () => {
     expect((await geometry()).panelWidth).toBe(280);
   });
 
+  it("announces each beat of a hand in a banner: a move fades, a win stays until the next beat, and the actor's plate pulses (VIK-113)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const send = (event: { kind: string; text: string; seat_id?: string; amount?: number }, extra: object = {}) =>
+      d1.ws.send(JSON.stringify(make("table_state", { pot: 6, street: "flop", seats: [{ seat_id: "seat-1", stack: 94 }, { seat_id: "seat-2", stack: 94 }, { seat_id: "seat-3", stack: 94 }], event, ...extra })));
+    const banner = page.getByRole("status", { name: "Last move" });
+    send({ kind: "raise", seat_id: "seat-2", amount: 12, text: "Ben raises to 12" });
+    await banner.getByText("Ben raises to 12").waitFor({ timeout: 15_000 });
+    expect(await page.getByRole("group", { name: "ben", exact: true }).evaluate((e) => e.classList.contains("acted"))).toBe(true);
+    await banner.waitFor({ state: "hidden", timeout: 15_000 }); // a move's banner fades
+    send({ kind: "win", seat_id: "seat-1", amount: 40, text: "Ada wins 40 with a pair of aces" }, { street: "showdown", pot: 0, winners: [{ seat_id: "seat-1", amount: 40, hand: "pair of aces" }] });
+    await banner.getByText("Ada wins 40 with a pair of aces").waitFor({ timeout: 15_000 });
+    await page.waitForTimeout(3000); // longer than any move's banner
+    expect(await banner.isVisible()).toBe(true); // the win stays
+    send({ kind: "new_hand", text: "Hand 2" }, { street: "preflop", hand_no: 2 });
+    await banner.getByText("Hand 2").waitFor({ timeout: 15_000 });
+  });
+
   it("has the panel by default in the 3D view only: not in the row, not when embedded, and ?panel= decides (VIK-83)", { timeout: 120_000 }, async () => {
     const row = await setup("seats=3", undefined, false);
     expect(await row.page.locator("aside.table-panel").count()).toBe(0);

@@ -474,6 +474,80 @@ def test_main_says_so_and_still_prints_the_summary_when_interrupted(capsys, monk
     assert "interrupted" in out and "chips:" in out
 
 
+class BeatVoice(RecordingVoice):
+    def __init__(self) -> None:
+        super().__init__()
+        self.states: list[dict] = []
+
+    def table_state(self, state):
+        self.states.append(state)
+
+
+def _pace(slept):
+    from vikaki_poker.pace import Pace
+
+    return Pace(1.0, sleep=slept.append)
+
+
+def test_an_all_in_is_shown_beat_by_beat_with_a_pause_after_each():
+    shove = json.dumps({"action": "raise", "amount": 50})
+    call = json.dumps({"action": "call"})
+    agents = agents_that(("a", [shove]), ("b", [call]))
+    voice = BeatVoice()
+    slept: list[float] = []
+    hand = Hand([("a", 50), ("b", 50)], 0, 1, 2, seed=4, staged=True)
+    result = play_hand(hand, agents, voice, [], out=quiet, pace=_pace(slept), hand_no=6)
+    events = [s["event"]["kind"] for s in voice.states if "event" in s]
+    assert events == ["new_hand", "raise", "call", "street", "street", "street", "showdown", "win"]
+    streets = [(s["street"], len(s["board"])) for s in voice.states if s.get("event", {}).get("kind") == "street"]
+    assert streets == [("flop", 3), ("turn", 4), ("river", 5)]  # the turn and the river are seen, one at a time
+    assert slept == [2.5, 1.75, 1.75, 2.5, 2.5, 2.5, 3.0, 3.5]
+    assert voice.states[0]["hand_no"] == 7  # shown to people as hand 7
+    last = voice.states[-1]
+    assert last["event"]["kind"] == "win" and last["winners"] and last["pot"] == 0
+    assert sum(w["amount"] for w in last["winners"]) == 100 and result.hand.complete
+
+
+def test_the_pot_is_still_on_the_table_when_the_showdown_is_shown_and_paid_in_the_win():
+    shove = json.dumps({"action": "raise", "amount": 50})
+    voice = BeatVoice()
+    play_hand(Hand([("a", 50), ("b", 50)], 0, 1, 2, seed=4, staged=True), agents_that(("a", [shove]), ("b", [json.dumps({"action": "call"})])), voice, [], out=quiet)
+    show = next(s for s in voice.states if s.get("event", {}).get("kind") == "showdown")
+    assert show["pot"] == 100 and "winners" not in show
+
+
+def test_without_a_pace_nothing_waits():
+    agents = agents_that(("a", [json.dumps({"action": "call"})]), ("b", [json.dumps({"action": "check"})]))
+    voice = BeatVoice()
+    play_hand(Hand([("a", 50), ("b", 50)], 0, 1, 2, seed=4, staged=True), agents, voice, [], out=quiet)  # the default pace is off
+    assert voice.states  # and it finished at once
+
+
+def test_a_session_plays_staged_hands_numbered_from_one_and_paced():
+    slept: list[float] = []
+    agents = agents_that(("a", [json.dumps({"action": "call"})]), ("b", [json.dumps({"action": "check"})]))
+    voice = BeatVoice()
+    play_session(agents, voice, hands=2, stack=50, seed=3, out=quiet, pace=_pace(slept))
+    assert [s["hand_no"] for s in voice.states if s.get("event", {}).get("kind") == "new_hand"] == [1, 2]
+    assert slept and set(slept) <= {2.5, 1.75, 3.0, 3.5}
+
+
+def test_the_pace_option_defaults_to_normal_with_a_hub_and_off_without(monkeypatch):
+    import vikaki_poker.__main__ as cli
+
+    seen = []
+    real = cli.play_session
+
+    def spy(*a, **kw):
+        seen.append(kw["pace"].scale)
+        return real(*a, **{**kw, "hands": 1, "pace": cli.Pace(0.0)})
+
+    monkeypatch.setattr(cli, "play_session", spy)
+    for extra in (["--no-hub"], ["--no-hub", "--pace", "slow"], ["--no-hub", "--pace", "fast"]):
+        assert main(["play", "--table", TABLE, "--fake-llm", "--no-reactions", "--hands", "1", *extra]) == 0
+    assert seen == [0.0, 1.5, 0.5]
+
+
 def test_without_a_seed_each_game_is_dealt_afresh_and_says_which_seed_to_repeat_it_with(capsys):
     seeds = []
     for _ in range(2):
