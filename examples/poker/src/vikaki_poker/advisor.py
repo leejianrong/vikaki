@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from .brain import turn_facts
 from .hand import Hand
 from .seat import Decision
+from .strategy import decide as engine_decide
 
 
 @dataclass
@@ -29,6 +30,26 @@ class AdvisorBot:
             to = f["raise_to"] if f["raise_to"] is not None else int(view["current_bet"] + max(1, 0.67 * view["pot"]))
             return Decision("raise", max(legal["min_raise_to"], min(legal["max_raise_to"], to)))
         return Decision(action)
+
+
+@dataclass
+class EngineBot:
+    """The decision engine (`strategy.py`) as a player: the same move the live table would make, with no model."""
+
+    seat_id: str
+    persona: str = "engine"
+    samples: int = 150
+    seed: int = 0
+    _rng: random.Random = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._rng = random.Random(self.seed)
+
+    def decide(self, view: dict, talk: list | None = None, events: list | None = None, names: dict | None = None) -> Decision:
+        events = events or []
+        blinds = [e["amount"] for e in events if e["type"] == "blind"]
+        move = engine_decide(view, events, big_blind=max(blinds) if blinds else 2, rng=self._rng, samples=self.samples)
+        return Decision(move.kind, move.amount)
 
 
 @dataclass
@@ -70,7 +91,7 @@ def simulate(bots: dict[str, object], hands: int, *, stack: int = 200, small_bli
         while not hand.complete:
             legal = hand.legal()
             assert legal is not None
-            d = bots[legal.seat_id].decide(hand.view(legal.seat_id))  # type: ignore[attr-defined]
+            d = bots[legal.seat_id].decide(hand.view(legal.seat_id), events=hand.events)  # type: ignore[attr-defined]
             hand.act(legal.seat_id, d.action, d.amount)
         for s, chips in hand.final_stacks().items():
             net[s] += chips - stack
