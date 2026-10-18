@@ -24,8 +24,8 @@ class RecordingVoice:
     def turn_started(self, seat_id):
         self.calls.append(("start", seat_id))
 
-    def say(self, seat_id, text, emotion):
-        self.calls.append(("say", seat_id, text, emotion))
+    def say(self, seat_id, text, emotion, to=None):
+        self.calls.append(("say", seat_id, text, emotion) if to is None else ("say", seat_id, text, emotion, to))
 
     def turn_ended(self, seat_id):
         self.calls.append(("end", seat_id))
@@ -557,3 +557,29 @@ def test_without_a_seed_each_game_is_dealt_afresh_and_says_which_seed_to_repeat_
     assert seeds[0] != seeds[1]
     assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "1", "--no-reactions", "--seed", "7"]) == 0
     assert "seed 7" in capsys.readouterr().out
+
+
+def test_a_line_for_one_player_reaches_the_voice_and_the_table_talk_with_its_addressee():
+    line = json.dumps({"say": "Nice try, Ben.", "to": "ben", "emotion": "smug"})
+    agents = agents_that(("a", [line]), ("b", [json.dumps({"say": "Hm."})]), ("c", [json.dumps({"say": "Fine."})]))
+    for seat, agent in agents.items():
+        agent.persona = {"a": "ada", "b": "ben", "c": "cy"}[seat]
+    voice = RecordingVoice()
+    talk: list = []
+    play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), agents, voice, talk, out=quiet)
+    said = [c for c in voice.calls if c[0] == "say" and c[1] == "a"]
+    assert said and said[0] == ("say", "a", "Nice try, Ben.", "smug", "b")
+    assert ("a", "Nice try, Ben.", "b") in talk
+
+
+def test_the_addressee_reacts_even_to_a_neutral_line_and_a_bystander_does_not():
+    r = MirrorReactor()
+    assert r.react("b", "a", "Mine.", None) is None
+    assert r.react("b", "a", "Mine.", None, addressed=True) is not None
+    assert r.react("b", "a", "Mine.", "smug", addressed=True).seconds > (r.react("b", "a", "Mine.", "smug").seconds or 0)
+
+
+def test_the_listening_model_is_told_when_the_line_was_for_it():
+    llm = FakeLlm([json.dumps({"emotion": "worried", "gesture": "nod"})])
+    LlmReactor(llm, "m", {"a": ("ada", ""), "b": ("ben", "")}).react("b", "a", "Nice try.", None, addressed=True)
+    assert "to you" in llm.requests[0]["messages"][1]["content"]

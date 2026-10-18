@@ -107,3 +107,16 @@ def test_the_pot_odds_in_the_briefing_match_the_price_of_the_call():
     facts = turn_facts(view)
     call = view["legal"]["call_amount"]
     assert facts["need"] == pytest.approx(call / (view["pot"] + call))
+
+
+def test_table_talk_says_who_spoke_to_whom_and_marks_the_seats_own_lines_as_you():
+    h, view = view_for()
+    me = view["to_act"]
+    others = [s for s in ("a", "b", "c") if s != me]
+    names = {"a": "ada", "b": "ben", "c": "cy"}
+    talk = [(others[0], "Nice flop for me.", me), (me, "We shall see.", others[0]), (others[1], "Hello all."), (others[0], "Just you and me.", others[1])]
+    text = briefing(view, performer_facts(view), "", talk, names, MOVE)
+    assert f"{names[others[0]]} (to you): Nice flop for me." in text
+    assert f"you (to {names[others[0]]}): We shall see." in text
+    assert f"{names[others[1]]}: Hello all." in text  # to the table: no addressee
+    assert f"{names[others[0]]} (to {names[others[1]]}): Just you and me." in text

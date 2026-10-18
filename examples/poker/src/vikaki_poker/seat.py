@@ -28,8 +28,8 @@ The table's engine plays your cards for you: each turn it has already chosen you
 {personality}
 
 Reply with ONLY one JSON object, nothing else:
-{{"think": "<your private thought, in character>", "say": "<table talk, in character, or empty>", "emotion": "<one of: {emotions}>"}}
-"think" is what goes through your head as you make your move: one or two short sentences, at most 25 words, in your own voice (what you hold, what you suspect, why you are doing it). Nobody at the table hears it, only the audience, so be honest in it. It is not table talk: what you say aloud is "say"."""
+{{"think": "<your private thought, in character>", "say": "<table talk, in character, or empty>", "to": "<the name of the player you are talking to, or table>", "emotion": "<one of: {emotions}>"}}
+"think" is what goes through your head as you make your move: one or two short sentences, at most 25 words, in your own voice (what you hold, what you suspect, why you are doing it). Nobody at the table hears it, only the audience, so be honest in it. It is not table talk: what you say aloud is "say", and "to" is who you are saying it to: one player's name, or "table" for everyone. Lines in the table talk are marked with who they were said to: a line "to you" was meant for you; the others were not."""
 
 
 @dataclass
@@ -40,6 +40,7 @@ class Decision:
     emotion: str | None = None
     note: str = ""  # why the engine chose it, and anything that went wrong with the model
     think: str = ""  # the private thought: shown to the audience, never to another player (VIK-93)
+    to: str | None = None  # the seat the line is for (VIK-120), or None for the whole table
 
 
 @dataclass
@@ -49,10 +50,11 @@ class Performance:
     say: str = ""
     emotion: str | None = None
     think: str = ""
+    to: str = ""  # a name as the model wrote it; `SeatAgent` turns it into a seat id
     note: str = ""
 
 
-def build_messages(persona: str, style: str, view: dict, talk: list[tuple[str, str]], move: Move, recent: int = 8, *, traits: Traits | None = None, history: str = "", names: dict[str, str] | None = None, facts: dict | None = None) -> list[Message]:
+def build_messages(persona: str, style: str, view: dict, talk: list[tuple[str, ...]], move: Move, recent: int = 8, *, traits: Traits | None = None, history: str = "", names: dict[str, str] | None = None, facts: dict | None = None) -> list[Message]:
     """The two messages a seat's model gets: who it is (the same every turn), and this turn's situation with the move already decided."""
     names = names or {}
     facts = facts if facts is not None else performer_facts(view)
@@ -83,7 +85,17 @@ def parse_performance(text: str) -> Performance:
         say=" ".join(say.split())[:MAX_SAY],
         emotion=obj.get("emotion") if obj.get("emotion") in EMOTIONS else None,
         think=" ".join(think.split())[:MAX_THINK],
+        to=obj["to"].strip() if isinstance(obj.get("to"), str) else "",
     )
+
+
+def resolve_addressee(name: str, names: dict[str, str], me: str) -> str | None:
+    """The seat id of the player a line is for, from the name the model gave, or None for the whole table (no name, "table", an unknown name, or itself)."""
+    wanted = name.strip().lower()
+    for seat, persona in names.items():
+        if seat != me and wanted in (persona.lower(), seat.lower()):
+            return seat
+    return None
 
 
 @dataclass
@@ -111,7 +123,7 @@ class SeatAgent:
         """Start the engine's dice from `seed`: a game replayed with the same `--seed` then plays the same moves (the model's words still differ)."""
         self._rng = random.Random(seed)
 
-    def decide(self, view: dict, talk: list[tuple[str, str]] | None = None, events: list[dict] | None = None, names: dict[str, str] | None = None) -> Decision:
+    def decide(self, view: dict, talk: list[tuple[str, ...]] | None = None, events: list[dict] | None = None, names: dict[str, str] | None = None) -> Decision:
         """`events` are the hand's events so far (`Hand.events`), told as the story of the hand; `names` map seat ids to the characters' names."""
         events = events or []
         move = self.engine(view, events, big_blind=big_blind_of(events), rng=self._rng, samples=self.samples)
@@ -123,4 +135,5 @@ class SeatAgent:
         self.usage.add(reply.usage)
         say = parse_performance(reply.text)
         note = "; ".join(x for x in (move.reason, say.note) if x)
-        return Decision(move.kind, move.amount, say.say, say.emotion, note, say.think)
+        to = resolve_addressee(say.to, names or {}, self.seat_id) if say.say else None
+        return Decision(move.kind, move.amount, say.say, say.emotion, note, say.think, to)

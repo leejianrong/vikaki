@@ -22,8 +22,8 @@ from .seat import SeatAgent
 
 class Voice(Protocol):
     def turn_started(self, seat_id: str) -> None: ...
-    def say(self, seat_id: str, text: str, emotion: str | None) -> None:
-        """Speak one line and return when it has been heard (or could not be)."""
+    def say(self, seat_id: str, text: str, emotion: str | None, to: str | None = None) -> None:
+        """Speak one line (to the seat `to`, or the whole table) and return when it has been heard (or could not be)."""
         ...
     def turn_ended(self, seat_id: str) -> None: ...
     # A voice may also have `react(seat_id, reaction)`, a silent reaction, `table_state(state)`, the table for the overlay, and `think(seat_id, text)`,
@@ -39,8 +39,8 @@ class PrintVoice:
     def turn_started(self, seat_id: str) -> None:
         pass
 
-    def say(self, seat_id: str, text: str, emotion: str | None) -> None:
-        self._out(f"  {seat_id} ({emotion or 'neutral'}): {text}")
+    def say(self, seat_id: str, text: str, emotion: str | None, to: str | None = None) -> None:
+        self._out(f"  {seat_id}{f' to {to}' if to else ''} ({emotion or 'neutral'}): {text}")
 
     def turn_ended(self, seat_id: str) -> None:
         pass
@@ -76,12 +76,12 @@ class HubVoice:
     def turn_started(self, seat_id: str) -> None:
         self._clients[seat_id].turn_started(seat_id)
 
-    def say(self, seat_id: str, text: str, emotion: str | None) -> None:
+    def say(self, seat_id: str, text: str, emotion: str | None, to: str | None = None) -> None:
         from vikaki_client import HubError
 
         client = self._clients[seat_id]
         try:
-            uid = client.say(text, seat_id=seat_id, emotion=emotion)
+            uid = client.say(text, seat_id=seat_id, emotion=emotion, to=to)
             client.wait_finished(uid, timeout=self._timeout)
             self.lines_heard += 1
         except HubError as err:  # the table carries on without that line
@@ -130,12 +130,12 @@ class HandResult:
     said: list[tuple[str, str]] = field(default_factory=list)  # (seat, what it said) in order, for the style summary
 
 
-def _decide_reactions(reactor: Reactor, pool: ThreadPoolExecutor, speaker: str, listeners: list[str], text: str, emotion: str | None) -> list:
+def _decide_reactions(reactor: Reactor, pool: ThreadPoolExecutor, speaker: str, listeners: list[str], text: str, emotion: str | None, to: str | None = None) -> list:
     """Start each listener's reaction at once, so cheap model calls run while the line is being spoken."""
 
     def one(listener: str) -> Reaction | None:
         try:
-            return reactor.react(listener, speaker, text, emotion)
+            return reactor.react(listener, speaker, text, emotion, addressed=(listener == to))
         except Exception:  # a reactor that breaks must not stall the table
             return None
 
@@ -165,7 +165,7 @@ def _react(voice: Voice, pending: list) -> None:
             send(listener, reaction)
 
 
-def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, governor: Governor | None = None, hand_no: int = 0, pace: Pace | None = None) -> HandResult:
+def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, ...]], out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, governor: Governor | None = None, hand_no: int = 0, pace: Pace | None = None) -> HandResult:
     """Play `hand` to the end. `talk` is the table's recent chat, shared by all seats; lines spoken here are added to it.
 
     With a `reactor`, every other seat reacts silently to each line: the reactions are decided while the line is spoken and sent as soon
@@ -184,7 +184,7 @@ def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list
     return result
 
 
-def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool, governor: Governor, hand_no: int, pace: Pace) -> HandResult:
+def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, ...]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool, governor: Governor, hand_no: int, pace: Pace) -> HandResult:
     result = HandResult(hand)
     names = {seat_id: a.persona for seat_id, a in agents.items()}  # the characters' names, so a seat reads "ben raised" and not "seat-2 raised"
 
@@ -220,10 +220,10 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         if dropped:
             decision.note = f"{decision.note}; {dropped}".strip("; ")
         if decision.say:
-            talk.append((seat, decision.say))
+            talk.append((seat, decision.say, decision.to) if decision.to else (seat, decision.say))
             result.said.append((seat, decision.say))
-            pending = _decide_reactions(reactor, pool, seat, [s for s in agents if s != seat], decision.say, decision.emotion) if reactor else []
-            voice.say(seat, decision.say, decision.emotion)
+            pending = _decide_reactions(reactor, pool, seat, [s for s in agents if s != seat], decision.say, decision.emotion, decision.to) if reactor else []
+            voice.say(seat, decision.say, decision.emotion, decision.to) if decision.to else voice.say(seat, decision.say, decision.emotion)
             _react(voice, pending)
         voice.turn_ended(seat)
         street = hand.street  # the street the move was made on (acting can end it)
@@ -261,7 +261,7 @@ def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stac
     and `session.rebuys` counts them); with `rebuy=False` they are out, and the session ends when one player has all the chips. The same `seed` deals the same cards."""
     order = list(agents)
     session = Session({s: stack for s in order})
-    talk: list[tuple[str, str]] = []
+    talk: list[tuple[str, ...]] = []
     governor = Governor()
     button = 0
     for n in range(hands):

@@ -203,3 +203,4 @@ body.resizing-panel { user-select: none; cursor: col-resize; }
 .table-panel .chat b { margin-inline-end: 6px; font-weight: 600; }
 .table-panel .thoughts { font-style: italic; }
 .table-panel .thoughts:empty::before { content: "No thoughts yet"; font-style: normal; }
+.table-overlay.with-panel .bubble .to { display: block; font: 600 0.75rem/1rem var(--md-ref-typeface-plain); color: var(--seat-colour); }

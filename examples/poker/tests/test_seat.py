@@ -134,3 +134,25 @@ def test_whatever_the_personality_the_move_is_the_same(seed):
         a, b = cy.decide(view, events=h.events), ben.decide(view, events=h.events)
         assert (a.action, a.amount) == (b.action, b.amount)
         h.act(h.to_act, a.action, a.amount)
+
+
+NAMES = {"a": "ada", "b": "ben", "c": "cy"}
+
+
+@pytest.mark.parametrize(
+    "to, expected",
+    [("ben", "b"), ("Ben", "b"), (" cy ", "c"), ("table", None), ("everyone", None), ("all", None), ("", None), ("nobody I know", None), ("ada", None), (5, None)],
+)
+def test_who_a_line_is_for_is_read_from_the_name_and_anything_else_is_the_whole_table(to, expected):
+    """The reply's "to" is a player's name; the seat id of that player is kept. Talking to oneself, to the table or to no one known is talking to the table."""
+    h, view = make_view()
+    seat = "a"
+    llm = FakeLlm([reply(say="Hello there.", to=to)])
+    d = SeatAgent(seat, "ada", llm, "m", engine=always("call")).decide(view, names=NAMES)
+    assert d.to == expected and d.say == "Hello there."
+
+
+def test_the_prompt_asks_who_the_line_is_for():
+    _, view = make_view()
+    system = build_messages("ada", "", view, [], MOVE)[0]["content"]
+    assert '"to"' in system and "table" in system

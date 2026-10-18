@@ -106,6 +106,13 @@ export interface TranscriptLine {
   id: string;
   seat: string;
   text: string;
+  /** The seat the line was for (VIK-120); absent for a line to the whole table. */
+  to?: string;
+}
+
+/** Who said a line, and to whom when it was for one player: "ada → ben". `name` turns a seat id into what the page calls it. */
+export function lineLabel(line: { seat: string; to?: string }, name: (seat: string) => string): string {
+  return line.to ? `${name(line.seat)} → ${name(line.to)}` : name(line.seat);
 }
 
 /** Lines kept in the transcript strip. */
@@ -123,10 +130,13 @@ export function seatColour(i: number): string {
  * Add what an `utterance` message carries to the transcript: a whole `text` makes a line, `delta` pieces grow the line of the same id.
  * Returns the last `max` lines; the list it was given is not changed.
  */
-export function addToTranscript(lines: TranscriptLine[], m: { id: string; seat: string; text?: string; delta?: string }, max = TRANSCRIPT_LINES): TranscriptLine[] {
+export function addToTranscript(lines: TranscriptLine[], m: { id: string; seat: string; text?: string; delta?: string; to?: string }, max = TRANSCRIPT_LINES): TranscriptLine[] {
   const piece = m.text ?? m.delta ?? "";
   const at = lines.findIndex((l) => l.id === m.id);
-  const next = at < 0 ? [...lines, { id: m.id, seat: m.seat, text: piece }] : lines.map((l, i) => (i === at ? { ...l, text: m.text !== undefined ? piece : l.text + piece } : l));
+  const next =
+    at < 0
+      ? [...lines, { id: m.id, seat: m.seat, text: piece, ...(m.to ? { to: m.to } : {}) }]
+      : lines.map((l, i) => (i === at ? { ...l, text: m.text !== undefined ? piece : l.text + piece, ...(m.to ? { to: m.to } : {}) } : l));
   return next.slice(-max);
 }
 

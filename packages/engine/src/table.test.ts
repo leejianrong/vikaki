@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addToTranscript, cardFace, favourite, frameRow, layoutRow, lookYaw, MAX_LOOK, parseSeats, percent, seatFor } from "./table.ts";
+import { addToTranscript, cardFace, lineLabel, favourite, frameRow, layoutRow, lookYaw, MAX_LOOK, parseSeats, percent, seatFor } from "./table.ts";
 
 describe("parseSeats", () => {
   it("a number makes that many seats, named seat-1 to seat-N, with the hub's personas in order", () => {
@@ -160,5 +160,25 @@ describe("percent and favourite (VIK-83)", () => {
     expect(favourite([{ seat_id: "a", win: 0.5 }, { seat_id: "b", win: 0.5 }])).toBeUndefined();
     expect(favourite([{ seat_id: "a" }, { seat_id: "b" }])).toBeUndefined();
     expect(favourite([{ seat_id: "a", win: 1 }, { seat_id: "b" }])).toBeUndefined(); // one chance alone says nothing about a lead
+  });
+});
+
+describe("lines for one player (VIK-120)", () => {
+  it("keeps who a line was for, whole or in pieces", () => {
+    let t = addToTranscript([], { id: "a", seat: "seat-1", text: "Nice try.", to: "seat-2" });
+    t = addToTranscript(t, { id: "b", seat: "seat-2", delta: "Thanks, " });
+    t = addToTranscript(t, { id: "b", seat: "seat-2", delta: "Ada.", to: "seat-1" });
+    expect(t).toEqual([
+      { id: "a", seat: "seat-1", text: "Nice try.", to: "seat-2" },
+      { id: "b", seat: "seat-2", text: "Thanks, Ada.", to: "seat-1" },
+    ]);
+    expect(addToTranscript([], { id: "c", seat: "seat-3", text: "Hi all." })).toEqual([{ id: "c", seat: "seat-3", text: "Hi all." }]);
+  });
+
+  it("is labelled with an arrow when there is an addressee, and by the speaker alone when the line is for the table", () => {
+    const name = (s: string) => ({ "seat-1": "ada", "seat-2": "ben" })[s] ?? s;
+    expect(lineLabel({ seat: "seat-1", to: "seat-2" }, name)).toBe("ada → ben");
+    expect(lineLabel({ seat: "seat-1" }, name)).toBe("ada");
+    expect(lineLabel({ seat: "seat-1", to: "seat-9" }, name)).toBe("ada → seat-9");
   });
 });

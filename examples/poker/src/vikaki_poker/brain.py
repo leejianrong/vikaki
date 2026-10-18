@@ -186,12 +186,21 @@ def performer_facts(view: dict) -> dict:
     return facts
 
 
+def _said(entry: tuple, who, me: str) -> str:
+    """One line of the table talk as a player reads it: "ada (to you): ...", "you (to ben): ...", or just "cy: ..." for a line to the whole table."""
+    seat, text, *rest = entry
+    to = rest[0] if rest else None
+    speaker = "you" if seat == me else who(seat)
+    target = f" (to {'you' if to == me else who(to)})" if to else ""
+    return f"{speaker}{target}: {text}"
+
+
 def describe_move(move) -> str:
     """The engine's move in words, as the player is told it: "raise to 12", "call", "fold"."""
     return f"raise to {move.amount}" if move.kind == "raise" else move.kind
 
 
-def briefing(view: dict, facts: dict, history: str, talk: list[tuple[str, str]], names: dict[str, str], move, recent: int = 8) -> str:
+def briefing(view: dict, facts: dict, history: str, talk: list[tuple[str, ...]], names: dict[str, str], move, recent: int = 8) -> str:
     """The user message of a turn: the situation, the story of the hand, the table talk, and the move the engine has chosen with its reasons."""
     who = lambda seat: names.get(seat, seat)  # noqa: E731
     me = next(p for p in view["players"] if p["seat_id"] == view["to_act"])
@@ -209,7 +218,7 @@ def briefing(view: dict, facts: dict, history: str, talk: list[tuple[str, str]],
     if facts["improving"]:
         lines.append(f"{facts['improving']} unseen cards would improve your hand.")
     if talk:
-        lines.append("Recent table talk: " + " | ".join(f"{who(s)}: {text}" for s, text in talk[-recent:]))
+        lines.append("Recent table talk: " + " | ".join(_said(entry, who, view["to_act"]) for entry in talk[-recent:]))
     lines.append(
         f"Your move this turn is already decided: {describe_move(move)}. Why: {move.reason}. "
         "It is what you are doing; do not change it or argue with it. Speak and think about it as the character you are."

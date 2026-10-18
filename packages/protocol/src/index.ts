@@ -81,6 +81,8 @@ export const Utterance = z
     intensity: z.number().min(0).max(1).optional(),
     persona: z.string().min(1).max(64).optional(),
     kind: z.enum(UTTERANCE_KINDS).optional(),
+    /** Who the line is for (VIK-120): another seat's id. A page shows "Ada → Ben" and the addressee reacts to it. Left out, the line is to the whole table. */
+    to: id.optional(),
   })
   .refine((m) => (m.text === undefined) !== (m.delta === undefined), { message: "send exactly one of `text` or `delta`" })
   .refine((m) => m.text === undefined || m.final === undefined, { message: "`final` only goes with `delta`" });

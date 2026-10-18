@@ -119,10 +119,11 @@ class VikakiClient:
         intensity: float | None = None,
         persona: str | None = None,
         kind: str | None = None,
+        to: str | None = None,
     ) -> str:
-        """Speak one whole line. Returns its `utterance_id` (made up if you gave none), to pass to `wait_finished` or `cancel`."""
+        """Speak one whole line. Returns its `utterance_id` (made up if you gave none), to pass to `wait_finished` or `cancel`. `to` is the seat the line is for."""
         uid = utterance_id or _new_id()
-        message = make("utterance", seat_id=seat_id, utterance_id=uid, text=text, emotion=emotion, intensity=intensity, persona=persona, kind=kind)
+        message = make("utterance", seat_id=seat_id, utterance_id=uid, text=text, emotion=emotion, intensity=intensity, persona=persona, kind=kind, to=to)
         self._track(uid)
         await self._send(message)
         return uid
@@ -137,6 +138,7 @@ class VikakiClient:
         intensity: float | None = None,
         persona: str | None = None,
         kind: str | None = None,
+        to: str | None = None,
     ) -> str:
         """Speak a line still being written (an LLM's output). Each chunk is sent as it arrives; the last carries `final`.
 
@@ -144,7 +146,7 @@ class VikakiClient:
         no text at all raises `InvalidMessage` and sends nothing.
         """
         uid = utterance_id or _new_id()
-        meta = {"seat_id": seat_id, "utterance_id": uid, "emotion": emotion, "intensity": intensity, "persona": persona, "kind": kind}
+        meta = {"seat_id": seat_id, "utterance_id": uid, "emotion": emotion, "intensity": intensity, "persona": persona, "kind": kind, "to": to}
         held: str | None = None
         sent = False
         async for chunk in _aiter(deltas):
