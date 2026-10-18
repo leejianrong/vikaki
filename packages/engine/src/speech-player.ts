@@ -38,6 +38,8 @@ export interface SpeechPlayerOptions {
   onTurn?: (thinking: boolean, seatId: string, persona?: string) => void;
   /** A seat reacts without speaking (`react`): a feeling held for a moment, and perhaps a nod, shake or tilt. `persona` is the seat's, when the hub knows it. */
   onReact?: (reaction: { seat: string; persona?: string; emotion?: string; intensity?: number; gesture?: Gesture; seconds: number }) => void;
+  /** A seat has a private thought (`thought`): text for the audience, never spoken. `persona` is the seat's, when the hub knows it. */
+  onThought?: (thought: { seat: string; persona?: string; text: string }) => void;
   /** The game sent the state of the table (pot, stacks, cards, whose turn): draw it. */
   onTableState?: (state: MessageOf<"table_state">) => void;
   /** A piece of a line's text arrived: the whole `text`, or one `delta` of a line still being written. For a transcript. */
@@ -172,6 +174,9 @@ export class SpeechPlayer {
         break;
       case "react":
         if (this.owners.turnIsMine(m.persona)) this.o.onReact?.({ seat: m.seat_id, persona: m.persona, emotion: m.emotion, intensity: m.intensity, gesture: m.gesture, seconds: m.seconds ?? DEFAULT_REACT_SECONDS });
+        break;
+      case "thought":
+        if (this.owners.turnIsMine(m.persona)) this.o.onThought?.({ seat: m.seat_id, persona: m.persona, text: m.text });
         break;
       case "table_state":
         this.o.onTableState?.(m);

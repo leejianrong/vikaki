@@ -197,6 +197,13 @@ class VikakiClient:
         """
         await self._send(make("react", seat_id=seat_id, emotion=emotion, gesture=gesture, intensity=intensity, seconds=seconds, persona=persona))
 
+    async def thought(self, seat_id: str, text: str, *, persona: str | None = None) -> None:
+        """A private thought of a seat, for the people watching: shown as text, never spoken, and never sent to another driver.
+
+        A seat driver may send it only for its own seats.
+        """
+        await self._send(make("thought", seat_id=seat_id, text=text, persona=persona))
+
     async def table_state(
         self,
         seats: list[dict[str, Any]],

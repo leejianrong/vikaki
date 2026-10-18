@@ -24,8 +24,8 @@ class Voice(Protocol):
         """Speak one line and return when it has been heard (or could not be)."""
         ...
     def turn_ended(self, seat_id: str) -> None: ...
-    # A voice may also have `react(seat_id, reaction)`, a silent reaction, and `table_state(state)`, the table for the overlay; one that lacks
-    # either just shows none (see `_react` and `_show`).
+    # A voice may also have `react(seat_id, reaction)`, a silent reaction, `table_state(state)`, the table for the overlay, and `think(seat_id, text)`,
+    # a private thought for the audience (VIK-93); one that lacks any just shows none (see `_react`, `_show` and `_think`).
 
 
 class PrintVoice:
@@ -45,6 +45,9 @@ class PrintVoice:
 
     def table_state(self, state: dict) -> None:
         pass
+
+    def think(self, seat_id: str, text: str) -> None:
+        self._out(f"    {seat_id} thinks: {text}")
 
     def react(self, seat_id: str, reaction: Reaction) -> None:
         self._out(f"    {seat_id} reacts: {reaction.emotion or '-'}" + (f", {reaction.gesture}" if reaction.gesture else ""))
@@ -95,6 +98,14 @@ class HubVoice:
         except HubError as err:
             self._on_problem(f"  (could not show the table: {err.code})")
 
+    def think(self, seat_id: str, text: str) -> None:
+        from vikaki_client import HubError
+
+        try:
+            self._clients[seat_id].thought(seat_id, text)
+        except HubError as err:  # the audience misses a thought; the game does not
+            self._on_problem(f"  (could not show a thought for {seat_id}: {err.code})")
+
     def react(self, seat_id: str, reaction: Reaction) -> None:
         from vikaki_client import HubError
 
@@ -113,6 +124,7 @@ class HubVoice:
 class HandResult:
     hand: Hand
     log: list[str] = field(default_factory=list)
+    thoughts: list[tuple[str, str]] = field(default_factory=list)  # (seat, private thought) in order: never shown to another seat
     said: list[tuple[str, str]] = field(default_factory=list)  # (seat, what it said) in order, for the style summary
 
 
@@ -133,6 +145,13 @@ def _show(voice: Voice, hand: Hand, show_cards: bool) -> None:
     send = getattr(voice, "table_state", None)
     if send is not None:
         send(table_state(hand, show_cards=show_cards))
+
+
+def _think(voice: Voice, seat: str, text: str) -> None:
+    """Show the audience a seat's private thought. A voice with no `think` shows none."""
+    send = getattr(voice, "think", None)
+    if send is not None:
+        send(seat, text)
 
 
 def _react(voice: Voice, pending: list) -> None:
@@ -172,6 +191,9 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         agent = agents[seat]
         voice.turn_started(seat)
         decision = agent.decide(hand.view(seat), talk, hand.events, names)
+        if decision.think:
+            result.thoughts.append((seat, decision.think))
+            _think(voice, seat, decision.think)
         decision.say, dropped = governor.vet(seat, hand_no, hand.street, decision.say, agent.traits)
         if dropped:
             decision.note = f"{decision.note}; {dropped}".strip("; ")

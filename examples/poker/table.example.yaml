@@ -7,7 +7,7 @@ personas_file: ../../personas.table.example.yaml   # the characters' looks, voic
 stack: 200                                         # chips each seat starts with
 small_blind: 1
 big_blind: 2
-max_tokens: 200                                    # cap on a model's reply per move
+max_tokens: 300                                    # cap on a model's reply per move
 # reaction_model: deepseek/deepseek-v4.1-flash           # optional, a cheap model for how listeners react silently to a line; without it they follow a fixed table
 
 # How each seat plays, each from 0 to 1 (0.5 is a middling player): talkative (how much it says), loose (how many hands it plays), aggressive (raises

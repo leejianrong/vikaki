@@ -15,6 +15,7 @@ from .llm import Llm, LlmError, Message, Usage
 
 EMOTIONS = ("neutral", "happy", "smug", "worried", "surprised", "sad", "angry")
 MAX_SAY = 240
+MAX_THINK = 400
 
 SYSTEM = """You are {persona}, a cartoon character playing no-limit Texas Hold'em at a small table with other cartoon characters. You play to win.
 
@@ -23,8 +24,9 @@ SYSTEM = """You are {persona}, a cartoon character playing no-limit Texas Hold'e
 {personality}
 
 Reply with ONLY one JSON object, nothing else:
-{{"action": "fold" | "check" | "call" | "raise", "amount": <total to raise to, only for raise>, "say": "<table talk, in character, or empty>", "emotion": "<one of: {emotions}>"}}
-Use only the legal actions you are given."""
+{{"think": "<your private thought, in character>", "action": "fold" | "check" | "call" | "raise", "amount": <total to raise to, only for raise>, "say": "<table talk, in character, or empty>", "emotion": "<one of: {emotions}>"}}
+Use only the legal actions you are given.
+"think" is what goes through your head before you act: one or two short sentences, at most 25 words, in your own voice (what you hold, what you suspect, what you plan). Nobody at the table hears it, only the audience, so be honest in it. It is not table talk: what you say aloud is "say"."""
 
 
 @dataclass
@@ -34,6 +36,7 @@ class Decision:
     say: str = ""
     emotion: str | None = None
     note: str = ""  # empty when the answer was used as given; otherwise what was fixed or why a fallback was taken
+    think: str = ""  # the private thought: shown to the audience, never to another player (VIK-93)
 
 
 def build_messages(persona: str, style: str, view: dict, talk: list[tuple[str, str]], recent: int = 8, *, traits: Traits | None = None, history: str = "", names: dict[str, str] | None = None, facts: dict | None = None) -> list[Message]:
@@ -56,8 +59,8 @@ def _json_object(text: str) -> dict | None:
     return None
 
 
-def _safe(legal: dict, say: str, emotion: str | None, note: str) -> Decision:
-    return Decision("check" if "check" in legal["kinds"] else "fold", None, say, emotion, note)
+def _safe(legal: dict, say: str, emotion: str | None, note: str, think: str = "") -> Decision:
+    return Decision("check" if "check" in legal["kinds"] else "fold", None, say, emotion, note, think)
 
 
 def parse_decision(text: str, legal: dict) -> Decision:
@@ -68,6 +71,8 @@ def parse_decision(text: str, legal: dict) -> Decision:
     say = obj.get("say") if isinstance(obj.get("say"), str) else ""
     say = " ".join(say.split())[:MAX_SAY]
     emotion = obj.get("emotion") if obj.get("emotion") in EMOTIONS else None
+    think = obj.get("think") if isinstance(obj.get("think"), str) else ""
+    think = " ".join(think.split())[:MAX_THINK]
     action = str(obj.get("action", "")).strip().lower().replace("-", "_").replace(" ", "_")
     action = {"bet": "raise", "all_in": "raise", "allin": "raise"}.get(action, action)
     kinds = legal["kinds"]
@@ -75,7 +80,7 @@ def parse_decision(text: str, legal: dict) -> Decision:
     if action == "call" and "check" in kinds:  # "call" when nothing is owed means "check"
         action, notes = "check", ["call read as check"]
     if action not in kinds:
-        return _safe(legal, say, emotion, f"action {obj.get('action')!r} is not legal here")
+        return _safe(legal, say, emotion, f"action {obj.get('action')!r} is not legal here", think)
     amount = None
     if action == "raise":
         raw = obj.get("amount")
@@ -94,7 +99,7 @@ def parse_decision(text: str, legal: dict) -> Decision:
         if clamped != amount:
             notes.append(f"raise amount {amount} moved to {clamped}")
         amount = clamped
-    return Decision(action, amount, say, emotion, "; ".join(notes))
+    return Decision(action, amount, say, emotion, "; ".join(notes), think)
 
 
 @dataclass
@@ -106,7 +111,7 @@ class SeatAgent:
     llm: Llm
     model: str
     style: str = ""
-    max_tokens: int = 200
+    max_tokens: int = 300
     traits: Traits = field(default_factory=Traits)
     usage: Usage = field(default_factory=Usage)
 

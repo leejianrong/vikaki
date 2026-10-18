@@ -22,10 +22,11 @@ def test_a_hand_is_spoken_by_three_drivers_on_a_real_hub():
     pytest.importorskip("vikaki_client")
     seats = {"seat-1": "ada", "seat-2": "ben", "seat-3": "cy"}
     agents = {
-        seat: SeatAgent(seat, persona, FakeLlm([json.dumps({"action": "call", "say": f"{persona} calls.", "emotion": "happy"}), json.dumps({"action": "check", "say": f"{persona} checks."})]), "fake")
+        seat: SeatAgent(seat, persona, FakeLlm([json.dumps({"think": f"{persona} likes this.", "action": "call", "say": f"{persona} calls.", "emotion": "happy"}), json.dumps({"action": "check", "say": f"{persona} checks."})]), "fake")
         for seat, persona in seats.items()
     }
-    voice = HubVoice(URL, seats, line_timeout=30)
+    problems: list[str] = []
+    voice = HubVoice(URL, seats, line_timeout=30, on_problem=problems.append)
     try:
         session = play_session(agents, voice, hands=1, stack=50, seed=3, out=lambda *_: None, reactor=MirrorReactor())  # the listeners react silently, through the real hub
         spoken = sum(len(r.hand.events) for r in session.results)
@@ -33,4 +34,5 @@ def test_a_hand_is_spoken_by_three_drivers_on_a_real_hub():
     finally:
         voice.close()
     assert session.hands_played == 1 and sum(session.stacks.values()) == 150
+    assert not problems  # in particular, every private thought was accepted by the hub
     assert heard >= 3 and spoken > 0  # every seat spoke at least once and the hub reported it finished

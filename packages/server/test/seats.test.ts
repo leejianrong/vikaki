@@ -128,6 +128,21 @@ describe("what a seat driver may send", () => {
     expect(viewer.inbox[0]).toMatchObject({ type: "react", seat_id: "A", persona: "ada", emotion: "surprised", gesture: "shake" });
   });
 
+  it("relays a private thought to the viewers only, for its own seat, never to another driver and never as speech (VIK-93)", async () => {
+    server = await startServer({ staticDir: dir });
+    const viewer = track(await Client.join(server.wsUrl, "viewer"));
+    await viewer.next();
+    const a = await seatDriver(server.wsUrl, { seat_id: "A", persona: "ada" });
+    const b = await seatDriver(server.wsUrl, { seat_id: "B", persona: "ben" });
+    a.d.send(make("thought", { seat_id: "B", text: "Not my seat." }));
+    expect(await a.d.next()).toMatchObject({ type: "error", code: "not_allowed" });
+    a.d.send(make("thought", { seat_id: "A", text: "Ace-king. Raise." }));
+    a.d.send(utterance({ seat_id: "A", utterance_id: "after" })); // a later message, so the viewer has seen everything sent
+    await until(() => viewer.inbox.length === 2);
+    expect(viewer.inbox[0]).toMatchObject({ type: "thought", seat_id: "A", persona: "ada", text: "Ace-king. Raise." });
+    expect([...a.d.inbox, ...b.d.inbox].some((m) => m.type === "thought")).toBe(false);
+  });
+
   it("gets the seat's persona filled in on its lines and turns, unless it names another", async () => {
     server = await startServer({ staticDir: dir });
     const viewer = track(await Client.join(server.wsUrl, "viewer"));

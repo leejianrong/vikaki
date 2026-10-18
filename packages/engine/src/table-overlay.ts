@@ -27,6 +27,7 @@ export class TableOverlay {
   private readonly plates: HTMLElement[];
   private readonly log = el("div", { className: "transcript", role: "log", ariaLabel: "Transcript" });
   private readonly bubbles: HTMLElement[];
+  private readonly marks: HTMLElement[];
   private readonly bubbleTimers: (ReturnType<typeof setTimeout> | undefined)[];
   private lines: TranscriptLine[] = [];
   private state: State | undefined;
@@ -52,7 +53,12 @@ export class TableOverlay {
       return b;
     });
     this.bubbleTimers = seats.map(() => undefined);
-    this.root.append(this.info, ...this.plates, ...this.bubbles, this.log);
+    this.marks = seats.map((s, i) => {
+      const m = el("span", { className: "thought-mark", hidden: true, textContent: "…", ariaLabel: `${label(s)} has a thought` });
+      m.style.setProperty("--seat-colour", seatColour(i));
+      return m;
+    });
+    this.root.append(this.info, ...this.plates, ...this.bubbles, ...this.marks, this.log);
     parent.append(this.root);
     this.draw();
   }
@@ -61,6 +67,10 @@ export class TableOverlay {
   place(xs: number[], tops?: number[]): void {
     this.plates.forEach((p, i) => {
       if (xs[i] !== undefined) p.style.left = `${Math.round(xs[i]!)}px`;
+    });
+    this.marks.forEach((m, i) => {
+      if (xs[i] !== undefined) m.style.left = `${Math.round(xs[i]!)}px`;
+      if (tops?.[i] !== undefined) m.style.top = `${Math.round(tops[i]!)}px`;
     });
     this.bubbles.forEach((b, i) => {
       if (xs[i] !== undefined) b.style.left = `${Math.round(xs[i]!)}px`;
@@ -81,6 +91,12 @@ export class TableOverlay {
     };
     this.log.replaceChildren(...this.lines.map((l) => el("p", {}, el("b", { textContent: name(l.seat) }), l.text)));
     this.showBubble(line.seat, this.lines.find((l) => l.id === line.id)?.text ?? "");
+  }
+
+  /** A small mark over a seat that has a private thought (VIK-93): on when one arrives, off when that seat's next turn begins. */
+  setThought(seat: string, on: boolean): void {
+    const i = this.seats.findIndex((s) => s.seat === seat);
+    if (i >= 0) this.marks[i]!.hidden = !on;
   }
 
   /** The speaker's bubble shows the line as far as it has arrived and fades some seconds after the last piece; no other seat keeps one. */

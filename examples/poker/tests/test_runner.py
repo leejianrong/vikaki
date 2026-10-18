@@ -29,6 +29,9 @@ class RecordingVoice:
     def turn_ended(self, seat_id):
         self.calls.append(("end", seat_id))
 
+    def think(self, seat_id, text):
+        self.calls.append(("think", seat_id, text))
+
 
 def agents_that(*replies_by_seat: tuple[str, list[str]]) -> dict[str, SeatAgent]:
     return {seat: SeatAgent(seat, f"p-{seat}", FakeLlm(replies), "m") for seat, replies in replies_by_seat}
@@ -47,9 +50,24 @@ def test_each_move_is_think_then_speak_then_act_and_the_table_talks_one_at_a_tim
     assert hand.complete and sum(hand.final_stacks().values()) == 300
     first = voice.calls[:3]
     assert first == [("start", "a"), ("say", "a", "Count me in.", "happy"), ("end", "a")]
-    kinds = "".join({"start": "[", "say": "s", "end": "]"}[c[0]] for c in voice.calls)
+    kinds = "".join({"start": "[", "say": "s", "end": "]", "think": ""}[c[0]] for c in voice.calls)
     assert re.fullmatch(r"(\[s?\])+", kinds)  # never two seats mid-move; the governor drops a second line in a street
     assert any("wins" in line for line in result.log)
+
+
+def test_a_private_thought_goes_to_the_audience_and_never_into_another_seats_prompt():
+    secret = "SECRET-PLAN-7"
+    move = json.dumps({"think": secret, "action": "call", "say": "I call."})
+    agents = agents_that(("a", [move]), ("b", [json.dumps({"action": "call"})]), ("c", [json.dumps({"action": "check"})]))
+    voice = RecordingVoice()
+    talk: list = []
+    result = play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), agents, voice, talk, out=quiet)
+    assert ("think", "a", secret) in voice.calls
+    assert result.thoughts and result.thoughts[0] == ("a", secret)
+    assert voice.calls.index(("think", "a", secret)) < voice.calls.index(("say", "a", "I call.", None))  # it comes before the line
+    assert not any(secret in str(t) for t in talk)  # the table's chat holds only what was said
+    for seat in "bc":
+        assert not any(secret in m["content"] for r in agents[seat].llm.requests for m in r["messages"])  # type: ignore[attr-defined]
 
 
 def test_the_governor_drops_a_line_over_budget_and_the_log_says_so():
@@ -136,7 +154,7 @@ def test_the_example_table_file_loads_with_each_characters_style():
     assert "warm" in table.seats[0].style and "worrier" in table.seats[1].style
     assert table.seats[0].model.startswith("deepseek/") and (table.stack, table.small_blind, table.big_blind) == (200, 1, 2)
     agents = build_agents(table, FakeLlm(["x"]))
-    assert agents["seat-2"].persona == "ben" and agents["seat-2"].max_tokens == 200
+    assert agents["seat-2"].persona == "ben" and agents["seat-2"].max_tokens == 300
 
 
 @pytest.mark.parametrize(

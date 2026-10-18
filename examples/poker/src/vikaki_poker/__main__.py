@@ -14,11 +14,11 @@ from .table import TableError, build_agents, build_reactor, load_table
 
 # What `--fake-llm` says: no key, no cost, always legal moves ("call" is read as "check" when nothing is owed).
 DEMO_REPLIES = [
-    '{"action": "raise", "amount": 6, "say": "Let us make this interesting.", "emotion": "smug"}',
-    '{"action": "call", "say": "Hmm, I will stay in.", "emotion": "worried"}',
-    '{"action": "fold", "say": "Too rich for me.", "emotion": "sad"}',
-    '{"action": "check", "say": "Check. Take your time.", "emotion": "happy"}',
-    '{"action": "call", "say": "Oh, you again!", "emotion": "surprised"}',
+    '{"think": "A strong start. Push them out early.", "action": "raise", "amount": 6, "say": "Let us make this interesting.", "emotion": "smug"}',
+    '{"think": "Not sure about this one, but the price is fair.", "action": "call", "say": "Hmm, I will stay in.", "emotion": "worried"}',
+    '{"think": "That bet is too big for what I hold.", "action": "fold", "say": "Too rich for me.", "emotion": "sad"}',
+    '{"think": "Free card, and I am happy to see it.", "action": "check", "say": "Check. Take your time.", "emotion": "happy"}',
+    '{"think": "They keep showing up. Fine by me.", "action": "call", "say": "Oh, you again!", "emotion": "surprised"}',
 ]
 
 

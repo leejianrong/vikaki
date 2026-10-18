@@ -151,6 +151,19 @@ export const React = z
   })
   .refine((m) => m.emotion !== undefined || m.gesture !== undefined, { message: "send an `emotion`, a `gesture`, or both" });
 
+/**
+ * A private thought (VIK-93): what a seat is thinking before it acts, for the people watching, never for the other players. It is text only: the hub
+ * does not speak it (a spoken line is an `utterance`, and the hub speaks every one of those). A driver sends it for its own seat; viewers get it with
+ * `persona` filled in from the seat, as for turns. A table game's other seats never see it, because only viewers are sent what a driver sends.
+ */
+export const Thought = z.object({
+  ...common,
+  type: z.literal("thought"),
+  seat_id: id,
+  persona: z.string().min(1).max(64).optional(),
+  text: z.string().min(1).max(1000),
+});
+
 // ---- back to the driver, reported by whoever plays the audio ----
 
 export const SpeechStarted = z.object({ ...common, type: z.literal("speech_started"), utterance_id: id, seat_id: id.optional() });
@@ -216,6 +229,7 @@ export const Message = z.discriminatedUnion("type", [
   GameOver,
   TableState,
   React,
+  Thought,
   SpeechStarted,
   SpeechFinished,
   SpeechInterrupted,
@@ -227,7 +241,7 @@ export type MessageType = Message["type"];
 export type MessageOf<T extends MessageType> = Extract<Message, { type: T }>;
 
 /** What each role may send after `hello`. The hub enforces this. `audio` is sent by the hub only. */
-export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state", "react"];
+export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state", "react", "thought"];
 /** A controller is not a driver: it never holds the driver slot and may only stop speech (`vikaki cancel`). */
 export const CONTROLLER_MAY_SEND: readonly MessageType[] = ["cancel"];
 export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error"];
