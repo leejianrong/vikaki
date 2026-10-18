@@ -32,4 +32,13 @@ describe("long-running Makefile targets", () => {
     expect(makefile).toMatch(/^demo-speech: install-voice build/m);
     expect(makefile).toMatch(/^demo-table: build/m);
   });
+
+  it("has a `make poker` that plays the example table, with the arguments overridable and a clear message when the hub or the key is missing (VIK-90)", () => {
+    const lines = recipe("poker").join("\n");
+    expect(lines).toContain("python -m vikaki_poker play --table table.example.yaml --url ws://127.0.0.1:$(POKER_PORT)/ws $(POKER_ARGS)");
+    expect(lines).toContain("make demo-table"); // what to do when no table is up
+    expect(lines).toContain("examples/poker/.env.example");
+    expect(makefile).toMatch(/^POKER_ARGS \?= .*--no-rebuy/m);
+    expect(makefile).toMatch(/^poker:/m);
+  });
 });
