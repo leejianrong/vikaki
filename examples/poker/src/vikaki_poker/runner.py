@@ -171,8 +171,14 @@ def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list
     down until a showdown, or always face up with `show_cards`. The `governor` (one per session; a fresh one by default) holds the talk to each seat's
     budget (VIK-92): a line over it is dropped and noted.
     """
-    with ThreadPoolExecutor(max_workers=max(1, len(agents))) as pool:
-        return _play_hand(hand, agents, voice, talk, out, reactor, pool, show_cards, governor or Governor(), hand_no)
+    pool = ThreadPoolExecutor(max_workers=max(1, len(agents)))
+    try:
+        result = _play_hand(hand, agents, voice, talk, out, reactor, pool, show_cards, governor or Governor(), hand_no)
+    except BaseException:  # Ctrl-C: do not wait for the model calls still out, and do not start the queued ones
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    pool.shutdown(wait=True)
+    return result
 
 
 def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool, governor: Governor, hand_no: int) -> HandResult:
@@ -227,6 +233,7 @@ class Session:
     hands_played: int = 0
     rebuys: dict[str, int] = field(default_factory=dict)  # how many times each seat went broke and bought back in
     results: list[HandResult] = field(default_factory=list)
+    interrupted: bool = False  # the user pressed Ctrl-C: the hand under way is not in `results`
 
 
 def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stack: int = 200, small_blind: int = 1, big_blind: int = 2, seed: int = 0, out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, rebuy: bool = True) -> Session:
@@ -249,7 +256,13 @@ def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stac
             break
         out(f"--- hand {n + 1}: " + ", ".join(f"{s} {session.stacks[s]}" for s in alive))
         hand = Hand([(s, session.stacks[s]) for s in alive], button % len(alive), small_blind, big_blind, seed=seed + n)
-        session.results.append(play_hand(hand, agents, voice, talk, out, reactor, show_cards, governor, n))
+        try:
+            result = play_hand(hand, agents, voice, talk, out, reactor, show_cards, governor, n)
+        except KeyboardInterrupt:
+            session.interrupted = True
+            out("--- interrupted: stopping after the hand in progress is dropped")
+            break
+        session.results.append(result)
         session.stacks.update(hand.final_stacks())
         session.hands_played += 1
         button += 1

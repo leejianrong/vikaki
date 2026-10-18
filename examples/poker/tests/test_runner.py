@@ -433,3 +433,42 @@ def test_bad_stack_or_blinds_are_refused_saying_what_is_wrong(capsys):
     ]:
         assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", *args]) == 2, args
         assert message in capsys.readouterr().err, args
+
+
+class InterruptingAgent:
+    """Checks or calls, until the user presses Ctrl-C while it is thinking (after `moves` moves)."""
+
+    def __init__(self, moves: int) -> None:
+        self.persona, self.usage, self.traits = "ctrl", None, Traits()
+        self._moves = moves
+
+    def decide(self, view, talk=None, events=None, names=None):
+        if self._moves <= 0:
+            raise KeyboardInterrupt
+        self._moves -= 1
+        return Decision("check" if "check" in view["legal"]["kinds"] else "call")
+
+
+def test_ctrl_c_ends_the_session_cleanly_and_keeps_the_hands_already_played():
+    agents = {"a": InterruptingAgent(14), "b": InterruptingAgent(10**6), "c": InterruptingAgent(10**6)}  # a few hands in
+    session = play_session(agents, RecordingVoice(), hands=50, stack=50, seed=3, out=quiet)  # type: ignore[arg-type]
+    assert session.interrupted
+    assert 1 <= session.hands_played < 50
+    assert len(session.results) == session.hands_played  # the hand cut short is not counted
+
+
+def test_main_says_so_and_still_prints_the_summary_when_interrupted(capsys, monkeypatch):
+    import vikaki_poker.__main__ as cli
+
+    real = cli.play_session
+
+    def interrupted(*a, **kw):
+        s = real(*a, **{**kw, "hands": 1})
+        s.interrupted = True
+        return s
+
+    monkeypatch.setattr(cli, "play_session", interrupted)
+    code = main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "5"])
+    out = capsys.readouterr().out
+    assert code == 130
+    assert "interrupted" in out and "chips:" in out
