@@ -3,7 +3,7 @@
 // plates say is what the game sent. Plain DOM with roles and names, so tests find things the way a person would.
 import type { MessageOf } from "@vikaki/protocol";
 import type { EmbedOptions } from "./embed.ts";
-import { addToTranscript, cardFace, type Seat, type TranscriptLine } from "./table.ts";
+import { addToTranscript, cardFace, seatColour, type Seat, type TranscriptLine } from "./table.ts";
 import { el } from "./ui/dom.ts";
 import "./ui/material.ts";
 import "./ui/table.css";
@@ -12,6 +12,9 @@ type State = MessageOf<"table_state">;
 
 const label = (s: Seat) => s.persona ?? s.seat;
 const money = (n: number) => n.toLocaleString("en-US");
+
+/** How long a speech bubble stays after its line's last piece (ms). */
+export const BUBBLE_MS = 4000;
 
 export function cardEl(card: string): HTMLElement {
   const f = cardFace(card);
@@ -23,6 +26,8 @@ export class TableOverlay {
   private readonly info = el("section", { className: "table-info", ariaLabel: "Table", hidden: true });
   private readonly plates: HTMLElement[];
   private readonly log = el("div", { className: "transcript", role: "log", ariaLabel: "Transcript" });
+  private readonly bubbles: HTMLElement[];
+  private readonly bubbleTimers: (ReturnType<typeof setTimeout> | undefined)[];
   private lines: TranscriptLine[] = [];
   private state: State | undefined;
   /** False when the cards are drawn on a 3D table: a plate then says only name, stack and bet. */
@@ -41,15 +46,25 @@ export class TableOverlay {
       this.root.classList.toggle("captions", embed.captions);
     }
     this.plates = seats.map((s) => el("div", { className: "seat-plate", role: "group", ariaLabel: label(s) }));
-    this.root.append(this.info, ...this.plates, this.log);
+    this.bubbles = seats.map((s, i) => {
+      const b = el("p", { className: "bubble", hidden: true, ariaLabel: `${label(s)} says` });
+      b.style.setProperty("--seat-colour", seatColour(i));
+      return b;
+    });
+    this.bubbleTimers = seats.map(() => undefined);
+    this.root.append(this.info, ...this.plates, ...this.bubbles, this.log);
     parent.append(this.root);
     this.draw();
   }
 
-  /** Put each seat's plate under its avatar: `xs` are the avatars' centres in pixels from the left edge. */
-  place(xs: number[]): void {
+  /** Put each seat's plate under its avatar: `xs` are the avatars' centres in pixels from the left edge. `tops`, when known, are the pixels from the top edge of the heads: a bubble sits just above. */
+  place(xs: number[], tops?: number[]): void {
     this.plates.forEach((p, i) => {
       if (xs[i] !== undefined) p.style.left = `${Math.round(xs[i]!)}px`;
+    });
+    this.bubbles.forEach((b, i) => {
+      if (xs[i] !== undefined) b.style.left = `${Math.round(xs[i]!)}px`;
+      if (tops?.[i] !== undefined) b.style.top = `${Math.round(tops[i]!)}px`;
     });
   }
 
@@ -65,6 +80,19 @@ export class TableOverlay {
       return s ? label(s) : seat;
     };
     this.log.replaceChildren(...this.lines.map((l) => el("p", {}, el("b", { textContent: name(l.seat) }), l.text)));
+    this.showBubble(line.seat, this.lines.find((l) => l.id === line.id)?.text ?? "");
+  }
+
+  /** The speaker's bubble shows the line as far as it has arrived and fades some seconds after the last piece; no other seat keeps one. */
+  private showBubble(seat: string, text: string): void {
+    this.bubbles.forEach((b, i) => {
+      const mine = this.seats[i]!.seat === seat;
+      clearTimeout(this.bubbleTimers[i]);
+      if (!mine) return void (b.hidden = true);
+      b.textContent = text;
+      b.hidden = text === "";
+      this.bubbleTimers[i] = setTimeout(() => (b.hidden = true), BUBBLE_MS);
+    });
   }
 
   private draw(): void {

@@ -82,6 +82,31 @@
 .transcript p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .transcript b { font-weight: 600; margin-inline-end: 6px; color: var(--md-sys-color-primary); }
 
+/* With the panel the chat is there and a bubble sits over the speaker's head (VIK-91): no strip at the bottom. */
+.bubble { display: none; }
+.table-overlay.with-panel .transcript { display: none; }
+.table-overlay.with-panel .bubble {
+  position: absolute;
+  top: 20%;
+  transform: translate(-50%, -100%) translateY(-8px);
+  box-sizing: border-box;
+  max-width: 240px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--shape-l);
+  border: 2px solid var(--seat-colour);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  animation: bubble-in var(--dur-short3) var(--ease-standard);
+}
+.table-overlay.with-panel .bubble[hidden] { display: none; }
+@keyframes bubble-in { from { opacity: 0; } }
+
 /* Embed mode (VIK-64): the host page draws its own state, so nothing here unless asked for. */
 .table-overlay.embed .table-info { display: none; }
 .table-overlay.embed:not(.names) .seat-plate { display: none; }
@@ -114,3 +139,8 @@ body.has-table-panel .table-overlay { right: var(--panel-width); }
 .table-panel .seat-card.lead .meter .fill { background: var(--md-sys-color-primary); }
 .table-panel .pct { min-width: 3.2em; text-align: end; font: 600 0.875rem/1.25rem var(--md-ref-typeface-plain); }
 .table-panel .note { margin: 0; font: 400 0.75rem/1rem var(--md-ref-typeface-plain); }
+
+.table-panel .chat { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-radius: var(--shape-l); background: var(--md-sys-color-surface-container-low); }
+.table-panel .chat:empty::before { content: "Nothing said yet"; color: var(--md-sys-color-on-surface-variant); }
+.table-panel .chat p { margin: 0; overflow-wrap: anywhere; }
+.table-panel .chat b { margin-inline-end: 6px; font-weight: 600; }
