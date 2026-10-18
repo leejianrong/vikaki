@@ -112,6 +112,7 @@ class HubVoice:
 class HandResult:
     hand: Hand
     log: list[str] = field(default_factory=list)
+    said: list[tuple[str, str]] = field(default_factory=list)  # (seat, what it said) in order, for the style summary
 
 
 def _decide_reactions(reactor: Reactor, pool: ThreadPoolExecutor, speaker: str, listeners: list[str], text: str, emotion: str | None) -> list:
@@ -155,6 +156,7 @@ def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list
 
 def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool) -> HandResult:
     result = HandResult(hand)
+    names = {seat_id: a.persona for seat_id, a in agents.items()}  # the characters' names, so a seat reads "ben raised" and not "seat-2 raised"
 
     def note(line: str) -> None:
         result.log.append(line)
@@ -167,9 +169,10 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         seat = legal.seat_id
         agent = agents[seat]
         voice.turn_started(seat)
-        decision = agent.decide(hand.view(seat), talk)
+        decision = agent.decide(hand.view(seat), talk, hand.events, names)
         if decision.say:
             talk.append((seat, decision.say))
+            result.said.append((seat, decision.say))
             pending = _decide_reactions(reactor, pool, seat, [s for s in agents if s != seat], decision.say, decision.emotion) if reactor else []
             voice.say(seat, decision.say, decision.emotion)
             _react(voice, pending)
@@ -195,16 +198,24 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
 class Session:
     stacks: dict[str, int]
     hands_played: int = 0
+    rebuys: dict[str, int] = field(default_factory=dict)  # how many times each seat went broke and bought back in
     results: list[HandResult] = field(default_factory=list)
 
 
-def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stack: int = 200, small_blind: int = 1, big_blind: int = 2, seed: int = 0, out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False) -> Session:
-    """Deal up to `hands` hands, moving the button each time and dropping players who run out of chips. The same `seed` deals the same cards."""
+def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stack: int = 200, small_blind: int = 1, big_blind: int = 2, seed: int = 0, out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, rebuy: bool = True) -> Session:
+    """Deal up to `hands` hands, moving the button each time. A player who runs out of chips buys back in for `stack` (a cash game: the table keeps going,
+    and `session.rebuys` counts them); with `rebuy=False` they are out, and the session ends when one player has all the chips. The same `seed` deals the same cards."""
     order = list(agents)
     session = Session({s: stack for s in order})
     talk: list[tuple[str, str]] = []
     button = 0
     for n in range(hands):
+        if rebuy:
+            for s in order:
+                if session.stacks[s] <= 0:
+                    session.stacks[s] = stack
+                    session.rebuys[s] = session.rebuys.get(s, 0) + 1
+                    out(f"  ({agents[s].persona} buys back in for {stack})")
         alive = [s for s in order if session.stacks[s] > 0]
         if len(alive) < 2:
             break

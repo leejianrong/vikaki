@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 import yaml
 
+from .brain import Traits
 from .llm import Llm
 from .reactions import LlmReactor, MirrorReactor, Reactor
 from .seat import SeatAgent
@@ -26,6 +27,7 @@ class TableSeat:
     persona: str
     model: str
     style: str = ""
+    traits: Traits = field(default_factory=Traits)
 
 
 @dataclass
@@ -76,7 +78,13 @@ def load_table(path: str, *, default_model: str | None = None) -> Table:
             raise TableError(f"seat {seat_id}: `persona` is required")
         if not model:
             raise TableError(f"seat {seat_id}: `model` is required (or pass a default model)")
-        seats.append(TableSeat(str(seat_id), str(persona), str(model), styles.get(str(persona), "")))
+        try:
+            traits = Traits.from_dict(spec["traits"]) if isinstance(spec.get("traits"), dict) else Traits()
+        except (ValueError, TypeError) as err:
+            raise TableError(f"seat {seat_id}: traits: {err}") from None
+        if "traits" in spec and not isinstance(spec["traits"], dict):
+            raise TableError(f"seat {seat_id}: `traits` must be a mapping such as {{talkative: 0.8, loose: 0.6}}")
+        seats.append(TableSeat(str(seat_id), str(persona), str(model), styles.get(str(persona), ""), traits))
     table = Table(seats)
     for key in ("stack", "small_blind", "big_blind", "max_tokens"):
         if key in data:
@@ -100,4 +108,4 @@ def build_reactor(table: Table, llm: Llm | None) -> Reactor:
 
 
 def build_agents(table: Table, llm: Llm) -> dict[str, SeatAgent]:
-    return {s.seat_id: SeatAgent(s.seat_id, s.persona, llm, s.model, s.style, table.max_tokens) for s in table.seats}
+    return {s.seat_id: SeatAgent(s.seat_id, s.persona, llm, s.model, s.style, table.max_tokens, s.traits) for s in table.seats}

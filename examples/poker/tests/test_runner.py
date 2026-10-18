@@ -77,7 +77,9 @@ def test_if_the_engine_ever_refuses_a_move_the_table_does_not_stall():
     class Wrong:
         usage = None
 
-        def decide(self, view, talk=None):
+        persona = "wrong"
+
+        def decide(self, view, talk=None, events=None, names=None):
             return Decision("raise", 99999)  # never legal
 
     agents = {"a": Wrong(), "b": Wrong()}
@@ -90,7 +92,7 @@ def calling_agents(n: int = 3) -> dict[str, SeatAgent]:
 
 
 def test_a_session_moves_the_button_and_conserves_chips():
-    session = play_session(calling_agents(), RecordingVoice(), hands=4, stack=100, seed=9, out=quiet)
+    session = play_session(calling_agents(), RecordingVoice(), hands=4, stack=100, seed=9, out=quiet, rebuy=False)
     assert session.hands_played == 4
     assert sum(session.stacks.values()) == 300
     firsts = [next(e["seat_id"] for e in r.hand.events if e["type"] != "blind") for r in session.results]  # who acts first in each hand
@@ -104,7 +106,7 @@ def test_the_same_seed_plays_the_same_session():
 
 
 def test_a_player_with_no_chips_sits_out_and_the_session_stops_when_one_is_left():
-    session = play_session(agents_that(("a", ['{"action": "raise", "amount": 20}']), ("b", ['{"action": "call"}'])), RecordingVoice(), hands=50, stack=10, seed=5, out=quiet)
+    session = play_session(agents_that(("a", ['{"action": "raise", "amount": 20}']), ("b", ['{"action": "call"}'])), RecordingVoice(), hands=50, stack=10, seed=5, out=quiet, rebuy=False)
     assert session.hands_played < 50 and sorted(session.stacks.values())[0] == 0 and sum(session.stacks.values()) == 20
 
 
@@ -310,3 +312,71 @@ def test_the_voice_that_cannot_show_a_table_is_left_alone_and_show_cards_reaches
 
     play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), agents_that(("a", ["{}"]), ("b", ["{}"]), ("c", ["{}"])), Spy(), [], out=quiet, show_cards=True)
     assert seen[0]["seats"][0]["cards"] != ["back", "back"]
+
+
+def test_a_seat_is_told_who_everyone_is_and_what_has_happened_this_hand():
+    seen = []
+
+    class Spy:
+        persona = "spy"
+        usage = None
+
+        def decide(self, view, talk=None, events=None, names=None):
+            seen.append((view["to_act"], [e["type"] for e in events], dict(names)))
+            return Decision("check" if "check" in view["legal"]["kinds"] else "call")
+
+    agents = {s: Spy() for s in "abc"}
+    agents["a"].persona, agents["b"].persona, agents["c"].persona = "ada", "ben", "cy"
+    play_hand(Hand([("a", 50), ("b", 50), ("c", 50)], 0, 1, 2, seed=4), agents, RecordingVoice(), [], out=quiet)  # type: ignore[arg-type]
+    assert seen[0][2] == {"a": "ada", "b": "ben", "c": "cy"}
+    assert seen[0][1] == ["blind", "blind"]  # the first to act has seen only the blinds
+    assert len(seen[-1][1]) > len(seen[0][1])  # and later seats see what the others did
+
+
+def _table(tmp_path, seat_extra: str):
+    path = tmp_path / "t.yaml"
+    path.write_text(f"seats:\n  a: {{persona: ada, model: m{seat_extra}}}\n  b: {{persona: ben, model: m}}\n", encoding="utf-8")
+    return str(path)
+
+
+def test_a_seat_may_carry_traits_that_reach_its_agent(tmp_path):
+    from vikaki_poker.table import build_agents
+
+    table = load_table(_table(tmp_path, ", traits: {talkative: 0.9, loose: 0.1, quirk: 'hums'}"))
+    t = table.seats[0].traits
+    assert (t.talkative, t.loose, t.quirk) == (0.9, 0.1, "hums")
+    assert table.seats[1].traits.loose == 0.5  # no traits: a middling player
+    agents = build_agents(table, FakeLlm(["{}"]))
+    assert agents["a"].traits.talkative == 0.9
+
+
+def test_bad_traits_are_refused_naming_the_seat_and_the_trait(tmp_path):
+    import pytest
+
+    from vikaki_poker.table import TableError
+
+    with pytest.raises(TableError, match="seat a: traits: trait loose must be a number from 0 to 1"):
+        load_table(_table(tmp_path, ", traits: {loose: 3}"))
+    with pytest.raises(TableError, match="unknown trait 'fearless'"):
+        load_table(_table(tmp_path, ", traits: {fearless: 1}"))
+    with pytest.raises(TableError, match="`traits` must be a mapping"):
+        load_table(_table(tmp_path, ", traits: wild"))
+
+
+def test_the_example_table_gives_the_three_seats_different_personalities():
+    table = load_table(TABLE)
+    loose = [s.traits.loose for s in table.seats]
+    assert max(loose) - min(loose) > 0.5  # one tight, one wild: that is the point
+    assert len({s.traits.quirk for s in table.seats}) == 3
+
+
+def test_a_player_who_goes_broke_buys_back_in_and_the_session_goes_on():
+    lines: list[str] = []
+    agents = agents_that(("a", ['{"action": "raise", "amount": 20}']), ("b", ['{"action": "call"}']))
+    session = play_session(agents, RecordingVoice(), hands=12, stack=10, seed=5, out=lines.append)
+    assert session.hands_played == 12  # nobody was left out: the table did not stop at the first bust
+    assert sum(session.rebuys.values()) >= 1
+    assert any("buys back in for 10" in line for line in lines)
+    assert all(v > 0 for v in session.stacks.values())
+    # chips are conserved apart from the rebuys: what is on the table is the starting stacks plus every rebuy
+    assert sum(session.stacks.values()) == 2 * 10 + 10 * sum(session.rebuys.values())

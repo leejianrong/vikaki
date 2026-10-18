@@ -44,11 +44,50 @@ def score_five(cards: tuple[str, ...]) -> Score:
     return (0, tuple(ranks))
 
 
+def _straight_high(ranks: set[int]) -> int:
+    """The high card of the best straight in a set of ranks (the ace also plays low), or 0."""
+    low = ranks | {1} if 14 in ranks else ranks
+    for high in range(14, 4, -1):
+        if all(high - i in low for i in range(5)):
+            return high
+    return 0
+
+
 def best_score(cards: list[str] | tuple[str, ...]) -> Score:
-    """The best five-card score among five to seven cards."""
+    """The best five-card score among five to seven cards. Worked out directly from the counts of ranks and suits (about ten times quicker than
+    trying every five of seven: the win-probability sampling calls it a million times); `score_five` over every five is the reference it must equal."""
     if not 5 <= len(cards) <= 7:
         raise ValueError(f"need five to seven cards, got {len(cards)}")
-    return max(score_five(five) for five in combinations(cards, 5))
+    ranks = [rank_value(c) for c in cards]
+    counts = Counter(ranks)
+    suit_counts = Counter(c[1] for c in cards)
+    flush_suit = next((suit for suit, n in suit_counts.items() if n >= 5), None)
+    if flush_suit is not None:
+        flush = sorted((rank_value(c) for c in cards if c[1] == flush_suit), reverse=True)
+        high = _straight_high(set(flush))
+        if high:
+            return (8, (high,))
+    groups = sorted(counts.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+    top, top_n = groups[0]
+    if top_n == 4:
+        return (7, (top, max(r for r in ranks if r != top)))
+    if top_n == 3:
+        pairs = [r for r, n in counts.items() if r != top and n >= 2]
+        if pairs:
+            return (6, (top, max(pairs)))
+    if flush_suit is not None:
+        return (5, tuple(flush[:5]))
+    high = _straight_high(set(ranks))
+    if high:
+        return (4, (high,))
+    if top_n == 3:
+        return (3, (top, *sorted((r for r in ranks if r != top), reverse=True)[:2]))
+    pairs = sorted((r for r, n in counts.items() if n == 2), reverse=True)
+    if len(pairs) >= 2:
+        return (2, (pairs[0], pairs[1], max(r for r in ranks if r != pairs[0] and r != pairs[1])))
+    if pairs:
+        return (1, (pairs[0], *sorted((r for r in ranks if r != pairs[0]), reverse=True)[:3]))
+    return (0, tuple(sorted(ranks, reverse=True)[:5]))
 
 
 def describe(score: Score) -> str:

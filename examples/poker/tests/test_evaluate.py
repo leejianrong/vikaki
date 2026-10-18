@@ -64,3 +64,47 @@ def test_decks():
     assert shuffled_deck(7) == shuffled_deck(7)
     assert shuffled_deck(7) != shuffled_deck(8)
     assert sorted(shuffled_deck(7)) == sorted(deck)
+
+
+# ---- the fast evaluator against the plain one (VIK-86) ----
+
+
+def _reference(cards):
+    """Every five of the cards through `score_five`: slow, and obviously right."""
+    from itertools import combinations
+
+    from vikaki_poker.evaluate import score_five
+
+    return max(score_five(five) for five in combinations(cards, 5))
+
+
+def test_the_direct_evaluator_agrees_with_trying_every_five_on_thousands_of_random_hands():
+    import random
+
+    from vikaki_poker.cards import full_deck
+    from vikaki_poker.evaluate import best_score
+
+    rng = random.Random(2026)
+    deck = full_deck()
+    for n in (5, 6, 7):
+        for _ in range(2500):
+            cards = rng.sample(deck, n)
+            assert best_score(cards) == _reference(cards), cards
+
+
+def test_the_direct_evaluator_agrees_on_the_awkward_hands():
+    from vikaki_poker.evaluate import best_score
+
+    awkward = [
+        ["As", "2d", "3c", "4h", "5s", "9d", "Kc"],  # the wheel
+        ["As", "Ks", "Qs", "Js", "Ts", "9d", "2c"],  # royal flush
+        ["9s", "8s", "7s", "6s", "5s", "Ac", "Ad"],  # straight flush with a pair beside it
+        ["As", "Ad", "Ac", "Ah", "Ks", "Kd", "Kc"],  # quads and trips: four aces, king kicker
+        ["7s", "7d", "7c", "2h", "2s", "2d", "Ac"],  # two trips: a full house, sevens over twos
+        ["Ks", "Kd", "Qc", "Qh", "Js", "Jd", "2c"],  # three pairs: the lowest pair is only a kicker
+        ["As", "2s", "3s", "4s", "6s", "5d", "Kc"],  # a flush and a straight that is not a straight flush
+        ["As", "Kd", "Qc", "Jh", "9s", "8d", "2c"],  # nothing
+        ["Ts", "9d", "8c", "7h", "6s", "5d", "4c"],  # a long straight: the top five
+    ]
+    for cards in awkward:
+        assert best_score(cards) == _reference(cards), cards

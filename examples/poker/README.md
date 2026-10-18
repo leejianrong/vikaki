@@ -37,6 +37,25 @@ uv run --with ../../clients/python python -m vikaki_poker play --table table.exa
 
 Each seat's model is set in `table.example.yaml` (OpenRouter model ids; the example uses `deepseek/deepseek-v4.1-flash`, about a tenth of a cent a hand). Thinking models run with reasoning off, which keeps the reply inside `max_tokens` and avoids dead air at the table; `--reasoning` leaves it to the model. An error from the provider (for example an OpenRouter guardrail blocking the model) is shown with its reason, or `--model` plays every seat with one. The key is read from the environment only, goes only into the request's `Authorization` header, and is never logged. At the end the command prints calls and tokens per seat (and cost, when the provider reports it); `max_tokens` in the table file caps each reply. `--base-url` points at another OpenAI-compatible endpoint.
 
+## How the players think
+
+A seat's model is briefed each turn by the engine, not left to guess ([ADR-0022](../../docs/adr/0022-the-engine-briefs-the-players.md)):
+
+- **A short guide** to playing well is in every seat's instructions (`brain.STRATEGY_PRIMER`).
+- **The facts of the turn**, worked out exactly: the hand in words, the chance to win against random hands, what a call needs to break even, cards that would improve the hand, position, the story of the hand so far, and a rule-of-thumb recommendation with its reason (`facts.py`). The seat may follow it or break from it.
+- **A personality.** Give a seat `traits` in the table file, each from 0 to 1: `talkative` (how much it says), `loose` (how many hands it plays; it is told a share, 10% at 0 to 70% at 1), `aggressive` (raises over calls), `bluff` (how often it bets with nothing), `tricky` (slow-plays and traps against playing straight), `emotional` (how much it shows), and a free-text `quirk`:
+
+  ```yaml
+  seat-3:
+    persona: cy
+    model: deepseek/deepseek-v4.1-flash
+    traits: {talkative: 0.6, loose: 0.95, aggressive: 0.95, bluff: 0.85, tricky: 0.6, emotional: 0.35, quirk: "grins, loves a gamble and an all-in"}
+  ```
+
+  `table.example.yaml` has three: ada the narrating showman, ben the careful rock who apologises and sets traps, cy the fearless gambler. They are archetypes of how real players are known to play, not impersonations. Seats with no `traits` play a middling game.
+- At the end of a session the command prints how each seat actually played (hands, VPIP, PFR, aggression, folds, lines and words per move), so you can see whether the characters show. A player who goes broke buys back in (`--no-rebuy` for a tournament).
+- `vikaki_poker.advisor` has the rule of thumb as a model-free player, a calling station and a random bot, and `simulate`: a free table for tests and for checking the advice (over 400 hands the advisor beats the other two by a wide margin).
+
 ## The engine on its own
 
 ```python
