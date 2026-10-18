@@ -1,4 +1,4 @@
-# ADR-0024: The game paces the table, and the page animates the difference between two states
+# ADR-0025: The game paces the table, and the page animates the difference between two states
 
 - Status: Accepted (Jian could not follow a hand, 2026-10-19; VIK-113, VIK-114, VIK-94)
 - Date: 2026-10-19
