@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from .brain import turn_facts
 from .hand import Hand
 from .seat import Decision
-from .strategy import decide as engine_decide
+from .strategy import big_blind_of, decide as engine_decide
 
 
 @dataclass
@@ -47,8 +47,7 @@ class EngineBot:
 
     def decide(self, view: dict, talk: list | None = None, events: list | None = None, names: dict | None = None) -> Decision:
         events = events or []
-        blinds = [e["amount"] for e in events if e["type"] == "blind"]
-        move = engine_decide(view, events, big_blind=max(blinds) if blinds else 2, rng=self._rng, samples=self.samples)
+        move = engine_decide(view, events, big_blind=big_blind_of(events), rng=self._rng, samples=self.samples)
         return Decision(move.kind, move.amount)
 
 

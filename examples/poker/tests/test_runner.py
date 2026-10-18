@@ -4,6 +4,7 @@ import re
 
 import pytest
 
+from scripted import engine_from
 from vikaki_poker import Hand
 from vikaki_poker.brain import Traits
 from vikaki_poker.__main__ import main
@@ -34,7 +35,7 @@ class RecordingVoice:
 
 
 def agents_that(*replies_by_seat: tuple[str, list[str]]) -> dict[str, SeatAgent]:
-    return {seat: SeatAgent(seat, f"p-{seat}", FakeLlm(replies), "m") for seat, replies in replies_by_seat}
+    return {seat: SeatAgent(seat, f"p-{seat}", FakeLlm(replies), "m", engine=engine_from(replies)) for seat, replies in replies_by_seat}
 
 
 def quiet(*_):
@@ -71,14 +72,14 @@ def test_a_private_thought_goes_to_the_audience_and_never_into_another_seats_pro
 
 
 def test_the_governor_drops_a_line_over_budget_and_the_log_says_so():
-    long = json.dumps({"action": "call", "say": "one two three four five six seven eight nine ten"})
+    long = json.dumps({"action": "call", "say": "one two three four five six seven eight nine ten eleven"})
     agents = agents_that(("a", [long]), ("b", [json.dumps({"action": "call"})]), ("c", [json.dumps({"action": "check"})]))
     agents["a"].traits = Traits(talkative=0.1)
     voice = RecordingVoice()
     result = play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), agents, voice, [], out=quiet)
     assert not any(c[0] == "say" for c in voice.calls)
     assert result.said == []
-    assert any("line dropped: 10 words" in line for line in result.log)
+    assert any("line dropped: 11 words" in line for line in result.log)
 
 
 def test_seats_hear_what_the_others_said():
@@ -100,7 +101,7 @@ def test_garbage_from_every_model_still_finishes_the_hand_and_notes_why():
     agents = agents_that(("a", ["lol no"]), ("b", ["{"]), ("c", [""]))
     result = play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), agents, RecordingVoice(), [], out=quiet)
     assert result.hand.complete
-    assert any("no JSON in the reply" in line for line in result.log)
+    assert any("no JSON in the model's reply" in line for line in result.log)
 
 
 def test_if_the_engine_ever_refuses_a_move_the_table_does_not_stall():

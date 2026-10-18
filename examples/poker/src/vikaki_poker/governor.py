@@ -20,7 +20,7 @@ class TalkBudget:
     cooldown: int  # turns of the seat's own that must pass in silence after it speaks
 
 
-QUIET, MIDDLING, CHATTY = TalkBudget(6, 3), TalkBudget(12, 1), TalkBudget(24, 0)
+QUIET, MIDDLING, CHATTY = TalkBudget(10, 2), TalkBudget(14, 1), TalkBudget(20, 1)  # Jian: Ada talked a bit too much and Ben too little (VIK-119)
 
 
 def budget_for(talkative: float) -> TalkBudget:

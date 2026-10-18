@@ -43,23 +43,23 @@ Each seat's model is set in `table.example.yaml` (OpenRouter model ids; the exam
 
 ## How the players think
 
-A seat's model is briefed each turn by the engine, not left to guess ([ADR-0022](../../docs/adr/0022-the-engine-briefs-the-players.md)):
+Each turn has two stages ([ADR-0026](../../docs/adr/0026-the-engine-decides-the-move.md)):
 
-- **A short guide** to playing well is in every seat's instructions (`brain.STRATEGY_PRIMER`).
-- **The facts of the turn**, worked out exactly: the hand in words, the chance to win against random hands, what a call needs to break even, cards that would improve the hand, position, the story of the hand so far, and a rule-of-thumb recommendation with its reason (`facts.py`). Every seat is told to play it, and to break from it only when the story of the hand makes it plainly wrong. It has a little chance mixed in, seeded by the spot: an occasional bluff when it is free and few are in, an occasional slow-play, a close call that is sometimes a fold.
-- **A personality, for talk only** (VIK-112): everyone plays the same sound game. Give a seat `traits` in the table file, each from 0 to 1: `talkative` (how much it says), `emotional` (how much it shows), and a free-text `quirk` set how it talks and thinks; `loose`, `aggressive` and `tricky` colour how it talks about the game (patient or loving the action, mild or big and teasing, hinting at traps). None of them changes what it does. (`bluff` is kept so old table files load.)
+- **The engine decides** (`strategy.py`): from the cards and the betting alone, with no model and no personality. It narrows each opponent's possible hands by what they did, plays out a few hundred random finishes, prices fold, call and each bet size, and takes the best (a little chance mixed in among near-equals). A turn takes 50 to 150 ms.
+- **The model performs**: it is told the move ("raise to 12") and the engine's reasons, with the situation, the story of the hand and the table talk, and is asked only for what the character says aloud, thinks and feels (`{"think", "say", "emotion"}`). It is never asked for an action, so nothing in its reply or its personality can change the move; if it fails, the seat makes the engine's move and says nothing.
+- **A personality, for talk only**: give a seat `traits` in the table file, each from 0 to 1: `talkative` (how much it says), `emotional` (how much it shows), and a free-text `quirk` set how it talks and thinks; `loose`, `aggressive` and `tricky` colour how it talks about the game. None of them can change what a seat does (a test plays two opposite personalities through the same hands and checks the moves are identical). Write a quirk about how a character talks, not how it plays. Talk is budgeted by `talkative` (`governor.py`): quiet 10 words every third turn or so, middling 14 every other turn, chatty 20.
 
   ```yaml
   seat-3:
     persona: cy
     model: deepseek/deepseek-v4.1-flash
-    traits: {talkative: 0.6, loose: 0.95, aggressive: 0.95, bluff: 0.85, tricky: 0.6, emotional: 0.35, quirk: "grins, loves a gamble and an all-in"}
+    traits: {talkative: 0.6, emotional: 0.35, quirk: "grins, brags about gambles and big moves, and never explains a bluff"}
   ```
 
-  `table.example.yaml` has three: ada the narrating showman, ben the careful rock who apologises and sets traps, cy the fearless gambler. They are archetypes of how real players are known to talk, not impersonations. Seats with no `traits` talk in a middling way.
+  `table.example.yaml` has three: ada the narrating showman, ben the polite worrier who apologises, cy the grinning braggart. They are archetypes of how real players are known to talk, not impersonations. Seats with no `traits` talk in a middling way.
 - `--stack N` and `--blinds 5/10` override the table file, so a `--no-rebuy` game with short stacks and big blinds is a short tournament (`--stack 100 --blinds 2/4 --no-rebuy --hands 20` plays until one player has every chip).
 - At the end of a session the command prints how each seat actually played (hands, VPIP, PFR, aggression, folds, lines and words per move), so you can see how the table plays (the talk numbers differ by character; the play numbers should not differ much). A player who goes broke buys back in (`--no-rebuy` for a tournament).
-- `vikaki_poker.strategy` is the decision engine (ADR-0026): `EngineBot` plays it with no model, and `uv run python tools/strength.py --hands 900 --table engine,advisor,advisor` measures a player in big blinds per 100 hands over duplicate deals (every deal played in every seat). The live table does not use it yet.
+- `vikaki_poker.strategy` is the decision engine (ADR-0026): `EngineBot` plays it with no model, and `uv run python tools/strength.py --hands 900 --table engine,advisor,advisor` measures a player in big blinds per 100 hands over duplicate deals (every deal played in every seat). The live table uses it for every seat.
 - `vikaki_poker.advisor` has the rule of thumb as a model-free player, a calling station and a random bot, and `simulate`: a free table for tests and for checking the advice (over 400 hands the advisor beats the other two by a wide margin; three advisors against each other finish level within the noise). Without `--seed` a game is dealt afresh and prints its seed, so it can be repeated with `--seed N`.
 
 ## The engine on its own

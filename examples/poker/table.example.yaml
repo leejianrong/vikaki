@@ -21,8 +21,8 @@ seats:
   seat-2:
     persona: ben
     model: deepseek/deepseek-v4.1-flash
-    traits: {talkative: 0.3, loose: 0.15, aggressive: 0.25, bluff: 0.1, tricky: 0.7, emotional: 0.7, quirk: "apologises politely before taking a pot, and sets traps while sounding worried"}
+    traits: {talkative: 0.45, loose: 0.15, aggressive: 0.25, bluff: 0.1, tricky: 0.7, emotional: 0.7, quirk: "apologises politely before taking a pot, and sounds worried even when winning"}
   seat-3:
     persona: cy
     model: deepseek/deepseek-v4.1-flash
-    traits: {talkative: 0.6, loose: 0.95, aggressive: 0.95, bluff: 0.85, tricky: 0.6, emotional: 0.35, quirk: "grins, loves a gamble and an all-in, and never explains a bluff"}
+    traits: {talkative: 0.6, loose: 0.95, aggressive: 0.95, bluff: 0.85, tricky: 0.6, emotional: 0.35, quirk: "grins, brags about gambles and big moves, and never explains a bluff"}
