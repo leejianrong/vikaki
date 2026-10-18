@@ -472,3 +472,13 @@ def test_main_says_so_and_still_prints_the_summary_when_interrupted(capsys, monk
     out = capsys.readouterr().out
     assert code == 130
     assert "interrupted" in out and "chips:" in out
+
+
+def test_without_a_seed_each_game_is_dealt_afresh_and_says_which_seed_to_repeat_it_with(capsys):
+    seeds = []
+    for _ in range(2):
+        assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "1", "--no-reactions"]) == 0
+        seeds.append(re.search(r"seed (\d+)", capsys.readouterr().out).group(1))  # type: ignore[union-attr]
+    assert seeds[0] != seeds[1]
+    assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "1", "--no-reactions", "--seed", "7"]) == 0
+    assert "seed 7" in capsys.readouterr().out

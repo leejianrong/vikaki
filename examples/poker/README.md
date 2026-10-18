@@ -46,8 +46,8 @@ Each seat's model is set in `table.example.yaml` (OpenRouter model ids; the exam
 A seat's model is briefed each turn by the engine, not left to guess ([ADR-0022](../../docs/adr/0022-the-engine-briefs-the-players.md)):
 
 - **A short guide** to playing well is in every seat's instructions (`brain.STRATEGY_PRIMER`).
-- **The facts of the turn**, worked out exactly: the hand in words, the chance to win against random hands, what a call needs to break even, cards that would improve the hand, position, the story of the hand so far, and a rule-of-thumb recommendation with its reason (`facts.py`). The seat may follow it or break from it.
-- **A personality.** Give a seat `traits` in the table file, each from 0 to 1: `talkative` (how much it says), `loose` (how many hands it plays; it is told a share, 10% at 0 to 70% at 1), `aggressive` (raises over calls), `bluff` (how often it bets with nothing), `tricky` (slow-plays and traps against playing straight), `emotional` (how much it shows), and a free-text `quirk`:
+- **The facts of the turn**, worked out exactly: the hand in words, the chance to win against random hands, what a call needs to break even, cards that would improve the hand, position, the story of the hand so far, and a rule-of-thumb recommendation with its reason (`facts.py`). Every seat is told to play it, and to break from it only when the story of the hand makes it plainly wrong. It has a little chance mixed in, seeded by the spot: an occasional bluff when it is free and few are in, an occasional slow-play, a close call that is sometimes a fold.
+- **A personality, for talk only** (VIK-112): everyone plays the same sound game. Give a seat `traits` in the table file, each from 0 to 1: `talkative` (how much it says), `emotional` (how much it shows), and a free-text `quirk` set how it talks and thinks; `loose`, `aggressive` and `tricky` colour how it talks about the game (patient or loving the action, mild or big and teasing, hinting at traps). None of them changes what it does. (`bluff` is kept so old table files load.)
 
   ```yaml
   seat-3:
@@ -56,10 +56,10 @@ A seat's model is briefed each turn by the engine, not left to guess ([ADR-0022]
     traits: {talkative: 0.6, loose: 0.95, aggressive: 0.95, bluff: 0.85, tricky: 0.6, emotional: 0.35, quirk: "grins, loves a gamble and an all-in"}
   ```
 
-  `table.example.yaml` has three: ada the narrating showman, ben the careful rock who apologises and sets traps, cy the fearless gambler. They are archetypes of how real players are known to play, not impersonations. Seats with no `traits` play a middling game.
+  `table.example.yaml` has three: ada the narrating showman, ben the careful rock who apologises and sets traps, cy the fearless gambler. They are archetypes of how real players are known to talk, not impersonations. Seats with no `traits` talk in a middling way.
 - `--stack N` and `--blinds 5/10` override the table file, so a `--no-rebuy` game with short stacks and big blinds is a short tournament (`--stack 100 --blinds 2/4 --no-rebuy --hands 20` plays until one player has every chip).
-- At the end of a session the command prints how each seat actually played (hands, VPIP, PFR, aggression, folds, lines and words per move), so you can see whether the characters show. A player who goes broke buys back in (`--no-rebuy` for a tournament).
-- `vikaki_poker.advisor` has the rule of thumb as a model-free player, a calling station and a random bot, and `simulate`: a free table for tests and for checking the advice (over 400 hands the advisor beats the other two by a wide margin).
+- At the end of a session the command prints how each seat actually played (hands, VPIP, PFR, aggression, folds, lines and words per move), so you can see how the table plays (the talk numbers differ by character; the play numbers should not differ much). A player who goes broke buys back in (`--no-rebuy` for a tournament).
+- `vikaki_poker.advisor` has the rule of thumb as a model-free player, a calling station and a random bot, and `simulate`: a free table for tests and for checking the advice (over 400 hands the advisor beats the other two by a wide margin; three advisors against each other finish level within the noise). Without `--seed` a game is dealt afresh and prints its seed, so it can be repeated with `--seed N`.
 
 ## The engine on its own
 
