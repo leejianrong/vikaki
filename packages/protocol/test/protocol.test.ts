@@ -194,6 +194,25 @@ describe("table_state", () => {
   });
 });
 
+describe("table_state spectator fields (VIK-83)", () => {
+  const seat = (extra: object) => ({ protocol_version: 1, type: "table_state", seats: [{ seat_id: "a", stack: 5, ...extra }] });
+
+  it("lets a seat carry its hand in words, its chance to win from 0 to 1, and its last action", () => {
+    const r = parseMessage(seat({ hand: "pair of kings", win: 0.62, action: "raised to 12" }));
+    expect(r).toMatchObject({ ok: true, message: { seats: [{ hand: "pair of kings", win: 0.62, action: "raised to 12" }] } });
+  });
+
+  it("refuses a chance outside 0 to 1 and empty or over-long words", () => {
+    for (const bad of [{ win: -0.1 }, { win: 1.2 }, { hand: "" }, { action: "" }, { hand: "x".repeat(61) }, { action: "x".repeat(41) }, { win: "high" }]) {
+      expect(parseMessage(seat(bad)).ok, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it("stays optional: an older game that sends none of them still works", () => {
+    expect(parseMessage(seat({})).ok).toBe(true);
+  });
+});
+
 describe("react", () => {
   it("is sent by a driver: a seat's emotion, with an optional gesture and hold time, and no speech", () => {
     expect(DRIVER_MAY_SEND).toContain("react");

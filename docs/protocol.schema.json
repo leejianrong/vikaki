@@ -396,6 +396,21 @@
                   "minLength": 1,
                   "maxLength": 8
                 }
+              },
+              "hand": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "win": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "action": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
               }
             },
             "required": [

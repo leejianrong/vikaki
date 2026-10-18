@@ -135,3 +135,20 @@ export function lookYaw(fromX: number, toX: number): number {
   if (Math.abs(dx) < 1e-6) return 0;
   return Math.sign(dx) * Math.min(MAX_LOOK, Math.atan2(Math.abs(dx), 3));
 }
+
+/** A chance to win from 0 to 1 as the panel says it: whole percent, never a rounded-up 100 or a rounded-down 0 for a hand that can still go either way. */
+export function percent(win: number): string {
+  const p = Math.round(win * 100);
+  if (win > 0 && p === 0) return "<1%";
+  if (win < 1 && p === 100) return ">99%";
+  return `${p}%`;
+}
+
+/** The seat the panel marks as the favourite: the one with the highest chance to win, or undefined with no chances sent or a tie for the lead. */
+export function favourite(seats: { seat_id: string; win?: number }[]): string | undefined {
+  const withWin = seats.filter((s): s is { seat_id: string; win: number } => s.win !== undefined);
+  if (withWin.length < 2) return undefined;
+  const top = Math.max(...withWin.map((s) => s.win));
+  const leaders = withWin.filter((s) => s.win === top);
+  return leaders.length === 1 ? leaders[0]!.seat_id : undefined;
+}

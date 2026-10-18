@@ -86,3 +86,31 @@
 .table-overlay.embed .table-info { display: none; }
 .table-overlay.embed:not(.names) .seat-plate { display: none; }
 .table-overlay.embed:not(.captions) .transcript { display: none; }
+
+/* The spectator panel (VIK-83): a side sheet beside the 3D table. */
+body.has-table-panel { --panel-width: 340px; }
+body.has-table-panel .table-overlay { right: var(--panel-width); }
+.table-overlay.with-panel .table-info { display: none; }
+@media (max-width: 800px) { body.has-table-panel .table-overlay { right: 0; bottom: auto; height: 42vh; } }
+.table-panel { gap: 10px; }
+.table-panel .panel-head { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.table-panel .pot { font: 500 1.25rem/1.75rem var(--md-ref-typeface-brand); }
+.table-panel .street { padding: 2px 10px; border-radius: var(--shape-s); background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); font: 500 0.75rem/1rem var(--md-ref-typeface-plain); text-transform: capitalize; }
+.table-panel .cards.board { flex-basis: 100%; }
+.table-panel .hint { margin: 0; flex-basis: 100%; }
+.table-panel .seat-card { gap: 6px; padding: 10px 12px; border-radius: var(--shape-l); background: var(--md-sys-color-surface-container); border: 2px solid transparent; transition: border-color var(--dur-short3) var(--ease-standard), opacity var(--dur-medium2) var(--ease-standard); }
+.table-panel .seat-card[aria-current="true"] { border-color: var(--md-sys-color-primary); background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.table-panel .seat-card.folded { opacity: 0.55; }
+.table-panel .seat-title { display: flex; align-items: center; gap: 8px; }
+.table-panel .seat-title .name { font: 500 1rem/1.5rem var(--md-ref-typeface-brand); }
+.table-panel .seat-title .money { margin-inline-start: auto; font: 400 0.75rem/1rem var(--md-ref-typeface-plain); color: var(--md-sys-color-on-surface-variant); }
+.table-panel .seat-title .badge { width: 22px; height: 22px; border-radius: var(--shape-full); display: grid; place-items: center; background: var(--md-sys-color-tertiary); color: var(--md-sys-color-on-tertiary); font: 600 0.75rem/1 var(--md-ref-typeface-plain); }
+.table-panel .seat-card[aria-current="true"] .money { color: inherit; }
+.table-panel .hand-name { margin: 0; font: 500 0.875rem/1.25rem var(--md-ref-typeface-plain); color: var(--md-sys-color-on-surface); }
+.table-panel .hand-name::first-letter { text-transform: uppercase; }
+.table-panel .win-row { display: flex; align-items: center; gap: 10px; }
+.table-panel .meter { flex: 1; height: 10px; border-radius: var(--shape-full); background: var(--md-sys-color-surface-container-highest); overflow: hidden; }
+.table-panel .meter .fill { display: block; height: 100%; border-radius: inherit; background: var(--md-sys-color-secondary); transition: width var(--dur-medium2) var(--ease-standard); }
+.table-panel .seat-card.lead .meter .fill { background: var(--md-sys-color-primary); }
+.table-panel .pct { min-width: 3.2em; text-align: end; font: 600 0.875rem/1.25rem var(--md-ref-typeface-plain); }
+.table-panel .note { margin: 0; font: 400 0.75rem/1rem var(--md-ref-typeface-plain); }

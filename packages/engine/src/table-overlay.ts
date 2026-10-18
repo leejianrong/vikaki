@@ -13,7 +13,7 @@ type State = MessageOf<"table_state">;
 const label = (s: Seat) => s.persona ?? s.seat;
 const money = (n: number) => n.toLocaleString("en-US");
 
-function cardEl(card: string): HTMLElement {
+export function cardEl(card: string): HTMLElement {
   const f = cardFace(card);
   return el("li", { className: `card${f.red ? " red" : ""}${f.down ? " down" : ""}`, textContent: f.text, ariaLabel: f.down ? "face-down card" : f.text });
 }
@@ -29,6 +29,11 @@ export class TableOverlay {
   showCards = true;
 
   /** In embed mode (VIK-64) the pot strip is never drawn, and the plates and transcript only when asked for. */
+  /** With the spectator panel beside the table (VIK-83) the pot, street and board are in the panel, so the strip at the top is not drawn twice. */
+  set withPanel(on: boolean) {
+    this.root.classList.toggle("with-panel", on);
+  }
+
   constructor(private readonly seats: Seat[], parent: HTMLElement = document.body, embed?: Pick<EmbedOptions, "embed" | "names" | "captions">) {
     if (embed?.embed) {
       this.root.classList.add("embed");
