@@ -5,6 +5,7 @@ import re
 import pytest
 
 from vikaki_poker import Hand
+from vikaki_poker.brain import Traits
 from vikaki_poker.__main__ import main
 from vikaki_poker.llm import FakeLlm
 from vikaki_poker.runner import PrintVoice, play_hand, play_session
@@ -46,9 +47,20 @@ def test_each_move_is_think_then_speak_then_act_and_the_table_talks_one_at_a_tim
     assert hand.complete and sum(hand.final_stacks().values()) == 300
     first = voice.calls[:3]
     assert first == [("start", "a"), ("say", "a", "Count me in.", "happy"), ("end", "a")]
-    kinds = [c[0] for c in voice.calls]
-    assert kinds == ["start", "say", "end"] * (len(kinds) // 3)  # never two seats mid-move
+    kinds = "".join({"start": "[", "say": "s", "end": "]"}[c[0]] for c in voice.calls)
+    assert re.fullmatch(r"(\[s?\])+", kinds)  # never two seats mid-move; the governor drops a second line in a street
     assert any("wins" in line for line in result.log)
+
+
+def test_the_governor_drops_a_line_over_budget_and_the_log_says_so():
+    long = json.dumps({"action": "call", "say": "one two three four five six seven eight nine ten"})
+    agents = agents_that(("a", [long]), ("b", [json.dumps({"action": "call"})]), ("c", [json.dumps({"action": "check"})]))
+    agents["a"].traits = Traits(talkative=0.1)
+    voice = RecordingVoice()
+    result = play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), agents, voice, [], out=quiet)
+    assert not any(c[0] == "say" for c in voice.calls)
+    assert result.said == []
+    assert any("line dropped: 10 words" in line for line in result.log)
 
 
 def test_seats_hear_what_the_others_said():
@@ -76,6 +88,7 @@ def test_garbage_from_every_model_still_finishes_the_hand_and_notes_why():
 def test_if_the_engine_ever_refuses_a_move_the_table_does_not_stall():
     class Wrong:
         usage = None
+        traits = Traits()
 
         persona = "wrong"
 
@@ -320,6 +333,7 @@ def test_a_seat_is_told_who_everyone_is_and_what_has_happened_this_hand():
     class Spy:
         persona = "spy"
         usage = None
+        traits = Traits()
 
         def decide(self, view, talk=None, events=None, names=None):
             seen.append((view["to_act"], [e["type"] for e in events], dict(names)))

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from .display import table_state
+from .governor import Governor
 from .hand import Hand, IllegalAction
 from .reactions import Reaction, Reactor
 from .seat import SeatAgent
@@ -143,18 +144,19 @@ def _react(voice: Voice, pending: list) -> None:
             send(listener, reaction)
 
 
-def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False) -> HandResult:
+def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, governor: Governor | None = None, hand_no: int = 0) -> HandResult:
     """Play `hand` to the end. `talk` is the table's recent chat, shared by all seats; lines spoken here are added to it.
 
     With a `reactor`, every other seat reacts silently to each line: the reactions are decided while the line is spoken and sent as soon
     as it has been heard (VIK-58). The overlay is told how the table stands at the start and after every action (VIK-61); its hole cards are face
-    down until a showdown, or always face up with `show_cards`.
+    down until a showdown, or always face up with `show_cards`. The `governor` (one per session; a fresh one by default) holds the talk to each seat's
+    budget (VIK-92): a line over it is dropped and noted.
     """
     with ThreadPoolExecutor(max_workers=max(1, len(agents))) as pool:
-        return _play_hand(hand, agents, voice, talk, out, reactor, pool, show_cards)
+        return _play_hand(hand, agents, voice, talk, out, reactor, pool, show_cards, governor or Governor(), hand_no)
 
 
-def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool) -> HandResult:
+def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool, governor: Governor, hand_no: int) -> HandResult:
     result = HandResult(hand)
     names = {seat_id: a.persona for seat_id, a in agents.items()}  # the characters' names, so a seat reads "ben raised" and not "seat-2 raised"
 
@@ -170,6 +172,9 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         agent = agents[seat]
         voice.turn_started(seat)
         decision = agent.decide(hand.view(seat), talk, hand.events, names)
+        decision.say, dropped = governor.vet(seat, hand_no, hand.street, decision.say, agent.traits)
+        if dropped:
+            decision.note = f"{decision.note}; {dropped}".strip("; ")
         if decision.say:
             talk.append((seat, decision.say))
             result.said.append((seat, decision.say))
@@ -208,6 +213,7 @@ def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stac
     order = list(agents)
     session = Session({s: stack for s in order})
     talk: list[tuple[str, str]] = []
+    governor = Governor()
     button = 0
     for n in range(hands):
         if rebuy:
@@ -221,7 +227,7 @@ def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stac
             break
         out(f"--- hand {n + 1}: " + ", ".join(f"{s} {session.stacks[s]}" for s in alive))
         hand = Hand([(s, session.stacks[s]) for s in alive], button % len(alive), small_blind, big_blind, seed=seed + n)
-        session.results.append(play_hand(hand, agents, voice, talk, out, reactor, show_cards))
+        session.results.append(play_hand(hand, agents, voice, talk, out, reactor, show_cards, governor, n))
         session.stacks.update(hand.final_stacks())
         session.hands_played += 1
         button += 1
