@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import random
 import sys
 from typing import Sequence
 
 from .stats import style_lines, style_stats
+from .pace import PACES, Pace
 from .llm import KEY_ENV, FakeLlm, Llm, LlmError, OpenRouterLlm, Usage, load_dotenv
 from .runner import HubVoice, PrintVoice, Voice, play_session
 from .table import TableError, build_agents, build_reactor, load_table
@@ -28,13 +30,14 @@ def _parser() -> argparse.ArgumentParser:
     play = sub.add_parser("play", help="play hands")
     play.add_argument("--table", required=True, help="a table file (see table.example.yaml)")
     play.add_argument("--hands", type=int, default=3)
-    play.add_argument("--seed", type=int, default=1, help="the same seed deals the same cards")
+    play.add_argument("--seed", type=int, help="the same seed deals the same cards (default: a fresh one each game, printed so a game can be repeated)")
     play.add_argument("--url", default="ws://127.0.0.1:8787/ws", help="the hub")
     play.add_argument("--token", default=os.environ.get("VIKAKI_TOKEN"), help="the hub's driver token, if it has one")
     play.add_argument("--no-hub", action="store_true", help="print the lines instead of speaking them")
     play.add_argument("--fake-llm", action="store_true", help=f"no model calls: a scripted stand-in (no {KEY_ENV} needed)")
     play.add_argument("--no-reactions", action="store_true", help="the seats that are listening stay still (no silent reactions)")
     play.add_argument("--show-cards", action="store_true", help="show every live hand face up on the page (the default: the table page is a spectator's view, with each seat's hand and chance to win)")
+    play.add_argument("--pace", choices=sorted(PACES, key=PACES.get), help="how long each beat of a hand stays on screen: slow, normal (about 1.75 s an action, 2.5 s a street), fast, or off (default: normal; off with --no-hub)")
     play.add_argument("--stack", type=int, help="chips each seat starts with (default: the table file's)")
     play.add_argument("--blinds", help="the blinds as SMALL/BIG, such as 5/10 (default: the table file's); with a short --stack they end a --no-rebuy game sooner")
     play.add_argument("--no-rebuy", action="store_true", help="a player who goes broke is out, and the session ends when one player has every chip (default: they buy back in)")
@@ -86,6 +89,8 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
         return 2
     agents = build_agents(table, llm)
     reactor = None if args.no_reactions else build_reactor(table, None if args.fake_llm else llm)
+    seed = args.seed if args.seed is not None else random.SystemRandom().randrange(1, 1_000_000)
+    print(f"seed {seed} (repeat this deal with --seed {seed})")
     own_voice = voice is None
     if voice is None:
         if args.no_hub:
@@ -98,7 +103,7 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
                 print(f"vikaki_poker: could not join the table at {args.url} ({code}). Is `pnpm serve --personas personas.table.example.yaml` running?", file=sys.stderr)
                 return 1
     try:
-        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=args.seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy)
+        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy, pace=Pace(PACES[args.pace or ("off" if args.no_hub else "normal")]))
     finally:
         if own_voice and hasattr(voice, "close"):
             try:

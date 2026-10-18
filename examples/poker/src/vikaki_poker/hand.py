@@ -64,6 +64,7 @@ class Hand:
     big_blind: int
     seed: int | None = None
     deck: list[str] | None = None
+    staged: bool = False  # the street, the showdown and the payout wait for `advance()`, so a viewer can be shown each (VIK-94); off, they follow at once
 
     seats: list[Player] = field(init=False)
     board: list[str] = field(init=False, default_factory=list)
@@ -72,6 +73,7 @@ class Hand:
     winnings: dict[str, int] = field(init=False, default_factory=dict)
     pots: list[dict] = field(init=False, default_factory=list)  # filled at the end: amount, who was eligible, who won
     showdown: bool = field(init=False, default=False)
+    awaiting: str | None = field(init=False, default=None)  # staged only: "street", "showdown" or "payout", the step `advance()` takes next
 
     def __post_init__(self) -> None:
         ids = [s for s, _ in self.players]
@@ -151,7 +153,7 @@ class Hand:
         empty street is also a `raise`. Raises `IllegalAction`, leaving the hand as it was, if the action is not allowed."""
         legal = self.legal()
         if legal is None:
-            raise IllegalAction("the hand is over")
+            raise IllegalAction(f"nothing to act on: advance the hand ({self.awaiting})" if self.awaiting else "the hand is over")
         if legal.seat_id != seat_id:
             raise IllegalAction(f"it is {legal.seat_id}'s turn, not {seat_id}'s")
         i = self._pending[0]
@@ -176,6 +178,21 @@ class Hand:
         else:
             raise IllegalAction(f"unknown action {kind!r}")
         self._settle()
+
+    def advance(self) -> None:
+        """Staged hands only: take the step the hand is waiting for. A closed street deals the next one (sweeping the bets into the pot), the end of the
+        river turns the hands over, and a showdown or a hand won by everyone else folding then pays the pot."""
+        stage, self.awaiting = self.awaiting, None
+        if stage is None:
+            raise IllegalAction("nothing to advance")
+        if stage == "street":
+            self._next_street()
+            self._settle()
+        elif stage == "showdown":
+            self._reveal()
+            self.awaiting = "payout"
+        else:
+            self._pay_out()
 
     # --- internals
 
@@ -248,12 +265,19 @@ class Hand:
         while self.street != "complete":
             live = [p for p in self.seats if not p.folded]
             if len(live) == 1:
-                self._award_uncontested(live[0])
+                if self.staged:
+                    self._pending = []
+                    self.awaiting = "payout"
+                else:
+                    self._award_uncontested(live[0])
                 return
             active = [p for p in self.seats if p.active]
             if len(active) <= 1 and all(p.bet >= self._current_bet for p in active):
                 self._pending = []  # nobody left to bet against: just run the board out
             if self._pending:
+                return
+            if self.staged:
+                self.awaiting = "showdown" if self.street == "river" else "street"
                 return
             self._next_street()
 
@@ -264,7 +288,8 @@ class Hand:
         self._min_raise = self.big_blind
         self._locked.clear()
         if self.street == "river":
-            self._showdown()
+            self._reveal()
+            self._pay_out()
             return
         self.street = {"preflop": "flop", "flop": "turn", "turn": "river"}[self.street]
         self._burn_and_deal(3 if self.street == "flop" else 1)
@@ -280,10 +305,19 @@ class Hand:
         self.events.append({"type": "win", "seat_id": winner.seat_id, "amount": total, "showdown": False})
         self._finish()
 
-    def _showdown(self) -> None:
+    def _reveal(self) -> None:
+        """The hands still in are turned over."""
         self.showdown = True
-        scores = {p.seat_id: best_score(list(p.hole) + self.board) for p in self.seats if not p.folded}
-        self.events.append({"type": "showdown", "hands": {s: {"hole": list(self.player(s).hole), "rank": describe(sc)} for s, sc in scores.items()}})
+        self._scores = {p.seat_id: best_score(list(p.hole) + self.board) for p in self.seats if not p.folded}
+        self.events.append({"type": "showdown", "hands": {s: {"hole": list(self.player(s).hole), "rank": describe(sc)} for s, sc in self._scores.items()}})
+
+    def _pay_out(self) -> None:
+        """The pot goes to whoever won it: the last player in, or the best hands at a showdown (side pots and split pots included)."""
+        live = [p for p in self.seats if not p.folded]
+        if not self.showdown:
+            self._award_uncontested(live[0])
+            return
+        scores = self._scores
         levels = sorted({p.committed for p in self.seats if p.committed > 0})
         previous = 0
         for level in levels:

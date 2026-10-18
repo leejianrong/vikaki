@@ -54,7 +54,7 @@ export async function runDoctor(d: DoctorEnv): Promise<Check[]> {
       name: "Real voice (Kokoro)",
       status: "fail",
       detail: "not installed, so the demos fall back to a steady 'aah' test voice that is not speech",
-      fix: `Run \`${INSTALL_COMMAND}\` (about 410 MB, then a 90 MB model download).`,
+      fix: `Run \`${INSTALL_COMMAND}\` (about 410 MB, then a 330 MB model download).`,
     });
   } else {
     checks.push({ name: "Real voice (Kokoro)", status: "ok", detail: `installed (${voice.source})` });
@@ -62,7 +62,7 @@ export async function runDoctor(d: DoctorEnv): Promise<Check[]> {
     checks.push(
       model || voice.source !== "local"
         ? { name: "Voice model", status: "ok", detail: model ? "downloaded" : "location not checked for this install" }
-        : { name: "Voice model", status: "warn", detail: "not downloaded yet; the first run will download about 90 MB", fix: `Run \`${INSTALL_COMMAND}\` to fetch it now.` },
+        : { name: "Voice model", status: "warn", detail: "not downloaded yet; the first run will download about 330 MB", fix: `Run \`${INSTALL_COMMAND}\` to fetch it now.` },
     );
   }
 

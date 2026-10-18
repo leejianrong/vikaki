@@ -81,6 +81,9 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `board` | list of string | no | at most 10 items, each 1 to 8 characters |
 | `dealer` | string | no | 1 to 128 characters |
 | `turn` | string | no | 1 to 128 characters |
+| `hand_no` | integer | no | 1 to 9007199254740991 |
+| `event` | object | no |  |
+| `winners` | list of object | no | at most 16 items |
 | `seats` | list of object | yes | at most 16 items |
 
 ## `react`

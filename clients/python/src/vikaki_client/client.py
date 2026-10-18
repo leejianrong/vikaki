@@ -213,13 +213,19 @@ class VikakiClient:
         board: list[str] | None = None,
         dealer: str | None = None,
         turn: str | None = None,
+        hand_no: int | None = None,
+        event: dict[str, Any] | None = None,
+        winners: list[dict[str, Any]] | None = None,
     ) -> None:
         """The state of the table, for the table page's overlay. Send the whole state each time it changes.
 
         Each seat is `{"seat_id": ..., "stack": ...}` with optional `bet`, `folded` and `cards`. Cards are the game's short names
         (`"As"`, `"Td"`) or `"back"` for one face down, and are shown as sent. Any driver may send it; the last one wins.
+
+        `event` is the beat that has just been played, for the page to animate and caption: `{"kind": "raise", "seat_id": "s1", "amount": 12, "text": "Ada raises to 12"}`.
+        `hand_no` says which hand this is, and `winners` (`{"seat_id", "amount", "hand"?}`) who took the pot once it is paid.
         """
-        await self._send(make("table_state", seats=seats, pot=pot, street=street, board=board, dealer=dealer, turn=turn))
+        await self._send(make("table_state", seats=seats, pot=pot, street=street, board=board, dealer=dealer, turn=turn, hand_no=hand_no, event=event, winners=winners))
 
     async def _send(self, message: Event) -> None:
         try:

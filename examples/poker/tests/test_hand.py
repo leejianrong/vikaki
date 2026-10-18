@@ -236,3 +236,93 @@ def test_random_hands_finish_and_conserve_chips(seed: int):
 def test_random_hands_are_repeatable():
     a, b = play_randomly(123), play_randomly(123)
     assert a.events == b.events and a.final_stacks() == b.final_stacks()
+
+
+# --- staged: the street, the showdown and the payout are separate steps the caller advances (VIK-94, VIK-113)
+
+
+def staged(stacks, **kw) -> Hand:
+    ids = list(IDS[: len(stacks)])
+    return Hand(list(zip(ids, stacks)), kw.pop("button", 0), 1, 2, seed=kw.pop("seed", 1), staged=True)
+
+
+def test_staged_a_closed_street_waits_to_be_advanced_and_the_board_comes_one_street_at_a_time():
+    h = staged([100, 100, 100])
+    h.act("a", "call")
+    h.act("b", "call")
+    h.act("c", "check")  # the preflop betting is closed
+    assert h.awaiting == "street" and h.street == "preflop" and h.board == [] and h.to_act is None and not h.complete
+    assert h.pot == 6 and sum(p.bet for p in h.seats) == 6  # the bets are still in front of the players
+    h.advance()
+    assert h.street == "flop" and len(h.board) == 3 and h.awaiting is None and h.to_act is not None
+    assert sum(p.bet for p in h.seats) == 0  # swept
+    for _ in range(3):
+        h.act(h.to_act, "check")
+    assert h.awaiting == "street"
+    h.advance()
+    assert h.street == "turn" and len(h.board) == 4
+
+
+def test_staged_the_showdown_and_the_payout_are_two_steps():
+    h = staged([100, 100])
+    while h.awaiting != "showdown":
+        if h.awaiting == "street":
+            h.advance()
+        else:
+            h.act(h.to_act, "check" if h.legal().can_check else "call")
+    assert h.awaiting == "showdown" and not h.showdown and len(h.board) == 5
+    h.advance()
+    assert h.showdown and h.awaiting == "payout" and not h.complete
+    assert sum(p.stack for p in h.seats) == 200 - h.pot  # nobody is paid yet
+    h.advance()
+    assert h.complete and h.awaiting is None and sum(p.stack for p in h.seats) == 200 and h.winnings
+
+
+def test_staged_an_all_in_runs_the_board_out_one_street_per_advance():
+    h = staged([50, 50])
+    h.act("a", "raise", 50)
+    h.act("b", "call")
+    seen = []
+    while h.awaiting == "street":
+        h.advance()
+        seen.append(len(h.board))
+    assert seen == [3, 4, 5]  # the flop, the turn and the river are each their own step, which the caller can pause between
+    assert h.awaiting == "showdown"
+    h.advance()
+    h.advance()
+    assert h.complete
+
+
+def test_staged_everyone_folding_pays_in_a_separate_step():
+    h = staged([100, 100, 100])
+    h.act("a", "fold")
+    h.act("b", "fold")
+    assert h.awaiting == "payout" and not h.complete and h.pot == 3 and h.player("c").stack == 98
+    h.advance()
+    assert h.complete and h.winnings == {"c": 3} and h.player("c").stack == 101 and not h.showdown
+
+
+def test_staged_nothing_to_advance_or_act_on_is_refused_clearly():
+    h = staged([100, 100])
+    with pytest.raises(IllegalAction, match="nothing to advance"):
+        h.advance()
+    h.act("a", "call")
+    h.act("b", "check")
+    with pytest.raises(IllegalAction, match="advance"):
+        h.act("a", "check")
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_staged_plays_to_the_same_result_as_the_hand_that_runs_on_by_itself(seed):
+    def play(h):
+        while not h.complete:
+            if h.awaiting:
+                h.advance()
+                continue
+            legal = h.legal()
+            h.act(legal.seat_id, "raise" if (seed + len(h.events)) % 7 == 0 and legal.can_raise else ("check" if legal.can_check else "call"), legal.min_raise_to if (seed + len(h.events)) % 7 == 0 and legal.can_raise else None)
+        return h.final_stacks(), h.winnings, h.board
+
+    a = Hand([("a", 60), ("b", 90), ("c", 120)], seed % 3, 1, 2, seed=seed)
+    b = Hand([("a", 60), ("b", 90), ("c", 120)], seed % 3, 1, 2, seed=seed, staged=True)
+    assert play(a) == play(b)

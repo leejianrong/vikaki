@@ -304,3 +304,13 @@ def test_a_seat_driver_lists_its_seats_in_hello_and_a_bad_list_is_refused_before
 
     run(go())
     assert hub.wait_received(1)[0]["seats"] == [{"seat_id": "seat-2", "persona": "ada"}, {"seat_id": "seat-3"}]
+
+
+def test_table_state_carries_the_beat_the_hand_number_and_the_winners(hub):
+    async def go():
+        async with await VikakiClient.connect(hub.url) as c:
+            await c.table_state([{"seat_id": "s", "stack": 50}], hand_no=2, event={"kind": "fold", "seat_id": "s", "text": "S folds"}, winners=[{"seat_id": "s", "amount": 5}])
+
+    run(go())
+    sent = hub.wait_received(2)[1]
+    assert sent["hand_no"] == 2 and sent["event"]["text"] == "S folds" and sent["winners"] == [{"seat_id": "s", "amount": 5}]

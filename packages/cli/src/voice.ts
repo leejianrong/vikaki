@@ -1,3 +1,4 @@
+import { chosenDtype, MODEL_FILES } from "@vikaki/tts";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,9 +16,9 @@ export interface VoiceInstall {
 const localDir = (root: string) => join(root, ".vikaki", "voice");
 const localEntry = (root: string) => join(localDir(root), "node_modules", "kokoro-js", "dist", "kokoro.js");
 
-/** Where the voice model would be cached by the repo-local install. */
-export const modelPath = (root: string) =>
-  join(localDir(root), "node_modules", "@huggingface", "transformers", ".cache", "onnx-community", "Kokoro-82M-v1.0-ONNX", "onnx", "model_quantized.onnx");
+/** Where the voice model would be cached by the repo-local install (the weights `VIKAKI_KOKORO_DTYPE` or the default selects). */
+export const modelPath = (root: string, env: Record<string, string | undefined> = process.env) =>
+  join(localDir(root), "node_modules", "@huggingface", "transformers", ".cache", "onnx-community", "Kokoro-82M-v1.0-ONNX", "onnx", MODEL_FILES[chosenDtype(env)]);
 
 /**
  * Find an installed Kokoro: the `VIKAKI_KOKORO_PATH` override first, then the `make install-voice`

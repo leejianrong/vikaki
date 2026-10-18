@@ -271,3 +271,26 @@ describe("human_utterance", () => {
     expect(parseMessage({ protocol_version: 1, type: "human_utterance", seat_id: "s", text: "hi", final: "yes" }).ok).toBe(false);
   });
 });
+
+describe("table_state beats (VIK-113, VIK-94)", () => {
+  const seats = [{ seat_id: "s1", stack: 90 }];
+  it("may carry the hand number, the beat just played and the winners, all optional", () => {
+    expect(parseMessage({ protocol_version: 1, type: "table_state", seats }).ok).toBe(true);
+    const full = parseMessage({
+      protocol_version: 1,
+      type: "table_state",
+      seats,
+      hand_no: 3,
+      event: { kind: "raise", seat_id: "s1", amount: 12, text: "Ada raises to 12" },
+      winners: [{ seat_id: "s1", amount: 24, hand: "pair of aces" }],
+    });
+    expect(full).toMatchObject({ ok: true, message: { hand_no: 3, event: { kind: "raise", amount: 12 }, winners: [{ seat_id: "s1", amount: 24 }] } });
+  });
+
+  it("refuses an event with no words, a hand number of zero and a winner with no seat", () => {
+    expect(parseMessage({ protocol_version: 1, type: "table_state", seats, event: { kind: "fold" } }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "table_state", seats, event: { kind: "fold", text: "" } }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "table_state", seats, hand_no: 0 }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "table_state", seats, winners: [{ amount: 3 }] }).ok).toBe(false);
+  });
+});

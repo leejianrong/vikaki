@@ -366,6 +366,68 @@
           "minLength": 1,
           "maxLength": 128
         },
+        "hand_no": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "event": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "seat_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "amount": {
+              "type": "number",
+              "minimum": 0
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "winners": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seat_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "amount": {
+                "type": "number",
+                "minimum": 0
+              },
+              "hand": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              }
+            },
+            "required": [
+              "seat_id",
+              "amount"
+            ],
+            "additionalProperties": false
+          }
+        },
         "seats": {
           "maxItems": 16,
           "type": "array",

@@ -113,6 +113,25 @@ export const TableState = z
     dealer: id.optional(),
     /** The seat whose turn it is, shown with a marker. */
     turn: id.optional(),
+    /** Which hand of a session this is (VIK-113), for a title card. */
+    hand_no: z.number().int().min(1).optional(),
+    /**
+     * The beat that has just been played (VIK-113): what to animate (`kind`), who did it, how much, and the banner's words, which the game writes so the
+     * page knows no poker. Unknown kinds are drawn as a banner only.
+     */
+    event: z
+      .object({
+        kind: z.string().min(1).max(32),
+        seat_id: id.optional(),
+        amount: z.number().min(0).optional(),
+        text: z.string().min(1).max(120),
+      })
+      .optional(),
+    /** Who took the pot, once it is paid (VIK-94): the seat, what it won, and the hand's name when its cards were shown. */
+    winners: z
+      .array(z.object({ seat_id: id, amount: z.number().min(0), hand: z.string().min(1).max(60).optional() }))
+      .max(16)
+      .optional(),
     seats: z
       .array(
         z.object({

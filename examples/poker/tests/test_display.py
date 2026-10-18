@@ -135,3 +135,23 @@ def test_the_same_hands_and_board_are_worked_out_once():
     table_state(h, show_cards=True)
     table_state(h, show_cards=True)
     assert _win_chances.cache_info().hits >= 1 and _win_chances.cache_info().misses == 1
+
+
+def test_the_beat_the_hand_number_and_the_winners_are_passed_on_for_the_page():
+    h = fresh()
+    s = table_state(h, event={"kind": "new_hand", "text": "Hand 3"}, hand_no=3, winners=[{"seat_id": "a", "amount": 6}])
+    assert s["event"] == {"kind": "new_hand", "text": "Hand 3"} and s["hand_no"] == 3 and s["winners"] == [{"seat_id": "a", "amount": 6}]
+    plain = table_state(h)
+    assert "event" not in plain and "hand_no" not in plain and "winners" not in plain
+
+
+def test_a_staged_showdown_turns_the_hands_over_while_the_pot_is_still_on_the_table():
+    h = Hand([("a", 100), ("b", 100)], 0, 1, 2, seed=4, staged=True)
+    while h.awaiting != "showdown":
+        h.advance() if h.awaiting else h.act(h.to_act, "check" if h.legal().can_check else "call")
+    h.advance()  # the hands are turned over; not yet paid
+    s = table_state(h)
+    assert s["street"] == "showdown" and s["pot"] == 4 and all(x["cards"][0] != "back" for x in s["seats"])
+    h.advance()
+    s = table_state(h)
+    assert s["street"] == "showdown" and s["pot"] == 0  # paid
