@@ -57,7 +57,7 @@ export function chipPile(amount: number, cx: number, cz: number, across: { x: nu
   return spots;
 }
 
-/** Where a seat's things sit on the table, on the line from the middle of the table to the seat. */
+/** Where a seat's things sit on the table, measured from the seat straight in toward the table (not from the middle: the table is an oval). */
 export interface SeatSlots {
   cards: { x: number; z: number }[];
   stack: { x: number; z: number };
@@ -73,12 +73,11 @@ export function boardSlots(): { x: number; z: number }[] {
 }
 
 export function seatSlots(spot: SeatSpot): SeatSlots {
-  const len = Math.hypot(spot.x, spot.z) || 1;
-  const ux = spot.x / len; // outward, from the middle toward the seat
-  const uz = spot.z / len;
-  const across = { x: -uz, z: ux }; // a quarter turn
-  const at = (r: number, side = 0) => ({ x: ux * r + across.x * side, z: uz * r + across.z * side });
-  return { cards: [at(0.5, -0.07), at(0.5, 0.07)], stack: at(0.62, 0.22), bet: at(0.3, 0.14), button: at(0.62, -0.2), across };
+  const fx = Math.sin(spot.facing); // forward: from the seat straight in, toward the table
+  const fz = Math.cos(spot.facing);
+  const across = { x: fz, z: -fx }; // to the seat's right as the camera sees it
+  const at = (ahead: number, side = 0) => ({ x: spot.x + fx * ahead + across.x * side, z: spot.z + fz * ahead + across.z * side });
+  return { cards: [at(0.5, -0.07), at(0.5, 0.07)], stack: at(0.42, 0.24), bet: at(0.72, 0.13), button: at(0.42, -0.22), across };
 }
 
 /** Where the middle of the board's row lies, a little toward the far side so the pot's chips are in front of it. */

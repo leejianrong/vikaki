@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { InstancedMesh } from "three";
 import { BOARD_CARD, boardSlots, chipCounts, chipPile, HOLE_CARD, MAX_COLUMN, seatSlots, TableProps } from "./table-props.ts";
-import { circleSeats } from "./table3d.ts";
+import { onFelt, ovalSeats } from "./table3d.ts";
 
 describe("chipCounts", () => {
   it("makes an amount from the biggest chips down, richest first (black 100, blue 25, red 5, white 1)", () => {
@@ -31,7 +31,7 @@ describe("chipPile", () => {
 
 describe("seatSlots", () => {
   it("puts a seat's cards between it and the middle, and the bet closer to the middle than the stack", () => {
-    const [, mid] = circleSeats(3);
+    const [, mid] = ovalSeats(3);
     const s = seatSlots(mid!);
     expect(Math.hypot(s.cards[0]!.x, s.cards[0]!.z)).toBeLessThan(Math.hypot(mid!.x, mid!.z));
     expect(Math.hypot(s.bet.x, s.bet.z)).toBeLessThan(Math.hypot(s.stack.x, s.stack.z));
@@ -39,7 +39,7 @@ describe("seatSlots", () => {
   });
 
   it("keeps the dealer button and the stack on opposite sides of the cards", () => {
-    const [, mid] = circleSeats(3);
+    const [, mid] = ovalSeats(3);
     const s = seatSlots(mid!);
     expect(Math.sign(s.button.x - s.cards[0]!.x)).not.toBe(Math.sign(s.stack.x - s.cards[0]!.x));
   });
@@ -47,7 +47,7 @@ describe("seatSlots", () => {
 
 describe("TableProps", () => {
   it("never frustum-culls the chip meshes: an instanced mesh takes its bounding sphere while empty and would vanish for good", () => {
-    const props = new TableProps(0.7, circleSeats(3), ["a", "b", "c"]);
+    const props = new TableProps(0.7, ovalSeats(3), ["a", "b", "c"]);
     const chips = props.group.children.filter((c): c is InstancedMesh => c instanceof InstancedMesh);
     expect(chips).toHaveLength(4);
     expect(chips.every((c) => !c.frustumCulled)).toBe(true);
@@ -66,7 +66,7 @@ describe("the layout of the table (VIK-84)", () => {
   it("keeps every seat's two cards, bet and stack clear of the board and of each other, for tables of 2 to 6", () => {
     const need = Math.max(BOARD_CARD.w, HOLE_CARD.w) * 1.2;
     for (const n of [2, 3, 4, 5, 6]) {
-      const seats = circleSeats(n).map(seatSlots);
+      const seats = ovalSeats(n).map(seatSlots);
       const board = boardSlots();
       for (const [i, s] of seats.entries()) {
         for (const c of s.cards) for (const b of board) expect(Math.hypot(c.x - b.x, c.z - b.z), `${n} seats: seat ${i}'s card near the board`).toBeGreaterThan(need * 0.75);
@@ -75,7 +75,7 @@ describe("the layout of the table (VIK-84)", () => {
           if (j <= i) continue;
           expect(Math.hypot(s.cards[0]!.x - o.cards[0]!.x, s.cards[0]!.z - o.cards[0]!.z), `${n} seats: seat ${i} and ${j}'s cards`).toBeGreaterThan(need);
         }
-        for (const p of [...s.cards, s.stack, s.bet, s.button]) expect(Math.hypot(p.x, p.z), `${n} seats: seat ${i} on the felt`).toBeLessThan(0.78); // TABLE_RADIUS
+        for (const p of [...s.cards, s.stack, s.bet, s.button]) expect(onFelt(p.x, p.z), `${n} seats: seat ${i}'s thing at ${p.x.toFixed(2)},${p.z.toFixed(2)} is on the felt`).toBe(true);
       }
     }
   });
@@ -84,7 +84,7 @@ describe("the layout of the table (VIK-84)", () => {
     // no browser here: a canvas that accepts every drawing call is enough, the test is about what is drawn, not how it looks
     const noop: unknown = new Proxy(() => noop, { get: () => noop, set: () => true });
     vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => noop }) });
-    const props = new TableProps(0.7, circleSeats(3), ["a", "b", "c"]);
+    const props = new TableProps(0.7, ovalSeats(3), ["a", "b", "c"]);
     const seats = [{ seat_id: "a", stack: 90, cards: ["As", "Kd"] }, { seat_id: "b", stack: 90, cards: ["2c", "7d"] }, { seat_id: "c", stack: 90, folded: true, cards: ["back", "back"] }];
     props.setState({ protocol_version: 1, type: "table_state", pot: 1234, street: "flop", board: ["Ks", "8d", "3c"], seats });
     expect(props.drawn.pot).toBe("Pot 1,234");
