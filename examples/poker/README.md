@@ -25,10 +25,11 @@ The page also shows the table (pot, board, stacks, bets, dealer button, whose tu
 
 ### With real models (OpenRouter)
 
-Put your key in a git-ignored `.env` in the folder you run from (or export it):
+Put your key in a git-ignored `.env` in the folder you run from (or export it). `.env.example` is the template:
 
 ```bash
-echo 'OPENROUTER_API_KEY=sk-or-...' > .env
+cd examples/poker
+cp .env.example .env     # then put the key after OPENROUTER_API_KEY=
 uv run --with ../../clients/python python -m vikaki_poker play --table table.example.yaml --hands 3
 ```
 
