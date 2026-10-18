@@ -2,6 +2,7 @@
 // in words, its chance to win as a bar, its stack, its bet and what it did last. Like the overlay it draws only what `table_state` carries and
 // knows no poker: the words and the odds are the game's, sent when the table may see the cards. Plain DOM with roles and names for tests.
 import type { MessageOf } from "@vikaki/protocol";
+import { makeResizable } from "./panel-resize.ts";
 import { cardEl } from "./table-overlay.ts";
 import { addToTranscript, CHAT_LINES, favourite, percent, seatColour, type Seat, type TranscriptLine } from "./table.ts";
 import { el } from "./ui/dom.ts";
@@ -24,9 +25,13 @@ export class TablePanel {
 
   constructor(private readonly seats: Seat[], parent: HTMLElement = document.body) {
     this.cards = seats.map((s) => el("section", { className: "seat-card", role: "group", ariaLabel: `${label(s)}, hand` }));
-    this.root.append(el("h1", { className: "title-large", textContent: "Table" }), this.head, ...this.cards, el("h2", { className: "title-medium", textContent: "Chat" }), this.chat, el("h2", { className: "title-medium", textContent: "Thoughts" }), this.thoughts);
+    // The pot, board and hands on the left, what is said and thought on the right: side by side when the panel is dragged wide (VIK-111).
+    const left = el("div", { className: "panel-left" }, el("h1", { className: "title-large", textContent: "Table" }), this.head, ...this.cards);
+    const right = el("div", { className: "panel-right" }, el("h2", { className: "title-medium", textContent: "Chat" }), this.chat, el("h2", { className: "title-medium", textContent: "Thoughts" }), this.thoughts);
+    this.root.append(left, right);
     document.body.classList.add("has-panel", "has-table-panel");
     parent.append(this.root);
+    makeResizable((wide) => this.root.classList.toggle("wide", wide));
     this.draw();
   }
 

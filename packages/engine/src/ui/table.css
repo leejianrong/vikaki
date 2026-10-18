@@ -158,7 +158,17 @@ body.has-table-panel .table-overlay { right: var(--panel-width); }
 .table-panel .pct { min-width: 3.2em; text-align: end; font: 600 0.875rem/1.25rem var(--md-ref-typeface-plain); }
 .table-panel .note { margin: 0; font: 400 0.75rem/1rem var(--md-ref-typeface-plain); }
 
+.table-panel .panel-left, .table-panel .panel-right { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
 .table-panel > * { flex-shrink: 0; }
+/* Dragged wide (VIK-111): the hands left, the chat and thoughts right, each log filling its half. */
+.table-panel.wide { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; overflow: hidden; }
+.table-panel.wide .panel-left { overflow-y: auto; min-height: 0; }
+.table-panel.wide .panel-right { min-height: 0; }
+.table-panel.wide .chat { flex: 1 1 0; max-height: none; min-height: 0; }
+.panel-handle { position: fixed; top: 0; bottom: 0; right: calc(var(--panel-width) - 4px); width: 8px; cursor: col-resize; z-index: 5; touch-action: none; }
+.panel-handle:hover, .panel-handle:focus-visible, body.resizing-panel .panel-handle { background: color-mix(in srgb, var(--md-sys-color-primary) 40%, transparent); outline: none; }
+body.resizing-panel { user-select: none; cursor: col-resize; }
+@media (max-width: 800px) { .panel-handle { display: none; } }
 .table-panel .chat { max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-radius: var(--shape-l); background: var(--md-sys-color-surface-container-low); }
 .table-panel .chat:empty::before { content: "Nothing said yet"; color: var(--md-sys-color-on-surface-variant); }
 .table-panel .chat p { margin: 0; overflow-wrap: anywhere; }
