@@ -216,6 +216,13 @@ describe("personas.table.example.yaml", () => {
     const book = await loadPersonas(fileURLToPath(new URL("../../../personas.table.example.yaml", import.meta.url)));
     for (const seat of TABLE_SEATS) expect(book.get(seat.persona), seat.persona).toBeDefined();
   });
+
+  it("gives every seat its own look (VIK-85): three characters, three different avatars", async () => {
+    const { TABLE_SEATS } = await import("../src/table-demo.ts");
+    const book = await loadPersonas(fileURLToPath(new URL("../../../personas.table.example.yaml", import.meta.url)));
+    const avatars = TABLE_SEATS.map((seat) => book.get(seat.persona)!.avatar);
+    expect(new Set(avatars).size).toBe(TABLE_SEATS.length);
+  });
 });
 
 describe("the demo table's state (VIK-59)", () => {
