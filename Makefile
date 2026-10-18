@@ -42,7 +42,7 @@ demo-speech: install-voice build ## Install the real voice if needed, then open 
 	@$(CLI) serve --speech-demo --open
 
 demo-table: build ## Serve a table of three avatars (the real voice if installed); then run `make table-hand` in another terminal to play a hand
-	@echo "Open http://127.0.0.1:8787/avatar?seats=3 and, in another terminal, run: make table-hand"
+	@echo "Open http://127.0.0.1:8787/ (every demo is a link there) and, in another terminal, run: make table-hand"
 	@$(CLI) serve --port 8787 --personas $(CURDIR)/personas.table.example.yaml
 
 demo-embed: build ## See the embed work: a stand-in game page frames the duet layout; type a line for either seat, press Start sound, press Cancel
@@ -58,7 +58,7 @@ POKER_PORT ?= 8787
 poker: ## Play the poker table with real models (OpenRouter key in examples/poker/.env); start `make demo-table` first and watch http://127.0.0.1:8787/avatar?seats=3&view=table
 	@case " $(POKER_ARGS) " in *" --no-hub "*) ;; *) curl -sf http://127.0.0.1:$(POKER_PORT)/avatar >/dev/null || { echo "No table on port $(POKER_PORT). Start it in another terminal with: make demo-table"; exit 1; };; esac
 	@case " $(POKER_ARGS) " in *" --fake-llm "*) ;; *) test -f $(POKER_ENV) || test -n "$$OPENROUTER_API_KEY" || { echo "No OpenRouter key. Run: cp examples/poker/.env.example examples/poker/.env  and put your key in it (or add --fake-llm to POKER_ARGS to play with no model)."; exit 1; };; esac
-	@echo "Watch it at http://127.0.0.1:$(POKER_PORT)/avatar?seats=3&view=table"
+	@echo "Watch it at http://127.0.0.1:$(POKER_PORT)/ (the Poker table link), or directly at http://127.0.0.1:$(POKER_PORT)/avatar?seats=3&view=table"
 		@cd examples/poker && uv run --quiet --with-editable ../../clients/python python -m vikaki_poker play --table table.example.yaml --url ws://127.0.0.1:$(POKER_PORT)/ws $(POKER_ARGS)
 
 table-hand: ## Play the scripted hand of poker at the running table, one driver per seat

@@ -65,7 +65,10 @@ export async function startServer(opts: VikakiServerOptions): Promise<RunningSer
     try {
       const path = new URL(req.url ?? "/", "http://localhost").pathname;
       if (path === "/") {
-        res.writeHead(302, { location: "/avatar" }).end();
+        // The landing page (VIK-117): the build's home.html, so nobody has to remember a URL with parameters. A build without one goes to the avatar.
+        const home = await readFile(join(root, "home.html")).catch(() => undefined);
+        if (home) res.writeHead(200, { "content-type": MIME[".html"]! }).end(home);
+        else res.writeHead(302, { location: "/avatar" }).end();
         return;
       }
       const route = opts.routes?.[path];
