@@ -56,3 +56,15 @@ def test_the_thread_stops_on_close_and_on_a_failed_connect(hub):
     v.close()
     v.close()  # safe twice
     assert len(client_threads()) == before
+
+
+def test_a_humans_speech_reaches_a_blocking_listener(hub):
+    heard = []
+    with Vikaki(hub.url, seats=[{"seat_id": "s"}]) as v:
+        v.on_event(heard.append)
+        hub.push({"protocol_version": 1, "type": "human_utterance", "seat_id": "s", "text": "Ocean"})
+        for _ in range(500):
+            if heard:
+                break
+            threading.Event().wait(0.01)
+    assert heard and heard[0]["type"] == "human_utterance" and heard[0]["text"] == "Ocean"

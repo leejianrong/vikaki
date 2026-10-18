@@ -107,6 +107,15 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `persona` | string | no | 1 to 64 characters |
 | `text` | string | yes | 1 to 1000 characters |
 
+## `human_utterance`
+
+| field | type | required | bounds |
+| --- | --- | --- | --- |
+| `session_id` | string | no | 1 to 128 characters |
+| `seat_id` | string | yes | 1 to 128 characters |
+| `text` | string | yes | 1 to 2000 characters |
+| `final` | boolean | no |  |
+
 ## `speech_started`
 
 | field | type | required | bounds |

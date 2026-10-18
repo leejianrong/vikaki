@@ -224,6 +224,7 @@ try {
       });
     window.addEventListener("pointerdown", unblock);
     window.addEventListener("keydown", unblock);
+    if (embedAudio) embedAudio.onHumanUtterance = (speech) => void player.sendHumanUtterance(speech); // a human's speech from the framing page, for the seat's driver (VIK-69)
     player.start();
 
     if (speechDemo) {

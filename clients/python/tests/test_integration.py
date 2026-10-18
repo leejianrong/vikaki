@@ -48,3 +48,23 @@ def test_two_seat_drivers_speak_at_once_and_a_third_for_a_taken_seat_is_busy():
         with pytest.raises(HubError) as err:
             Vikaki(URL, seats=[{"seat_id": "s1"}])
     assert err.value.code == "driver_busy"
+
+
+def test_a_humans_speech_sent_by_a_page_reaches_the_driver_of_that_seat():
+    import json
+    import time
+
+    from websockets.sync.client import connect
+
+    with Vikaki(URL, seats=[{"seat_id": "s1"}]) as a:
+        heard = []
+        a.on_event(heard.append)
+        with connect(URL) as page:  # what an avatar page does for its host
+            page.send(json.dumps({"protocol_version": 1, "type": "hello", "role": "viewer"}))
+            assert json.loads(page.recv(10))["type"] == "welcome"
+            page.send(json.dumps({"protocol_version": 1, "type": "human_utterance", "seat_id": "s1", "text": "Ocean", "final": True}))
+            for _ in range(1000):
+                if heard:
+                    break
+                time.sleep(0.01)
+    assert heard and heard[0]["type"] == "human_utterance" and heard[0]["seat_id"] == "s1" and heard[0]["text"] == "Ocean"

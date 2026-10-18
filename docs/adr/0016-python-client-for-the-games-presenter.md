@@ -25,7 +25,7 @@ Build a small Python package, `vikaki-client`, in this repo under `clients/pytho
 
 - Starting or supervising the hub. The client connects to a running `vikaki serve`; whoever runs the game starts it.
 - Speech, rendering, personas files and anything else the hub does.
-- `human_utterance` (speech-to-text from a human seat). The protocol does not carry it yet; that is a separate decision when STT is built.
+- `human_utterance` (speech-to-text from a human seat). Added later as text from the page to the seat's driver: ADR-0024.
 - Several seats on one scene. The poker table cards (VIK-46 to 48) add a seat parameter to the protocol additively; the client follows then.
 - A true in-process engine. The brief's "in-process" wiring is satisfied by the framework's `Presenter` class calling this client, with the same event shapes; the avatar itself still runs in the Node hub and the browser page.
 

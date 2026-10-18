@@ -113,6 +113,20 @@ describe("speech events for the framing page", () => {
     }
   });
 
+  it("hands what a human said, posted by the host, to the driver of that seat and no other (VIK-69)", { timeout: 120_000 }, async () => {
+    const { page, d1, d2 } = await setup();
+    const say = (data: unknown) => page.evaluate(([d, origin]) => (document.getElementById("avatar") as HTMLIFrameElement).contentWindow!.postMessage(d, origin as string), [data, new URL(server!.url).origin] as const);
+    await say({ type: "human_utterance", seat_id: "seat-2", text: "ocean", final: false });
+    await say({ type: "human_utterance", seat_id: "seat-2", text: "ocean waves", final: true });
+    await say({ type: "human_utterance", seat_id: "seat-2", text: "" }); // not well formed: dropped
+    await d2.waitFor((m) => m.type === "human_utterance" && m.text === "ocean waves");
+    expect(d2.events.filter((m) => m.type === "human_utterance")).toMatchObject([
+      { seat_id: "seat-2", text: "ocean", final: false },
+      { seat_id: "seat-2", text: "ocean waves", final: true },
+    ]);
+    expect(d1.events.some((m) => m.type === "human_utterance")).toBe(false);
+  });
+
   it("a seat driver that cancels its own line hears speech_interrupted straight away, whether the page is playing it or the voice is still making it", { timeout: 120_000 }, async () => {
     // playing: the page reports it
     const playing = await setup();

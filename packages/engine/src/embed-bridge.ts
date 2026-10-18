@@ -17,7 +17,14 @@ export type SpeechEvent =
 /** What the page tells the host. `audio_locked` while the browser blocks sound, `audio_unlocked` once it does not, and the speech events. */
 export type ToParent = { type: "audio_locked" } | { type: "audio_unlocked" } | SpeechEvent;
 /** What the host may say. `unlock` after a click on the host page; `audio_status` asks the page to say where it stands (a host that attached its listener late). */
-export type FromParent = { type: "unlock" } | { type: "audio_status" };
+export type FromParent = { type: "unlock" } | { type: "audio_status" } | ({ type: "human_utterance" } & HumanSpeech);
+
+/** What a human said for a seat, as the host's recogniser heard it (VIK-69, ADR-0024). `final: false` is a partial transcript. */
+export interface HumanSpeech {
+  seat_id: string;
+  text: string;
+  final?: boolean;
+}
 
 /**
  * A bare http(s) origin, as `new URL(x).origin` prints it, else undefined. `*`, paths, wrong schemes and other near misses are refused, so the
@@ -43,6 +50,8 @@ export interface BridgeOptions {
   ancestorOrigin?: string;
   /** The host said `unlock`: try to start audio. */
   onUnlock(): void;
+  /** The host sent what a human said for a seat. Only called with a well-formed one. */
+  onHumanUtterance?(speech: HumanSpeech): void;
   /** Whether the browser blocks sound right now; undefined while that is not known yet (the audio context is not made). */
   isLocked(): boolean | undefined;
 }
@@ -84,6 +93,12 @@ export class EmbedBridge {
     }
     if (type === "audio_status") {
       this.report(true);
+      return true;
+    }
+    if (type === "human_utterance") {
+      const d = e.data as { seat_id?: unknown; text?: unknown; final?: unknown };
+      if (typeof d.seat_id !== "string" || typeof d.text !== "string" || d.text === "" || (d.final !== undefined && typeof d.final !== "boolean")) return false;
+      this.o.onHumanUtterance?.({ seat_id: d.seat_id, text: d.text, ...(d.final !== undefined ? { final: d.final } : {}) });
       return true;
     }
     return false;

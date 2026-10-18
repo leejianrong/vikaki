@@ -143,6 +143,48 @@ describe("what a seat driver may send", () => {
     expect([...a.d.inbox, ...b.d.inbox].some((m) => m.type === "thought")).toBe(false);
   });
 
+  it("relays a human's speech from the page to the driver of that seat only, whole-table driver included (VIK-69)", async () => {
+    server = await startServer({ staticDir: dir });
+    const page = track(await Client.join(server.wsUrl, "viewer"));
+    await page.next();
+    const other = track(await Client.join(server.wsUrl, "viewer"));
+    await other.next();
+    const a = await seatDriver(server.wsUrl, { seat_id: "A", persona: "ada" });
+    const b = await seatDriver(server.wsUrl, { seat_id: "B", persona: "ben" });
+    page.send(make("human_utterance", { seat_id: "B", text: "Ocean", final: true }));
+    page.send(make("human_utterance", { seat_id: "A", text: "Tide" }));
+    await until(() => a.d.inbox.some((m) => m.type === "human_utterance") && b.d.inbox.some((m) => m.type === "human_utterance"));
+    expect(b.d.inbox.filter((m) => m.type === "human_utterance")).toMatchObject([{ seat_id: "B", text: "Ocean", final: true }]);
+    expect(a.d.inbox.filter((m) => m.type === "human_utterance")).toMatchObject([{ seat_id: "A", text: "Tide" }]);
+    expect(other.inbox.some((m) => m.type === "human_utterance")).toBe(false); // a transcript goes to the game, not round the viewers
+    // a seat nobody drives: dropped quietly, the page is not told off
+    page.send(make("human_utterance", { seat_id: "Z", text: "Hello?" }));
+    page.send(make("human_utterance", { seat_id: "A", text: "later" }));
+    await until(() => a.d.inbox.filter((m) => m.type === "human_utterance").length === 2);
+    expect(page.inbox.some((m) => m.type === "error")).toBe(false);
+  });
+
+  it("gives a whole-table driver the human's speech for any seat", async () => {
+    server = await startServer({ staticDir: dir });
+    const page = track(await Client.join(server.wsUrl, "viewer"));
+    await page.next();
+    const whole = await seatDriver(server.wsUrl);
+    page.send(make("human_utterance", { seat_id: "Q", text: "Guess: 40" }));
+    await until(() => whole.d.inbox.some((m) => m.type === "human_utterance"));
+    expect(whole.d.inbox.find((m) => m.type === "human_utterance")).toMatchObject({ seat_id: "Q", text: "Guess: 40" });
+  });
+
+  it("refuses a human's speech from a driver or a controller (only the page that has the microphone sends it)", async () => {
+    server = await startServer({ staticDir: dir });
+    const a = await seatDriver(server.wsUrl, { seat_id: "A" });
+    a.d.send(make("human_utterance", { seat_id: "A", text: "x" }));
+    expect(await a.d.next()).toMatchObject({ type: "error", code: "not_allowed" });
+    const ctl = track(await Client.join(server.wsUrl, "controller"));
+    await ctl.next();
+    ctl.send(make("human_utterance", { seat_id: "A", text: "x" }));
+    expect(await ctl.next()).toMatchObject({ type: "error", code: "not_allowed" });
+  });
+
   it("gets the seat's persona filled in on its lines and turns, unless it names another", async () => {
     server = await startServer({ staticDir: dir });
     const viewer = track(await Client.join(server.wsUrl, "viewer"));
