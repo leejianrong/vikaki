@@ -59,7 +59,7 @@ Setup and the tools: [docs/mcp.md](docs/mcp.md). Any program can also speak the 
 
 ```bash
 make docker-build
-docker run --rm -p 127.0.0.1:8787:8787 vikaki                        # then open http://localhost:8787/avatar
+docker run --rm -p 127.0.0.1:8787:8787 vikaki                        # then open http://localhost:8787/ (every demo is a link there)
 docker run --rm -p 127.0.0.1:8787:8787 vikaki-render stream --host 0.0.0.0 --port 8787
 ```
 

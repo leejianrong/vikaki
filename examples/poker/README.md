@@ -6,7 +6,7 @@ The engine owns the truth about the game. An LLM only picks an action from what 
 
 ## Watch three LLMs play
 
-The short way: `make demo-table` in one terminal (the hub, with the three characters), `make poker` in another (real models; `make poker POKER_ARGS="--fake-llm --hands 3"` for the scripted stand-in). `POKER_ARGS` defaults to a short tournament (`--stack 100 --blinds 2/4 --no-rebuy --hands 20`). Then open http://127.0.0.1:8787/avatar?seats=3&view=table. What it does, step by step:
+The short way: `make demo-table` in one terminal (the hub, with the three characters), `make poker` in another (real models; `make poker POKER_ARGS="--fake-llm --hands 3"` for the scripted stand-in). `POKER_ARGS` defaults to a short tournament (`--stack 100 --blinds 2/4 --no-rebuy --hands 20`). Then open http://127.0.0.1:8787/ and follow the Poker table link (or go straight to http://127.0.0.1:8787/avatar?seats=3&view=table). What it does, step by step:
 
 You need Node and the repo set up (`pnpm install --frozen-lockfile && pnpm build`), and [uv](https://docs.astral.sh/uv/).
 

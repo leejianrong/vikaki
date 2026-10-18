@@ -246,6 +246,7 @@ async function serve(argv: string[]): Promise<void> {
   });
   const url = values["speech-demo"] ? `${server.url}?demo=speech&live=1` : values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
   console.log(`vikaki serving ${url}`);
+  console.log(`  all the demos, as links: ${server.url.replace(/\/avatar$/, "/")}`);
   console.log(`  drivers connect to ${server.wsUrl}${token ? " (token required)" : ""}; speech: ${tts ? tts.name : "off"}`);
   console.log(`  framing: ${frameAncestors ? (frameAncestors.length ? frameAncestors.join(", ") : "no other page") : DEFAULT_FRAME_ANCESTORS.join(", ")} may embed the avatar page${frameAncestors ? "" : " (--frame-ancestors to change)"}`);
   let renderer: HeadlessRenderer | undefined;
