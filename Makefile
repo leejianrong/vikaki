@@ -51,7 +51,7 @@ demo-embed: build ## See the embed work: a stand-in game page frames the duet la
 # Arguments for `make poker`: a short tournament by default (100 chips each, blinds 2/4, no rebuys, until one player has every chip).
 # The client is installed editable (--with-editable): uv caches a plain path dependency by pyproject.toml's timestamp and would go on serving an old protocol schema.
 # Change the arguments with POKER_ARGS, for example: make poker POKER_ARGS="--hands 30"  or  make poker POKER_ARGS="--fake-llm --hands 3".
-POKER_ARGS ?= --stack 100 --blinds 2/4 --no-rebuy --hands 120
+POKER_ARGS ?= --stack 100 --blinds 2/4 --no-rebuy --hands 20
 POKER_ENV ?= examples/poker/.env
 POKER_PORT ?= 8787
 
