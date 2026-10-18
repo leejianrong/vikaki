@@ -10,10 +10,9 @@ big_blind: 2
 max_tokens: 300                                    # cap on a model's reply per move
 # reaction_model: deepseek/deepseek-v4.1-flash           # optional, a cheap model for how listeners react silently to a line; without it they follow a fixed table
 
-# How each seat plays, each from 0 to 1 (0.5 is a middling player): talkative (how much it says), loose (how many hands it plays), aggressive (raises
-# over calls), bluff (how often it bets with nothing), tricky (slow-plays and traps against playing straight), emotional (how much it shows), and a
-# free-text quirk. They are told to the model in words (examples/poker/README.md, ADR-0022). Archetypes, not impersonations: the showman who
-# narrates, the careful rock who apologises, the fearless gambler.
+# How each seat talks, each from 0 to 1 (0.5 is middling): talkative (how much it says), emotional (how much it shows), loose, aggressive and tricky
+# (how it talks about the game), and a free-text quirk. Everyone plays the same sound game; the traits never change what a seat does (VIK-112,
+# examples/poker/README.md, ADR-0022). Archetypes, not impersonations: the showman who narrates, the careful rock who apologises, the fearless gambler.
 seats:
   seat-1:
     persona: ada

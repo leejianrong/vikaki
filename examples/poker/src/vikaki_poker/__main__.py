@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import random
 import sys
 from typing import Sequence
 
@@ -28,7 +29,7 @@ def _parser() -> argparse.ArgumentParser:
     play = sub.add_parser("play", help="play hands")
     play.add_argument("--table", required=True, help="a table file (see table.example.yaml)")
     play.add_argument("--hands", type=int, default=3)
-    play.add_argument("--seed", type=int, default=1, help="the same seed deals the same cards")
+    play.add_argument("--seed", type=int, help="the same seed deals the same cards (default: a fresh one each game, printed so a game can be repeated)")
     play.add_argument("--url", default="ws://127.0.0.1:8787/ws", help="the hub")
     play.add_argument("--token", default=os.environ.get("VIKAKI_TOKEN"), help="the hub's driver token, if it has one")
     play.add_argument("--no-hub", action="store_true", help="print the lines instead of speaking them")
@@ -86,6 +87,8 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
         return 2
     agents = build_agents(table, llm)
     reactor = None if args.no_reactions else build_reactor(table, None if args.fake_llm else llm)
+    seed = args.seed if args.seed is not None else random.SystemRandom().randrange(1, 1_000_000)
+    print(f"seed {seed} (repeat this deal with --seed {seed})")
     own_voice = voice is None
     if voice is None:
         if args.no_hub:
@@ -98,7 +101,7 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
                 print(f"vikaki_poker: could not join the table at {args.url} ({code}). Is `pnpm serve --personas personas.table.example.yaml` running?", file=sys.stderr)
                 return 1
     try:
-        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=args.seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy)
+        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy)
     finally:
         if own_voice and hasattr(voice, "close"):
             try:

@@ -48,3 +48,13 @@ Around it:
 ## Update: a quiet table (VIK-92, 2026-10-19)
 
 The first real runs had a line on nearly every move, mostly narration. The `talkative` trait is now a budget in the prompt (quiet: about 2 turns in 10, at most 6 words; middling: 12; chatty: 24) and the guide says talk is for information or banter. `governor.py` enforces it whatever the model does: at most one line per seat per street, a word cap, and turns of silence after speaking (3, 1, 0). A line over budget is dropped, not trimmed, and the log says why (`line dropped: 10 words, the budget is 6`). Twenty scripted hands with a seat that speaks every turn: 1.0 lines per move before, 0.8 (chatty), 0.5 (middling) and 0.3 (quiet) after. The check with real models is still to do: the key hit its daily limit that day.
+
+## Update: the same sound strategy for everyone (VIK-112, 2026-10-19)
+
+The traits made the personalities play differently, and the one whose traits happened to suit (loose, aggressive, a bluffer) won: ada won by being sensible while ben folded away his stack and cy gambled his. Jian wanted every player to be sensible and the personality to show in the talk. So:
+
+- `loose`, `aggressive`, `bluff` and `tricky` no longer reach the decision. The personality section says everyone plays sound poker and shapes only how a character talks and thinks about the game; `talkative`, `emotional` and the quirk stay. (`bluff` is still accepted in a table file.)
+- Every seat's briefing is the same for the same spot (a test), and the recommendation is "play this", leaving it only when the story plainly says it is wrong.
+- A little chance is mixed into the advice, seeded by the spot so a spot gives one answer: an occasional bluff when it is free and at most two are in (8%), an occasional slow-play of a monster (6%), a close call that is sometimes a fold (20%), and a raise size between half and four fifths of the pot. A clear spot never changes.
+- A game is dealt afresh by default (`--seed` defaulted to 1, so every `make poker` had the same cards) and prints its seed.
+- Check: three rule-of-thumb bots against each other, eight seeds of 300 hands. Net chips per hand were -0.7, +3.1 and -2.4 against a per-hand spread of about 115, so no seat is ahead beyond the noise. Not a CI test: it takes minutes and could only be loose.
