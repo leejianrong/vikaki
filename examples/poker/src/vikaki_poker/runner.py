@@ -231,7 +231,7 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         try:
             hand.act(seat, decision.action, decision.amount)
             moved = f"{seat} {decision.action}" + (f" to {decision.amount}" if decision.amount is not None else "")
-        except IllegalAction as err:  # parse_decision only returns legal moves, so this is a bug guard: never stall the table
+        except IllegalAction as err:  # the engine only picks legal moves, so this is a bug guard: never stall the table
             fallback = "check" if legal.can_check else "fold"
             seen = len(hand.events)
             hand.act(seat, fallback)

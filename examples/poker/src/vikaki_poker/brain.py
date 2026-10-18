@@ -1,8 +1,9 @@
 """How a seat is briefed (VIK-86, ADR-0022): a short guide to playing well, the facts of this turn worked out by the engine, and a personality.
 
 A model that is only told the cards plays timidly and miscounts. So the engine does the arithmetic (`facts.py`) and says what the hand is worth,
-what the call costs and what a rule of thumb would do; the personality (`Traits`) decides how closely this seat follows it, how often it bluffs,
-how much it talks. The same seat sees the same briefing for the same situation: nothing here is random.
+what the call costs and what a rule of thumb would do; the personality (`Traits`) decides how much it talks and how it talks. The decision itself
+is the engine's (`strategy.py`, ADR-0026): the model is told the move and performs it. `turn_facts` and the rule of thumb remain for the baseline
+`AdvisorBot` the engine is measured against.
 """
 
 from __future__ import annotations
@@ -13,17 +14,6 @@ from dataclasses import dataclass, fields
 
 from .governor import budget_for
 from .facts import advice, equity_vs_random, hand_name, improving_cards, position, pot_odds, preflop_strength
-
-STRATEGY_PRIMER = """How to play no-limit Hold'em well (a short guide):
-- Position matters: acting last is an advantage. Play more hands on the button and fewer from the seats that act first.
-- Starting hands: raise the premium and strong hands, play the playable ones when the price is right, fold the weak ones unless the check is free.
-- Chance to win against the price: a call breaks even when your chance to win equals the share of the pot you must pay (given as "needs"). Call with more than that, fold with less. Do not chase weak draws with big bets to call.
-- When nobody has bet, betting beats checking with a good hand (they fold or pay). Bet about half to three quarters of the pot for value, bigger when a draw is out there. Check weak hands to see a free card; never fold when you can check.
-- A raise or a big bet means strength. The "chance to win" you are given assumes opponents hold random cards, so lower it by 10 to 25 points when someone has bet big or raised, more on the turn and river.
-- Bluffs work best against one or two opponents, when the board is one your story fits, and not against someone who never folds. Do not bluff into several callers.
-- With a short stack (under about 15 big blinds) shove all in with a decent hand or fold. Small raises that commit you are the worst of both.
-- Chips are for winning, not for keeping: folding every hand loses to the blinds. But a hand you cannot beat is not worth a big bet."""
-
 
 def _level(x: float, low: str, mid: str, high: str) -> str:
     return low if x < 0.34 else high if x > 0.66 else mid
@@ -60,7 +50,7 @@ def personality_text(name: str, traits: Traits, style: str = "") -> str:
     bluffy or tricky a character is shows in how it talks and thinks about the game, never in what it does."""
     t = traits
     lines = [f"Your personality (you are {name}" + (f", {style}" if style else "") + "):"]
-    lines.append("- Everyone at this table plays sound poker: your moves come from the numbers and the recommendation you are given, not from your personality. Your personality shows in how you talk and think about the game.")
+    lines.append("- You do not choose your moves: the table's engine has chosen yours, and you are told what it is. Your personality shows only in how you talk and think about what you do, so it can never change what you do.")
     lines.append(
         "- How you talk about the game: "
         + _level(
@@ -87,9 +77,9 @@ def personality_text(name: str, traits: Traits, style: str = "") -> str:
         "- Talking: "
         + _level(
             t.talkative,
-            f'you are quiet: about 2 turns in 10 you say something, at most {budget_for(t.talkative).max_words} words, and otherwise your "say" is empty.',
+            f'you are quiet: about 1 turn in 3 you say something, at most {budget_for(t.talkative).max_words} words, and otherwise your "say" is empty.',
             f'you chat now and then: about every other turn, one short sentence of at most {budget_for(t.talkative).max_words} words.',
-            f'you are a chatterbox: most turns, one or two short sentences of at most {budget_for(t.talkative).max_words} words in all. Banter, a jibe at someone, a prediction.',
+            f'you are a chatterbox: whenever you may speak, one or two short sentences of at most {budget_for(t.talkative).max_words} words in all. Banter, a jibe at someone, a prediction.',
         )
         + " Talk is for gaining information (fishing for a tell, asking what someone has) or for banter, never to narrate your own move. At most one line per street; a longer or extra line is simply not heard."
     )
@@ -179,9 +169,30 @@ def turn_facts(view: dict, *, samples: int = 1500) -> dict:
     return facts
 
 
-def briefing(view: dict, facts: dict, history: str, talk: list[tuple[str, str]], names: dict[str, str], recent: int = 8) -> str:
-    """The user message of a turn: the situation, the numbers, the story of the hand, the table talk and the legal moves."""
-    legal = view["legal"]
+def performer_facts(view: dict) -> dict:
+    """What a performer is told about the spot, apart from the engine's move: the hand in words, position, who is still in, the stack-to-pot ratio."""
+    me_id = view["to_act"]
+    players = view["players"]
+    me = next(p for p in players if p["seat_id"] == me_id)
+    facts = {
+        "hand": hand_name(view["hole"], view["board"]),
+        "opponents": [p["seat_id"] for p in players if p["seat_id"] != me_id and not p["folded"]],
+        "position": position([p["seat_id"] for p in players], view["button"], me_id),
+        "improving": improving_cards(view["hole"], view["board"]),
+        "spr": round(me["stack"] / view["pot"], 1) if view["pot"] else None,
+    }
+    if not view["board"]:
+        facts["tier"] = preflop_strength(view["hole"])
+    return facts
+
+
+def describe_move(move) -> str:
+    """The engine's move in words, as the player is told it: "raise to 12", "call", "fold"."""
+    return f"raise to {move.amount}" if move.kind == "raise" else move.kind
+
+
+def briefing(view: dict, facts: dict, history: str, talk: list[tuple[str, str]], names: dict[str, str], move, recent: int = 8) -> str:
+    """The user message of a turn: the situation, the story of the hand, the table talk, and the move the engine has chosen with its reasons."""
     who = lambda seat: names.get(seat, seat)  # noqa: E731
     me = next(p for p in view["players"] if p["seat_id"] == view["to_act"])
     lines = [
@@ -195,22 +206,12 @@ def briefing(view: dict, facts: dict, history: str, talk: list[tuple[str, str]],
     ]
     if history:
         lines.append("This hand so far: " + history)
-    price = f"calling costs {facts['call']}, so you need to win {facts['need']:.0%} to break even" if facts["call"] else "nothing is owed to stay in"
-    lines.append(f"The numbers: you win about {facts['win']:.0%} of the time against random hands ({price})." + (f" {facts['improving']} unseen cards would improve your hand." if facts["improving"] else ""))
-    size = f" (a raise to about {facts['raise_to']} is the usual size)" if facts.get("raise_to") else ""
-    lines.append(
-        f"The recommended move is {facts['advice']}{size}: {facts['why']}. Play the recommended move: it is worked out soundly, the same for everyone at this table, including the odd mixed play that keeps you hard to read. "
-        "Break from it only when the story of the hand makes it plainly wrong."
-    )
+    if facts["improving"]:
+        lines.append(f"{facts['improving']} unseen cards would improve your hand.")
     if talk:
         lines.append("Recent table talk: " + " | ".join(f"{who(s)}: {text}" for s, text in talk[-recent:]))
-    options = []
-    for kind in legal["kinds"]:
-        if kind == "call":
-            options.append(f"call (costs {legal['call_amount']})")
-        elif kind == "raise":
-            options.append(f"raise (to a total between {legal['min_raise_to']} and {legal['max_raise_to']})")
-        else:
-            options.append(kind)
-    lines.append("Your legal actions: " + ", ".join(options) + ".")
+    lines.append(
+        f"Your move this turn is already decided: {describe_move(move)}. Why: {move.reason}. "
+        "It is what you are doing; do not change it or argue with it. Speak and think about it as the character you are."
+    )
     return "\n".join(lines)

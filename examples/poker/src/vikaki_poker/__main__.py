@@ -14,13 +14,13 @@ from .llm import KEY_ENV, FakeLlm, Llm, LlmError, OpenRouterLlm, Usage, load_dot
 from .runner import HubVoice, PrintVoice, Voice, play_session
 from .table import TableError, build_agents, build_reactor, load_table
 
-# What `--fake-llm` says: no key, no cost, always legal moves ("call" is read as "check" when nothing is owed).
+# What `--fake-llm` says: no key, no cost. The words and thoughts are scripted; the moves are the engine's, as with a real model.
 DEMO_REPLIES = [
-    '{"think": "A strong start. Push them out early.", "action": "raise", "amount": 6, "say": "Let us make this interesting.", "emotion": "smug"}',
-    '{"think": "Not sure about this one, but the price is fair.", "action": "call", "say": "Hmm, I will stay in.", "emotion": "worried"}',
-    '{"think": "That bet is too big for what I hold.", "action": "fold", "say": "Too rich for me.", "emotion": "sad"}',
-    '{"think": "Free card, and I am happy to see it.", "action": "check", "say": "Check. Take your time.", "emotion": "happy"}',
-    '{"think": "They keep showing up. Fine by me.", "action": "call", "say": "Oh, you again!", "emotion": "surprised"}',
+    '{"think": "A strong start. Push them out early.", "say": "Let us make this interesting.", "emotion": "smug"}',
+    '{"think": "Not sure about this one, but the price is fair.", "say": "Hmm, I will stay in.", "emotion": "worried"}',
+    '{"think": "That bet is too big for what I hold.", "say": "Too rich for me.", "emotion": "sad"}',
+    '{"think": "Free card, and I am happy to see it.", "say": "Check. Take your time.", "emotion": "happy"}',
+    '{"think": "They keep showing up. Fine by me.", "say": "Oh, you again!", "emotion": "surprised"}',
 ]
 
 
@@ -91,6 +91,8 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
     reactor = None if args.no_reactions else build_reactor(table, None if args.fake_llm else llm)
     seed = args.seed if args.seed is not None else random.SystemRandom().randrange(1, 1_000_000)
     print(f"seed {seed} (repeat this deal with --seed {seed})")
+    for i, agent in enumerate(agents.values()):
+        agent.reseed(seed * 101 + i)  # the engine's dice follow the seed too
     own_voice = voice is None
     if voice is None:
         if args.no_hub:

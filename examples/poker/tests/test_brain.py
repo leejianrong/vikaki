@@ -1,8 +1,11 @@
 import pytest
 
 from vikaki_poker import Hand
-from vikaki_poker.brain import STRATEGY_PRIMER, Traits, briefing, history_text, personality_text, turn_facts
+from vikaki_poker.brain import Traits, briefing, history_text, performer_facts, personality_text, turn_facts
 from vikaki_poker.seat import build_messages
+from vikaki_poker.strategy import Move
+
+MOVE = Move("raise", 12, "about 64% to win against what they could hold; worth +4.1 chips (call +1.3, fold +0.0)", 0.64)
 
 
 def view_for(seed=4, acts=()):
@@ -33,34 +36,34 @@ def test_the_personality_is_in_the_talk_and_never_in_the_play():
     for text in (tight, wild):  # nothing here tells a seat to play more or fewer hands, to bluff, to bet more or to trap
         for banned in ("hands in every 100", "times in 10 if the spot", "slow-play", "play only premium", "you love to see flops"):
             assert banned not in text
-        assert "Everyone at this table plays sound poker" in text
+        assert "You do not choose your moves" in text
     # the style is only how it talks about the game
     assert "talk" in personality_text("x", Traits(loose=0.95)).lower()
 
 
 def test_every_seat_gets_the_same_briefing_whatever_its_traits():
     _, view = view_for()
-    wild = build_messages("cy", "", view, [], traits=Traits(loose=0.95, aggressive=0.95, bluff=0.9, tricky=0.9))
-    tight = build_messages("ben", "", view, [], traits=Traits(loose=0.1, aggressive=0.1, bluff=0.0, tricky=0.1))
-    assert wild[1] == tight[1]  # the turn's facts and the recommendation are the engine's, for everyone
+    wild = build_messages("cy", "", view, [], MOVE, traits=Traits(loose=0.95, aggressive=0.95, bluff=0.9, tricky=0.9))
+    tight = build_messages("ben", "", view, [], MOVE, traits=Traits(loose=0.1, aggressive=0.1, bluff=0.0, tricky=0.1))
+    assert wild[1] == tight[1]  # the situation and the engine's move are the same for everyone
     assert "personality" not in wild[1]["content"]
-    assert "Play the recommended move" in wild[1]["content"]
+    assert "already decided: raise to 12" in wild[1]["content"] and "about 64% to win" in wild[1]["content"]
+
+
+def test_the_model_is_told_the_move_and_never_asked_for_one():
+    _, view = view_for()
+    system = build_messages("ada", "", view, [], MOVE)[0]["content"]
+    assert '"think"' in system and '"say"' in system and '"emotion"' in system
+    assert '"action"' not in system and '"amount"' not in system  # there is nowhere in the reply to change the move
+    assert "already chosen" in system and "do not change it" in build_messages("ada", "", view, [], MOVE)[1]["content"]
 
 
 def test_a_trait_changes_the_instructions_a_seat_is_given():
     _, view = view_for()
-    quiet = build_messages("ada", "", view, [], traits=Traits(talkative=0.0))[0]["content"]
-    chatty = build_messages("ada", "", view, [], traits=Traits(talkative=1.0))[0]["content"]
+    quiet = build_messages("ada", "", view, [], MOVE, traits=Traits(talkative=0.0))[0]["content"]
+    chatty = build_messages("ada", "", view, [], MOVE, traits=Traits(talkative=1.0))[0]["content"]
     assert "quiet" in quiet and "chatterbox" not in quiet
     assert "chatterbox" in chatty and "quiet" not in chatty
-
-
-def test_the_strategy_guide_is_in_every_seats_instructions_and_is_short():
-    _, view = view_for()
-    system = build_messages("ada", "", view, [])[0]["content"]
-    assert STRATEGY_PRIMER in system
-    assert 150 < len(STRATEGY_PRIMER.split()) < 400
-    assert "keep the table light and kind" not in system  # that made them fold everything
 
 
 def test_the_history_of_a_hand_is_told_street_by_street_with_names():
@@ -85,17 +88,18 @@ def test_the_facts_come_from_what_the_seat_can_see_and_are_the_same_every_time()
     assert len(f1["opponents"]) == 2 and f1["call"] == view["legal"]["call_amount"]
 
 
-def test_the_briefing_has_the_numbers_the_story_and_the_legal_moves_and_no_other_hands():
+def test_the_briefing_has_the_situation_the_story_and_the_move_and_no_other_hands():
     h, view = view_for(acts=[("a", "raise", 8)])
     names = {"a": "ada", "b": "ben", "c": "cy"}
     seat = h.to_act
-    text = briefing(view, turn_facts(view), history_text(h.events, names), [("a", "Big one.")], names)
+    text = briefing(view, performer_facts(view), history_text(h.events, names), [("a", "Big one.")], names, MOVE)
     assert all(c in text for c in h.player(seat).hole)
     for other in h.seats:
         if other.seat_id != seat:
             assert not any(c in text for c in other.hole)
-    assert "ada raised to 8" in text and "you win about" in text and "need to win" in text and "The recommended move is" in text
-    assert "ada: Big one." in text and "Your legal actions:" in text and "Opponents still in:" in text
+    assert "ada raised to 8" in text and "Your move this turn is already decided: raise to 12" in text
+    assert "ada: Big one." in text and "Opponents still in:" in text
+    assert "Your legal actions" not in text and "recommended" not in text  # no menu to choose from
 
 
 def test_the_pot_odds_in_the_briefing_match_the_price_of_the_call():

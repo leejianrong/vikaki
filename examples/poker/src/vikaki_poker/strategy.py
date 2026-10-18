@@ -45,6 +45,11 @@ class Move:
     ev: dict[str, float] = field(default_factory=dict)  # chips won or lost from now on, by the move's name
 
 
+def big_blind_of(events: list[dict]) -> int:
+    """The big blind of a hand, as the largest blind posted in its events (2 when none is shown)."""
+    return max((e["amount"] for e in events if e["type"] == "blind"), default=2)
+
+
 def _candidates(view: dict, hero_stack: int, hero_bet: int, big_blind: int) -> list[int]:
     """The raise totals worth pricing, each legal."""
     legal = view["legal"]
