@@ -11,9 +11,11 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
+from .beats import action_event, new_hand_event, showdown_event, street_event, win_event
 from .display import table_state
 from .governor import Governor
 from .hand import Hand, IllegalAction
+from .pace import Pace
 from .reactions import Reaction, Reactor
 from .seat import SeatAgent
 
@@ -140,11 +142,11 @@ def _decide_reactions(reactor: Reactor, pool: ThreadPoolExecutor, speaker: str, 
     return [(listener, pool.submit(one, listener)) for listener in listeners]
 
 
-def _show(voice: Voice, hand: Hand, show_cards: bool) -> None:
-    """Tell the overlay how the table stands. A voice with no `table_state` shows none."""
+def _show(voice: Voice, hand: Hand, show_cards: bool, **beat: Any) -> None:
+    """Tell the overlay how the table stands (and the beat just played: `event`, `hand_no`, `winners`). A voice with no `table_state` shows none."""
     send = getattr(voice, "table_state", None)
     if send is not None:
-        send(table_state(hand, show_cards=show_cards))
+        send(table_state(hand, show_cards=show_cards, **beat))
 
 
 def _think(voice: Voice, seat: str, text: str) -> None:
@@ -163,17 +165,18 @@ def _react(voice: Voice, pending: list) -> None:
             send(listener, reaction)
 
 
-def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, governor: Governor | None = None, hand_no: int = 0) -> HandResult:
+def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, governor: Governor | None = None, hand_no: int = 0, pace: Pace | None = None) -> HandResult:
     """Play `hand` to the end. `talk` is the table's recent chat, shared by all seats; lines spoken here are added to it.
 
     With a `reactor`, every other seat reacts silently to each line: the reactions are decided while the line is spoken and sent as soon
     as it has been heard (VIK-58). The overlay is told how the table stands at the start and after every action (VIK-61); its hole cards are face
     down until a showdown, or always face up with `show_cards`. The `governor` (one per session; a fresh one by default) holds the talk to each seat's
-    budget (VIK-92): a line over it is dropped and noted.
+    budget (VIK-92): a line over it is dropped and noted. With a staged `hand` (VIK-113) every beat is shown in turn, each followed by the `pace`'s pause:
+    the new hand, each action, each street, the showdown and the win. `hand_no` counts from 0; people are shown it from 1.
     """
     pool = ThreadPoolExecutor(max_workers=max(1, len(agents)))
     try:
-        result = _play_hand(hand, agents, voice, talk, out, reactor, pool, show_cards, governor or Governor(), hand_no)
+        result = _play_hand(hand, agents, voice, talk, out, reactor, pool, show_cards, governor or Governor(), hand_no, pace or Pace())
     except BaseException:  # Ctrl-C: do not wait for the model calls still out, and do not start the queued ones
         pool.shutdown(wait=False, cancel_futures=True)
         raise
@@ -181,7 +184,7 @@ def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list
     return result
 
 
-def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool, governor: Governor, hand_no: int) -> HandResult:
+def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, str]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool, governor: Governor, hand_no: int, pace: Pace) -> HandResult:
     result = HandResult(hand)
     names = {seat_id: a.persona for seat_id, a in agents.items()}  # the characters' names, so a seat reads "ben raised" and not "seat-2 raised"
 
@@ -189,8 +192,21 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         result.log.append(line)
         out(line)
 
-    _show(voice, hand, show_cards)
+    _show(voice, hand, show_cards, event=new_hand_event(hand_no + 1), hand_no=hand_no + 1)
+    pace.wait("new_hand")
     while not hand.complete:
+        if hand.awaiting:  # a staged hand: the street, the showdown or the payout is a beat of its own
+            stage = hand.awaiting
+            hand.advance()
+            if stage == "street":
+                event, winners = street_event(hand.street), None
+            elif stage == "showdown":
+                event, winners = showdown_event(), None
+            else:
+                event, winners = win_event(hand, names)
+            _show(voice, hand, show_cards, event=event, winners=winners)
+            pace.wait(event["kind"])
+            continue
         legal = hand.legal()
         assert legal is not None
         seat = legal.seat_id
@@ -211,16 +227,20 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
             _react(voice, pending)
         voice.turn_ended(seat)
         street = hand.street  # the street the move was made on (acting can end it)
+        seen = len(hand.events)
         try:
             hand.act(seat, decision.action, decision.amount)
             moved = f"{seat} {decision.action}" + (f" to {decision.amount}" if decision.amount is not None else "")
         except IllegalAction as err:  # parse_decision only returns legal moves, so this is a bug guard: never stall the table
             fallback = "check" if legal.can_check else "fold"
+            seen = len(hand.events)
             hand.act(seat, fallback)
             decision.note = f"{decision.note}; engine refused ({err}), played {fallback}".strip("; ")
             moved = f"{seat} {fallback}"
-        _show(voice, hand, show_cards)
+        beat = action_event(hand.events[seen], names)
+        _show(voice, hand, show_cards, event=beat)
         note(f"[{street}] {moved}" + (f"  ({decision.note})" if decision.note else ""))
+        pace.wait(beat["kind"])
     for event in hand.events:
         if event["type"] == "win":
             note(f"{event['seat_id']} wins {event['amount']}" + (" at showdown" if event["showdown"] else ""))
@@ -236,7 +256,7 @@ class Session:
     interrupted: bool = False  # the user pressed Ctrl-C: the hand under way is not in `results`
 
 
-def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stack: int = 200, small_blind: int = 1, big_blind: int = 2, seed: int = 0, out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, rebuy: bool = True) -> Session:
+def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stack: int = 200, small_blind: int = 1, big_blind: int = 2, seed: int = 0, out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, rebuy: bool = True, pace: Pace | None = None) -> Session:
     """Deal up to `hands` hands, moving the button each time. A player who runs out of chips buys back in for `stack` (a cash game: the table keeps going,
     and `session.rebuys` counts them); with `rebuy=False` they are out, and the session ends when one player has all the chips. The same `seed` deals the same cards."""
     order = list(agents)
@@ -255,9 +275,9 @@ def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stac
         if len(alive) < 2:
             break
         out(f"--- hand {n + 1}: " + ", ".join(f"{s} {session.stacks[s]}" for s in alive))
-        hand = Hand([(s, session.stacks[s]) for s in alive], button % len(alive), small_blind, big_blind, seed=seed + n)
+        hand = Hand([(s, session.stacks[s]) for s in alive], button % len(alive), small_blind, big_blind, seed=seed + n, staged=True)
         try:
-            result = play_hand(hand, agents, voice, talk, out, reactor, show_cards, governor, n)
+            result = play_hand(hand, agents, voice, talk, out, reactor, show_cards, governor, n, pace)
         except KeyboardInterrupt:
             session.interrupted = True
             out("--- interrupted: stopping after the hand in progress is dropped")

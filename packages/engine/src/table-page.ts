@@ -323,6 +323,7 @@ try {
   renderer.setAnimationLoop(() => {
     const dt = clock.getDelta();
     const voice: VisemeWeights = session.lipsync?.weights ?? {};
+    props?.update(dt); // chips thrown in, cards pushed away (VIK-113)
     puppets.forEach((p, i) => {
       p.update(dt, i === speaking ? voice : {});
       symbols[i]!.update(dt, p.emotion.pose);

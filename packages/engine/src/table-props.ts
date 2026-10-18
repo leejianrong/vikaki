@@ -1,8 +1,9 @@
 // What `table_state` looks like on the 3D table (VIK-62): cards, chips and the dealer button as plain meshes. Like the overlay, it draws
 // what the game sent and holds no game logic. The layout and the chip counting are pure (and tested); `TableProps` is the three.js part.
 import type { MessageOf } from "@vikaki/protocol";
-import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Sprite, SpriteMaterial, type Texture } from "three";
+import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Sprite, SpriteMaterial, type Texture, Vector3 } from "three";
 import { cardFace } from "./table.ts";
+import { type Hold, middlePot, type Place, planMotion } from "./table-motion.ts";
 import type { SeatSpot } from "./table3d.ts";
 
 type State = MessageOf<"table_state">;
@@ -83,6 +84,23 @@ export function seatSlots(spot: SeatSpot): SeatSlots {
 /** Where the middle of the board's row lies, a little toward the far side so the pot's chips are in front of it. */
 const BOARD_Z = -0.14;
 const POT_AT = { x: 0, z: 0.3 };
+/** Where a folded hand is pushed to: just in front of the board, off the pot. */
+const MUCK_AT = { x: 0, z: 0.02 };
+/** Seconds a chip takes to fly, how far apart a flight's chips start, and the most chips shown in one flight. */
+const FLIGHT_S = 0.6;
+const FLIGHT_GAP_S = 0.06;
+const FLIGHT_CHIPS = 6;
+
+/** One thing in the air: it moves from `a` to `b` along an arc after `delay` seconds, over `dur`, and may shrink and fade (a pushed-away card). */
+interface Live {
+  mesh: Mesh;
+  a: Vector3;
+  b: Vector3;
+  delay: number;
+  dur: number;
+  arc: number;
+  fade: boolean;
+}
 
 const cardTextures = new Map<string, Texture>();
 
@@ -163,6 +181,17 @@ export class TableProps {
   /** The button's top, textured with a "D" the first time it is shown (drawing needs a document, which a plain construction does not). */
   private readonly buttonFace = new MeshBasicMaterial({ color: 0xfdf8ee });
   private last = "";
+  private readonly chipGeometry = new CylinderGeometry(CHIP_R, CHIP_R, CHIP_H, 24);
+  /** Chips and cards in the air, drawn over the table; the piles they leave and join are held as they were until the last lands. */
+  private readonly air = new Group();
+  private live: Live[] = [];
+  private clock = 0;
+  private flightEnd = 0;
+  private current: State | undefined;
+  private shown: State | undefined;
+  private reduced = false;
+  /** In the air now, for tests. */
+  readonly motion = { flights: 0 };
   /** What is drawn now, for tests. */
   readonly drawn = { boardCards: 0, seatCards: [] as number[], chips: 0, dealer: undefined as string | undefined, /** The words on the pot's label, or undefined with no pot. */ pot: undefined as string | undefined, /** True when the hands on the table are shown face up (a showdown), false while they are face down. */ handsFaceUp: false };
 
@@ -171,9 +200,9 @@ export class TableProps {
     private readonly spots: SeatSpot[],
     private readonly seatIds: string[],
   ) {
-    const geometry = new CylinderGeometry(CHIP_R, CHIP_R, CHIP_H, 24);
+    this.reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.chips = CHIPS.map((c) => {
-      const m = new InstancedMesh(geometry, new MeshStandardMaterial({ color: c.colour, roughness: 0.5 }), CHIP_CAPACITY);
+      const m = new InstancedMesh(this.chipGeometry, new MeshStandardMaterial({ color: c.colour, roughness: 0.5 }), CHIP_CAPACITY);
       m.count = 0;
       m.frustumCulled = false; // its bounding sphere is taken while empty, so it would be culled for good
       return m;
@@ -192,13 +221,90 @@ export class TableProps {
       slot.position.set(boardSlots()[i]!.x, tableY + 0.0015, BOARD_Z);
       this.group.add(slot);
     }
-    this.group.add(this.cards, this.button, this.potLabel, ...this.chips);
+    this.group.add(this.cards, this.button, this.potLabel, ...this.chips, this.air);
   }
 
   setState(state: State): void {
     const key = JSON.stringify(state);
     if (key === this.last) return;
     this.last = key;
+    this.land(); // a new state while chips are in the air: they land at once
+    const plan = this.reduced ? undefined : planMotion(this.shown, state, this.seatIds);
+    this.shown = state;
+    this.current = state;
+    this.draw(state, plan?.hold);
+    if (plan) this.launch(plan.flights, plan.mucks);
+  }
+
+  /** Move what is in the air. Call it every frame with the seconds since the last. When the last lands, the real piles are drawn. */
+  update(dt: number): void {
+    if (this.live.length === 0) return;
+    this.clock += dt;
+    for (const f of this.live) {
+      const p = Math.min(1, Math.max(0, (this.clock - f.delay) / f.dur));
+      f.mesh.visible = p > 0 && p < 1;
+      const e = p * p * (3 - 2 * p);
+      f.mesh.position.lerpVectors(f.a, f.b, e).y += Math.sin(Math.PI * p) * f.arc;
+      if (f.fade) {
+        f.mesh.scale.setScalar(1 - 0.6 * e);
+        (f.mesh.material as MeshBasicMaterial).opacity = 1 - e;
+      }
+    }
+    if (this.clock >= this.flightEnd) this.land();
+  }
+
+  /** Finish whatever is in the air: take it away and draw the real piles. */
+  private land(): void {
+    if (this.live.length === 0) return;
+    this.live = [];
+    this.air.clear();
+    this.motion.flights = 0;
+    if (this.current) this.draw(this.current);
+  }
+
+  private where(p: Place): Vector3 {
+    if (p.place === "pot") return new Vector3(POT_AT.x, this.tableY + 0.03, POT_AT.z);
+    const slots = seatSlots(this.spots[p.seat]!);
+    const at = p.place === "stack" ? slots.stack : slots.bet;
+    return new Vector3(at.x, this.tableY + 0.03, at.z);
+  }
+
+  private launch(flights: { from: Place; to: Place; amount: number; after?: boolean }[], mucks: number[]): void {
+    this.clock = 0;
+    let end = 0;
+    let sweepEnd = 0;
+    const jitter = (n: number) => new Vector3(Math.sin(n * 12.9898) * 0.025, 0, Math.cos(n * 78.233) * 0.025);
+    for (const f of flights) {
+      const kinds = chipCounts(f.amount).flatMap((n, kind) => Array<number>(n).fill(kind));
+      const shown = kinds.length > FLIGHT_CHIPS ? Array.from({ length: FLIGHT_CHIPS }, (_, i) => kinds[Math.floor((i * kinds.length) / FLIGHT_CHIPS)]!) : kinds.length ? kinds : [CHIPS.length - 1];
+      const base = f.after ? sweepEnd + 0.15 : 0;
+      shown.forEach((kind, i) => {
+        const mesh = new Mesh(this.chipGeometry, this.chips[kind]!.material);
+        mesh.visible = false;
+        this.air.add(mesh);
+        const delay = base + i * FLIGHT_GAP_S;
+        this.live.push({ mesh, a: this.where(f.from).add(jitter(i)), b: this.where(f.to).add(jitter(i + 7)), delay, dur: FLIGHT_S, arc: 0.16, fade: false });
+        end = Math.max(end, delay + FLIGHT_S);
+        if (!f.after) sweepEnd = Math.max(sweepEnd, delay + FLIGHT_S);
+      });
+    }
+    for (const seat of mucks) {
+      const slots = seatSlots(this.spots[seat]!);
+      slots.cards.forEach((c, k) => {
+        const mesh = new Mesh(this.holeGeometry, new MeshBasicMaterial({ map: cardTexture("back"), transparent: true }));
+        mesh.rotation.order = "YXZ";
+        mesh.rotation.set(-Math.PI / 2 + 0.12, k === 0 ? 0.08 : -0.08, 0);
+        mesh.visible = false;
+        this.air.add(mesh);
+        this.live.push({ mesh, a: new Vector3(c.x, this.tableY + 0.02, c.z), b: new Vector3(MUCK_AT.x + (k - 0.5) * 0.04, this.tableY + 0.02, MUCK_AT.z), delay: k * FLIGHT_GAP_S, dur: FLIGHT_S + 0.1, arc: 0.1, fade: true });
+        end = Math.max(end, k * FLIGHT_GAP_S + FLIGHT_S + 0.1);
+      });
+    }
+    this.flightEnd = end;
+    this.motion.flights = this.live.length;
+  }
+
+  private draw(state: State, hold?: Hold): void {
     const y = this.tableY;
     this.cards.clear();
     /** `lean` raises the card's far edge toward the camera (negative x rotation from flat); `yaw` turns it about its own middle. */
@@ -234,8 +340,10 @@ export class TableProps {
         });
         this.drawn.seatCards[i] = row.cards?.length ?? 0;
       }
-      put(row.stack, slots.stack.x, slots.stack.z, slots.across);
-      if (row.bet) put(row.bet, slots.bet.x, slots.bet.z, slots.across);
+      const stack = hold?.stack.get(i) ?? row.stack;
+      const bet = hold?.bet.get(i) ?? row.bet ?? 0;
+      put(stack, slots.stack.x, slots.stack.z, slots.across);
+      if (bet) put(bet, slots.bet.x, slots.bet.z, slots.across);
       if (state.dealer === row.seat_id) {
         this.button.position.set(slots.button.x, y + 0.005, slots.button.z);
         this.buttonFace.map ??= buttonTexture();
@@ -244,7 +352,8 @@ export class TableProps {
         this.drawn.dealer = row.seat_id;
       }
     }
-    if (state.pot) put(state.pot, POT_AT.x, POT_AT.z, { x: 1, z: 0 });
+    const middle = hold?.middle ?? middlePot(state); // the pot counts the bets still in front of the players: draw only what is in the middle
+    if (middle) put(middle, POT_AT.x, POT_AT.z, { x: 1, z: 0 });
     this.drawn.pot = state.pot ? `Pot ${state.pot.toLocaleString("en-US")}` : undefined;
     if (this.drawn.pot !== this.potText) {
       this.potText = this.drawn.pot ?? "";

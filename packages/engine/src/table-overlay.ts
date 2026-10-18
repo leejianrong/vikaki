@@ -16,6 +16,12 @@ const money = (n: number) => n.toLocaleString("en-US");
 /** How long a speech bubble stays after its line's last piece (ms). */
 export const BUBBLE_MS = 4000;
 
+/** How long a beat's banner stays (ms), by kind. A showdown and a win stay until the next beat replaces them. */
+export const BEAT_MS: Record<string, number | undefined> = { new_hand: 2300, street: 2300, showdown: undefined, win: undefined };
+const BEAT_DEFAULT_MS = 1900;
+/** The beats that are a title card for the table, not one seat's move. */
+const TITLES = new Set(["new_hand", "street", "showdown", "win"]);
+
 export function cardEl(card: string): HTMLElement {
   const f = cardFace(card);
   return el("li", { className: `card${f.red ? " red" : ""}${f.down ? " down" : ""}`, textContent: f.text, ariaLabel: f.down ? "face-down card" : f.text });
@@ -28,6 +34,8 @@ export class TableOverlay {
   private readonly log = el("div", { className: "transcript", role: "log", ariaLabel: "Transcript" });
   private readonly bubbles: HTMLElement[];
   private readonly marks: HTMLElement[];
+  private readonly beat = el("div", { className: "beat", role: "status", ariaLabel: "Last move", hidden: true });
+  private beatTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly bubbleTimers: (ReturnType<typeof setTimeout> | undefined)[];
   private lines: TranscriptLine[] = [];
   private state: State | undefined;
@@ -58,7 +66,7 @@ export class TableOverlay {
       m.style.setProperty("--seat-colour", seatColour(i));
       return m;
     });
-    this.root.append(this.info, ...this.plates, ...this.bubbles, ...this.marks, this.log);
+    this.root.append(this.info, ...this.plates, ...this.bubbles, ...this.marks, this.beat, this.log);
     parent.append(this.root);
     this.draw();
   }
@@ -83,6 +91,26 @@ export class TableOverlay {
   setState(state: State): void {
     this.state = state;
     this.draw();
+    this.showBeat(state.event);
+  }
+
+  /** The banner for the beat just played ("Ben raises to 12"), and a pulse on the acting seat's plate. The words are the game's. */
+  private showBeat(event: State["event"]): void {
+    if (!event) return;
+    clearTimeout(this.beatTimer);
+    const i = this.seats.findIndex((s) => s.seat === event.seat_id);
+    this.beat.className = `beat ${TITLES.has(event.kind) ? "title" : "move"} kind-${event.kind.replace(/[^a-z_-]/g, "")}`;
+    this.beat.style.setProperty("--seat-colour", i >= 0 ? seatColour(i) : "var(--md-sys-color-primary)");
+    this.beat.textContent = event.text;
+    this.beat.hidden = false;
+    const stays = event.kind in BEAT_MS && BEAT_MS[event.kind] === undefined;
+    if (!stays) this.beatTimer = setTimeout(() => (this.beat.hidden = true), BEAT_MS[event.kind] ?? BEAT_DEFAULT_MS);
+    const plate = i >= 0 ? this.plates[i] : undefined;
+    if (plate && !TITLES.has(event.kind)) {
+      plate.classList.remove("acted");
+      void plate.offsetWidth; // restart the pulse
+      plate.classList.add("acted");
+    }
   }
 
   addText(line: { id: string; seat: string; text?: string; delta?: string }): void {

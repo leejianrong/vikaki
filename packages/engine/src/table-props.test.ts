@@ -96,3 +96,55 @@ describe("the layout of the table (VIK-84)", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("the table moves (VIK-113)", () => {
+  const noop: unknown = new Proxy(() => noop, { get: () => noop, set: () => true });
+  const make = () => {
+    vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => noop }) });
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    return new TableProps(0.7, ovalSeats(3), ["a", "b", "c"]);
+  };
+  const row = (id: string, stack: number, extra: object = {}) => ({ seat_id: id, stack, cards: ["back", "back"], ...extra });
+  const st = (o: object) => ({ protocol_version: 1, type: "table_state", hand_no: 1, ...o }) as Parameters<TableProps["setState"]>[0];
+
+  it("throws chips in when a seat bets: the old piles stay until they land, then the new ones are drawn", () => {
+    const props = make();
+    props.setState(st({ pot: 6, street: "flop", seats: [row("a", 94), row("b", 94), row("c", 94)] }));
+    const before = props.drawn.chips;
+    props.setState(st({ pot: 18, street: "flop", seats: [row("a", 82, { bet: 12 }), row("b", 94), row("c", 94)] }));
+    expect(props.motion.flights).toBeGreaterThan(0); // chips are in the air
+    props.update(0.1);
+    expect(props.motion.flights).toBeGreaterThan(0);
+    expect(props.drawn.chips).toBe(before); // the piles are still as they were
+    props.update(5); // long enough for any flight
+    expect(props.motion.flights).toBe(0);
+    const count = (n: number) => chipCounts(n).reduce((a, b) => a + b, 0);
+    expect(props.drawn.chips).toBe(count(82) + count(12) + count(94) * 2 + count(6)); // the shorter stack, the bet in front, the others, the middle
+    vi.unstubAllGlobals();
+  });
+
+  it("pushes a folded hand's cards away, then they are gone", () => {
+    const props = make();
+    props.setState(st({ street: "flop", seats: [row("a", 94), row("b", 94), row("c", 94)] }));
+    props.setState(st({ street: "flop", seats: [row("a", 94, { folded: true }), row("b", 94), row("c", 94)] }));
+    expect(props.motion.flights).toBeGreaterThan(0);
+    props.update(5);
+    expect(props.motion.flights).toBe(0);
+    expect(props.drawn.seatCards).toEqual([0, 2, 2]);
+    vi.unstubAllGlobals();
+  });
+
+  it("snaps to the new state when another arrives mid-flight, and moves nothing for a reader who asks for reduced motion", () => {
+    const props = make();
+    props.setState(st({ pot: 6, street: "flop", seats: [row("a", 94), row("b", 94), row("c", 94)] }));
+    props.setState(st({ pot: 18, street: "flop", seats: [row("a", 82, { bet: 12 }), row("b", 94), row("c", 94)] }));
+    props.setState(st({ pot: 18, street: "flop", seats: [row("a", 82, { bet: 12 }), row("b", 94), row("c", 94), ], event: { kind: "x", text: "x" } }));
+    expect(props.motion.flights).toBe(0); // nothing changed in front of the players, and the old flight was finished
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const calm = new TableProps(0.7, ovalSeats(3), ["a", "b", "c"]);
+    calm.setState(st({ pot: 6, street: "flop", seats: [row("a", 94), row("b", 94), row("c", 94)] }));
+    calm.setState(st({ pot: 18, street: "flop", seats: [row("a", 82, { bet: 12 }), row("b", 94), row("c", 94)] }));
+    expect(calm.motion.flights).toBe(0);
+    vi.unstubAllGlobals();
+  });
+});
