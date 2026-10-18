@@ -106,3 +106,37 @@ def test_advice_raises_for_value_calls_when_the_price_is_right_and_folds_when_it
     action, why = advice(win=0.2, call_amount=60, pot=60, can_check=False, can_raise=False, opponents=1)
     assert action == "fold" and "20%" in why and "50%" in why
     assert advice(win=0.9, call_amount=20, pot=40, can_check=False, can_raise=False, opponents=1)[0] == "call"  # cannot raise: calls
+
+
+def _mix(n=2000, **spot):
+    rng = random.Random(7)
+    counts: dict[str, int] = {}
+    for _ in range(n):
+        a = advice(rng=rng, **spot)[0]
+        counts[a] = counts.get(a, 0) + 1
+    return {k: v / n for k, v in counts.items()}
+
+
+def test_a_little_dice_keeps_the_play_from_being_the_same_every_time_but_never_in_a_clear_spot():
+    free_weak = dict(win=0.2, call_amount=0, pot=10, can_check=True, can_raise=True, opponents=1)
+    bluff = _mix(**free_weak).get("raise", 0)
+    assert 0.03 <= bluff <= 0.15  # an occasional bluff when it is free and few are in
+    free_monster = dict(win=0.92, call_amount=0, pot=10, can_check=True, can_raise=True, opponents=2)
+    slow = _mix(**free_monster).get("check", 0)
+    assert 0.02 <= slow <= 0.12  # an occasional slow-play
+    marginal = dict(win=0.21, call_amount=10, pot=40, can_check=False, can_raise=True, opponents=2)  # needs 20%: a close call
+    mixed = _mix(**marginal)
+    assert 0.05 <= mixed.get("fold", 0) <= 0.4 and mixed.get("call", 0) > 0.5
+    # clear spots never change
+    assert _mix(win=0.1, call_amount=60, pot=60, can_check=False, can_raise=True, opponents=1) == {"fold": 1.0}
+    assert _mix(win=0.9, call_amount=20, pot=40, can_check=False, can_raise=True, opponents=1) == {"raise": 1.0}
+    assert _mix(win=0.5, call_amount=5, pot=100, can_check=False, can_raise=True, opponents=1).get("call", 0) == 1.0
+    # many opponents: no bluffing into a crowd
+    assert "raise" not in _mix(win=0.2, call_amount=0, pot=10, can_check=True, can_raise=True, opponents=4)
+
+
+def test_the_dice_say_so_in_the_reason_and_the_same_dice_give_the_same_answer():
+    spot = dict(win=0.2, call_amount=0, pot=10, can_check=True, can_raise=True, opponents=1)
+    found = next(advice(rng=random.Random(i), **spot) for i in range(500) if advice(rng=random.Random(i), **spot)[0] == "raise")
+    assert "mix" in found[1]
+    assert advice(rng=random.Random(3), **spot) == advice(rng=random.Random(3), **spot)

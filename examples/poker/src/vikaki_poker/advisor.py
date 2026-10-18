@@ -26,7 +26,7 @@ class AdvisorBot:
         f = turn_facts(view, samples=self.samples)
         action = f["advice"]
         if action == "raise":
-            to = int(view["current_bet"] + max(1, 0.67 * view["pot"]))
+            to = f["raise_to"] if f["raise_to"] is not None else int(view["current_bet"] + max(1, 0.67 * view["pot"]))
             return Decision("raise", max(legal["min_raise_to"], min(legal["max_raise_to"], to)))
         return Decision(action)
 

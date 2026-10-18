@@ -55,53 +55,32 @@ class Traits:
         return cls(**{k: (str(v) if k == "quirk" else v) for k, v in data.items()})
 
 
-def hands_to_play(loose: float) -> int:
-    """About what share of hands (in percent, to the nearest 5) a seat of this looseness plays before the flop: 10% for the tightest, 25% for a middling player, 70% for the loosest."""
-    raw = 10 + 30 * loose if loose <= 0.5 else 25 + 90 * (loose - 0.5)
-    return 5 * round(raw / 5)
-
-
 def personality_text(name: str, traits: Traits, style: str = "") -> str:
-    """The personality section of a seat's instructions."""
+    """The personality section of a seat's instructions. It is only about talk: everyone plays the same sound game (VIK-112), so how loose, aggressive,
+    bluffy or tricky a character is shows in how it talks and thinks about the game, never in what it does."""
     t = traits
     lines = [f"Your personality (you are {name}" + (f", {style}" if style else "") + "):"]
+    lines.append("- Everyone at this table plays sound poker: your moves come from the numbers and the recommendation you are given, not from your personality. Your personality shows in how you talk and think about the game.")
     lines.append(
-        "- Hands you play: "
+        "- How you talk about the game: "
         + _level(
             t.loose,
-            "tight. Play only premium and strong hands, fold the rest even when they look pretty. You are patient.",
-            "balanced. Play strong and playable hands, fold weak ones.",
-            "loose. You love to see flops: play many hands, call light, chase draws, enjoy being in the action.",
+            "like a patient, careful player who is happy to wait for a good spot.",
+            "like an easy-going player who enjoys a hand.",
+            "like someone who loves the action and the big pots.",
         )
-        + f" Before the flop, play about {hands_to_play(t.loose)} hands in every 100 (the best ones by starting-hand strength) and fold the rest; do not play every hand."
-    )
-    lines.append(
-        "- Betting: "
+        + " "
         + _level(
             t.aggressive,
-            "passive. You prefer to check and call; you raise only with a very strong hand.",
-            "mixed. You bet your good hands and call when the price is right.",
-            "aggressive. You bet and raise far more than you check or call, put pressure on people, and re-raise.",
+            "You are mild and polite about your bets.",
+            "You are friendly about your bets.",
+            "You talk big, tease people and like to put pressure on them with words.",
         )
-    )
-    n = round(t.bluff * 10)
-    lines.append(
-        "- Bluffing: "
-        + (
-            "you almost never bluff; a bet from you means something."
-            if n <= 1
-            else f"when nobody has bet and your hand is weak, you bluff about {n} times in 10 if the spot is good (few opponents, a board your story fits)."
-            if n < 8
-            else f"you are bold: when the spot is even half good you bluff, about {n} times in 10, and sometimes you fire a second barrel."
-        )
-    )
-    lines.append(
-        "- Cunning: "
         + _level(
             t.tricky,
-            "straightforward. Bet your strong hands, check your weak ones, and size your bets the same way each time.",
-            "now and then you slow-play a strong hand or vary your bet size.",
-            "tricky. You slow-play monsters (check or just call to trap), check-raise, and change your bet sizes so nobody can read you.",
+            "",
+            " Now and then you hint at a trap.",
+            " You like to sound mysterious and hint at traps (in words only: your play stays sound).",
         )
     )
     lines.append(
@@ -162,6 +141,11 @@ def _rng_for(view: dict) -> random.Random:
     return random.Random(zlib.crc32((" ".join(view["hole"]) + "|" + " ".join(view["board"]) + f"|{len(view['players'])}").encode()))
 
 
+def _dice_for(view: dict) -> random.Random:
+    """The dice for the little mixing of the advice: seeded by what the seat can see and how the betting stands, so a spot gives one answer but different hands differ."""
+    return random.Random(zlib.crc32((" ".join(view["hole"]) + "|" + " ".join(view["board"]) + f"|{view['pot']}|{view['current_bet']}|dice").encode()))
+
+
 def turn_facts(view: dict, *, samples: int = 1500) -> dict:
     """The numbers of this turn, from what the seat may know (`Hand.view` for the seat to act). Nothing about anyone else's cards."""
     me_id = view["to_act"]
@@ -171,7 +155,11 @@ def turn_facts(view: dict, *, samples: int = 1500) -> dict:
     opponents = [p for p in players if p["seat_id"] != me_id and not p["folded"]]
     win = equity_vs_random(view["hole"], view["board"], max(1, len(opponents)), rng=_rng_for(view), samples=samples)
     call = legal["call_amount"] if "call" in legal["kinds"] else 0
-    action, why = advice(win=win, call_amount=call, pot=view["pot"], can_check="check" in legal["kinds"], can_raise="raise" in legal["kinds"], opponents=len(opponents))
+    dice = _dice_for(view)
+    action, why = advice(win=win, call_amount=call, pot=view["pot"], can_check="check" in legal["kinds"], can_raise="raise" in legal["kinds"], opponents=len(opponents), rng=dice)
+    raise_to = None
+    if action == "raise" and "raise" in legal["kinds"]:
+        raise_to = max(legal["min_raise_to"], min(legal["max_raise_to"], int(view["current_bet"] + max(1, dice.uniform(0.5, 0.8) * view["pot"]))))
     facts = {
         "hand": hand_name(view["hole"], view["board"]),
         "win": win,
@@ -183,6 +171,7 @@ def turn_facts(view: dict, *, samples: int = 1500) -> dict:
         "spr": round(me["stack"] / view["pot"], 1) if view["pot"] else None,
         "advice": action,
         "why": why,
+        "raise_to": raise_to,
     }
     if not view["board"]:
         tier, word = preflop_strength(view["hole"])
@@ -208,7 +197,11 @@ def briefing(view: dict, facts: dict, history: str, talk: list[tuple[str, str]],
         lines.append("This hand so far: " + history)
     price = f"calling costs {facts['call']}, so you need to win {facts['need']:.0%} to break even" if facts["call"] else "nothing is owed to stay in"
     lines.append(f"The numbers: you win about {facts['win']:.0%} of the time against random hands ({price})." + (f" {facts['improving']} unseen cards would improve your hand." if facts["improving"] else ""))
-    lines.append(f"A rule of thumb says {facts['advice']}: {facts['why']}. Follow it, or break from it when your personality or the story of the hand says so.")
+    size = f" (a raise to about {facts['raise_to']} is the usual size)" if facts.get("raise_to") else ""
+    lines.append(
+        f"The recommended move is {facts['advice']}{size}: {facts['why']}. Play the recommended move: it is worked out soundly, the same for everyone at this table, including the odd mixed play that keeps you hard to read. "
+        "Break from it only when the story of the hand makes it plainly wrong."
+    )
     if talk:
         lines.append("Recent table talk: " + " | ".join(f"{who(s)}: {text}" for s, text in talk[-recent:]))
     options = []

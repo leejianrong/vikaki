@@ -167,21 +167,31 @@ def preflop_strength(hole: list[str]) -> tuple[int, str]:
     return 5, "weak"
 
 
-def advice(*, win: float, call_amount: int, pot: int, can_check: bool, can_raise: bool, opponents: int) -> tuple[str, str]:
-    """A recommended action and the reason, from the win probability against random hands and the pot odds. A rule of thumb: the persona decides
-    how closely to follow it. Returns (action, reason) with the action one of fold, check, call, raise."""
+def advice(*, win: float, call_amount: int, pot: int, can_check: bool, can_raise: bool, opponents: int, rng: random.Random | None = None) -> tuple[str, str]:
+    """A recommended action and the reason, from the win probability against random hands and the pot odds: sound play, the same for every seat.
+    Returns (action, reason) with the action one of fold, check, call, raise.
+
+    With an `rng` it mixes in a little chance so that play is not the same every time (VIK-112), and only where mixing costs little: an occasional
+    bluff when it is free and few are in, an occasional slow-play of a monster, and a close call that is sometimes a fold. A clear spot never changes.
+    """
     need = pot_odds(call_amount, pot)
     # Against more players, the same hand is worth less than its win chance suggests it will be when called.
     value_bar = min(0.8, 0.5 + 0.08 * max(0, opponents - 1))
     pct = f"{win:.0%}"
     if call_amount <= 0:
         if can_raise and win >= value_bar:
+            if rng is not None and win >= 0.85 and rng.random() < 0.06:
+                return "check", f"you win {pct}: mixing it up, slow-play the monster this time and check"
             return "raise", f"you win {pct} of the time against random hands and nothing is owed: bet for value"
+        if rng is not None and can_raise and win < 0.3 and opponents <= 2 and rng.random() < 0.08:
+            return "raise", f"nothing is owed and you win only {pct}, but few are in: mixing it up, a small bluff this time"
         return "check", f"nothing is owed and you win {pct}: take the free card" if win >= 0.3 else f"nothing is owed and you win only {pct}: check"
     if win >= value_bar + 0.1 and can_raise:
         return "raise", f"you win {pct} and a call needs only {need:.0%}: raise for value"
     if win >= need + 0.05:
         return "call", f"you win {pct}, more than the {need:.0%} the call needs"
     if win >= need - 0.03:
+        if rng is not None and rng.random() < 0.2:
+            return "fold", f"close: you win {pct} and the call needs {need:.0%}: mixing it up, let this marginal one go"
         return "call", f"close: you win {pct} and the call needs {need:.0%}, so it is a marginal call"
     return "fold", f"you win only {pct} and the call needs {need:.0%}"

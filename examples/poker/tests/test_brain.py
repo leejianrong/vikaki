@@ -1,7 +1,7 @@
 import pytest
 
 from vikaki_poker import Hand
-from vikaki_poker.brain import STRATEGY_PRIMER, Traits, briefing, hands_to_play, history_text, personality_text, turn_facts
+from vikaki_poker.brain import STRATEGY_PRIMER, Traits, briefing, history_text, personality_text, turn_facts
 from vikaki_poker.seat import build_messages
 
 
@@ -22,16 +22,29 @@ def test_traits_are_numbers_from_0_to_1_and_unknown_ones_are_named():
     assert Traits.from_dict({"quirk": "hums", "bluff": 0.9}).bluff == 0.9
 
 
-def test_the_personality_says_how_to_play_in_words_that_follow_the_numbers():
+def test_the_personality_is_in_the_talk_and_never_in_the_play():
     tight = personality_text("ben", Traits(loose=0.1, aggressive=0.1, bluff=0.0, tricky=0.1, talkative=0.1, emotional=0.1), "careful")
     wild = personality_text("cy", Traits(loose=0.95, aggressive=0.95, bluff=0.9, tricky=0.9, talkative=0.95, emotional=0.9, quirk="hums when bluffing"), "fearless")
-    for word in ("tight", "passive", "almost never bluff", "straightforward", "quiet", "calm"):
+    for word in ("quiet", "calm", "careful"):
         assert word in tight
-    for word in ("loose", "aggressive", "bold", "tricky", "chatterbox", "heart on your sleeve", "hums when bluffing"):
+    for word in ("chatterbox", "heart on your sleeve", "hums when bluffing", "fearless"):
         assert word in wild
-    assert "careful" in tight and "ben" in tight
-    assert tight != wild
-    assert "about 5 times in 10" in personality_text("x", Traits(bluff=0.5))
+    assert tight != wild and "ben" in tight
+    for text in (tight, wild):  # nothing here tells a seat to play more or fewer hands, to bluff, to bet more or to trap
+        for banned in ("hands in every 100", "times in 10 if the spot", "slow-play", "play only premium", "you love to see flops"):
+            assert banned not in text
+        assert "Everyone at this table plays sound poker" in text
+    # the style is only how it talks about the game
+    assert "talk" in personality_text("x", Traits(loose=0.95)).lower()
+
+
+def test_every_seat_gets_the_same_briefing_whatever_its_traits():
+    _, view = view_for()
+    wild = build_messages("cy", "", view, [], traits=Traits(loose=0.95, aggressive=0.95, bluff=0.9, tricky=0.9))
+    tight = build_messages("ben", "", view, [], traits=Traits(loose=0.1, aggressive=0.1, bluff=0.0, tricky=0.1))
+    assert wild[1] == tight[1]  # the turn's facts and the recommendation are the engine's, for everyone
+    assert "personality" not in wild[1]["content"]
+    assert "Play the recommended move" in wild[1]["content"]
 
 
 def test_a_trait_changes_the_instructions_a_seat_is_given():
@@ -81,7 +94,7 @@ def test_the_briefing_has_the_numbers_the_story_and_the_legal_moves_and_no_other
     for other in h.seats:
         if other.seat_id != seat:
             assert not any(c in text for c in other.hole)
-    assert "ada raised to 8" in text and "you win about" in text and "need to win" in text and "A rule of thumb says" in text
+    assert "ada raised to 8" in text and "you win about" in text and "need to win" in text and "The recommended move is" in text
     assert "ada: Big one." in text and "Your legal actions:" in text and "Opponents still in:" in text
 
 
@@ -90,10 +103,3 @@ def test_the_pot_odds_in_the_briefing_match_the_price_of_the_call():
     facts = turn_facts(view)
     call = view["legal"]["call_amount"]
     assert facts["need"] == pytest.approx(call / (view["pot"] + call))
-
-
-def test_looseness_is_given_as_a_share_of_hands_to_play_and_grows_with_the_trait():
-    assert [hands_to_play(x) for x in (0.0, 0.15, 0.5, 0.7, 0.95, 1.0)] == [10, 15, 25, 45, 65, 70]
-    assert all(hands_to_play(a) <= hands_to_play(b) for a, b in zip([i / 20 for i in range(20)], [i / 20 for i in range(1, 21)]))
-    assert "about 15 hands in every 100" in personality_text("ben", Traits(loose=0.15))
-    assert "about 65 hands in every 100" in personality_text("cy", Traits(loose=0.95))

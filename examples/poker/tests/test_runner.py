@@ -546,3 +546,13 @@ def test_the_pace_option_defaults_to_normal_with_a_hub_and_off_without(monkeypat
     for extra in (["--no-hub"], ["--no-hub", "--pace", "slow"], ["--no-hub", "--pace", "fast"]):
         assert main(["play", "--table", TABLE, "--fake-llm", "--no-reactions", "--hands", "1", *extra]) == 0
     assert seen == [0.0, 1.5, 0.5]
+
+
+def test_without_a_seed_each_game_is_dealt_afresh_and_says_which_seed_to_repeat_it_with(capsys):
+    seeds = []
+    for _ in range(2):
+        assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "1", "--no-reactions"]) == 0
+        seeds.append(re.search(r"seed (\d+)", capsys.readouterr().out).group(1))  # type: ignore[union-attr]
+    assert seeds[0] != seeds[1]
+    assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "1", "--no-reactions", "--seed", "7"]) == 0
+    assert "seed 7" in capsys.readouterr().out
