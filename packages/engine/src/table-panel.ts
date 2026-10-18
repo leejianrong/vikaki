@@ -19,10 +19,12 @@ export class TablePanel {
   private readonly cards: HTMLElement[];
   private readonly chat = el("div", { className: "chat", role: "log", ariaLabel: "Chat", tabIndex: 0 });
   private lines: TranscriptLine[] = [];
+  private readonly thoughts = el("div", { className: "chat thoughts", role: "log", ariaLabel: "Thoughts", tabIndex: 0 });
+  private thoughtLines: { seat: string; text: string }[] = [];
 
   constructor(private readonly seats: Seat[], parent: HTMLElement = document.body) {
     this.cards = seats.map((s) => el("section", { className: "seat-card", role: "group", ariaLabel: `${label(s)}, hand` }));
-    this.root.append(el("h1", { className: "title-large", textContent: "Table" }), this.head, ...this.cards, el("h2", { className: "title-medium", textContent: "Chat" }), this.chat);
+    this.root.append(el("h1", { className: "title-large", textContent: "Table" }), this.head, ...this.cards, el("h2", { className: "title-medium", textContent: "Chat" }), this.chat, el("h2", { className: "title-medium", textContent: "Thoughts" }), this.thoughts);
     document.body.classList.add("has-panel", "has-table-panel");
     parent.append(this.root);
     this.draw();
@@ -45,6 +47,21 @@ export class TablePanel {
       }),
     );
     if (atEnd) this.chat.scrollTop = this.chat.scrollHeight;
+  }
+
+  /** A private thought (VIK-93): shown here for the audience, in the seat's colour, and kept apart from what was said aloud. */
+  addThought(seat: string, text: string): void {
+    this.thoughtLines = [...this.thoughtLines, { seat, text }].slice(-CHAT_LINES);
+    const atEnd = this.thoughts.scrollHeight - this.thoughts.scrollTop - this.thoughts.clientHeight < 24;
+    this.thoughts.replaceChildren(
+      ...this.thoughtLines.map((l) => {
+        const i = Math.max(0, this.seats.findIndex((s) => s.seat === l.seat));
+        const who = el("b", { textContent: this.seats[i] ? label(this.seats[i]!) : l.seat });
+        who.style.color = seatColour(i);
+        return el("p", {}, who, l.text);
+      }),
+    );
+    if (atEnd) this.thoughts.scrollTop = this.thoughts.scrollHeight;
   }
 
   private draw(st?: State): void {

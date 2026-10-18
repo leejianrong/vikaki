@@ -232,3 +232,21 @@ describe("react", () => {
     expect(parseMessage({ protocol_version: 1, type: "react", seat_id: "s", emotion: "happy", seconds: 60 }).ok).toBe(false);
   });
 });
+
+describe("thought", () => {
+  it("is sent by a driver: a seat's private thought, as text for the viewers and never as speech", () => {
+    expect(DRIVER_MAY_SEND).toContain("thought");
+    expect(parseMessage({ protocol_version: 1, type: "thought", seat_id: "seat-2", text: "Ace-king, and nobody has bet. Raise." })).toMatchObject({
+      ok: true,
+      message: { type: "thought", seat_id: "seat-2", text: "Ace-king, and nobody has bet. Raise." },
+    });
+    expect(parseMessage({ protocol_version: 1, type: "thought", seat_id: "seat-2", persona: "ada", text: "Hm." }).ok).toBe(true);
+  });
+
+  it("needs a seat and some text, and the text is bounded", () => {
+    expect(parseMessage({ protocol_version: 1, type: "thought", text: "Hm." }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "thought", seat_id: "s" }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "thought", seat_id: "s", text: "" }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "thought", seat_id: "s", text: "x".repeat(1001) }).ok).toBe(false);
+  });
+});

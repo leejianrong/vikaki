@@ -278,10 +278,17 @@ try {
       const i = seatFor(seats, { seat, persona });
       if (i === undefined) return;
       puppets[i]!.emotion.think(thinking);
+      if (thinking) overlay.setThought(seats[i]!.seat, false); // a new turn: the last thought is stale
       if (thinking) api.table!.seats[i]!.peak.thought = true; // a beat shorter than a frame gap is never drawn on a slow page (VIK-77)
       if (thinking) thinker = i;
       else if (thinker === i) thinker = undefined;
       refocus();
+    },
+    onThought: (t) => {
+      const i = seatFor(seats, { seat: t.seat, persona: t.persona });
+      if (i === undefined) return;
+      overlay.setThought(seats[i]!.seat, true);
+      panel?.addThought(seats[i]!.seat, t.text);
     },
     onTableState: (state) => {
       overlay.setState(state);

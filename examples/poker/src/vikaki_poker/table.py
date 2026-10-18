@@ -36,7 +36,7 @@ class Table:
     stack: int = 200
     small_blind: int = 1
     big_blind: int = 2
-    max_tokens: int = 200
+    max_tokens: int = 300
     reaction_model: str | None = None  # a cheap model for listeners' silent reactions; without one they follow a fixed table (MirrorReactor)
     problems: list[str] = field(default_factory=list)
 

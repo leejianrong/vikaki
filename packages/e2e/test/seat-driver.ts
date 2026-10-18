@@ -38,6 +38,11 @@ export class SeatDriver {
     this.ws.send(JSON.stringify({ protocol_version: PROTOCOL_VERSION, type: "utterance", seat_id: this.seat.seat_id, utterance_id: id, text, ...extra }));
   }
 
+  /** A private thought for the audience: no persona named, the seat's is used. */
+  think(text: string) {
+    this.ws.send(JSON.stringify(make("thought", { seat_id: this.seat.seat_id, text })));
+  }
+
   send(type: "turn_started" | "turn_ended") {
     this.ws.send(JSON.stringify(make(type, { seat_id: this.seat.seat_id }))); // no persona named: the seat's is used
   }

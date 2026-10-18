@@ -81,6 +81,10 @@ class Vikaki:
         """See `VikakiClient.react`."""
         self._run(self._client.react(seat_id, **kw))
 
+    def thought(self, seat_id: str, text: str, **kw: Any) -> None:
+        """See `VikakiClient.thought`."""
+        self._run(self._client.thought(seat_id, text, **kw))
+
     def table_state(self, seats: list[dict[str, Any]], **kw: Any) -> None:
         """See `VikakiClient.table_state`."""
         self._run(self._client.table_state(seats, **kw))

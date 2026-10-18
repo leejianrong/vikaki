@@ -52,6 +52,9 @@ def test_other_messages_are_checked_too():
         make("react", seat_id="s1")  # nothing to show
     with pytest.raises(InvalidMessage):
         make("react", seat_id="s1", gesture="dance")
+    make("thought", seat_id="s1", text="Hm.")
+    with pytest.raises(InvalidMessage):
+        make("thought", seat_id="s1", text="")
     with pytest.raises(InvalidMessage, match="listed twice"):
         make("table_state", seats=[{"seat_id": "a", "stack": 1}, {"seat_id": "a", "stack": 2}])
     with pytest.raises(InvalidMessage):

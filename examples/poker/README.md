@@ -21,6 +21,8 @@ uv run --with-editable ../../clients/python python -m vikaki_poker play --table 
 
 Add `--no-hub` to print the lines instead of speaking them (no hub needed).
 
+Each model also answers with a `think` field, a private thought for the audience (ADR-0023). The runner sends it as a `thought` message: the table page shows it in a Thoughts panel, it is never spoken, and no other seat's prompt contains it.
+
 The seats that are listening react silently to each line: a feeling and a nod, shake or tilt, sent as `react` events as soon as the line is heard. Without a model they follow a fixed table of how listeners tend to answer an emotion (free, and the same every time). Name a cheap model as `reaction_model` in the table file and each listener asks it instead, one short call per listener (counted in the summary). `--no-reactions` keeps the listeners still.
 
 The page also shows the table (pot, board, stacks, bets, dealer button, whose turn it is) as a `table_state` the runner sends at the start of each hand and after every move. The table page is a spectator's view: every live hand is shown face up, with its name in words, its chance to win and what each seat did last (the numbers come from `vikaki_poker.facts`: exact when few boards are left, else sampled). In the 3D view they fill a side panel. `--hide-cards` keeps the hands face down until a showdown and sends no names or odds. A folded hand is never shown.

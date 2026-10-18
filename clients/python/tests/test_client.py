@@ -66,6 +66,15 @@ def test_react_goes_out_with_only_what_was_set(hub):
     assert hub.wait_received(2)[1] == {"protocol_version": 1, "type": "react", "seat_id": "s", "gesture": "shake", "seconds": 1}
 
 
+def test_a_thought_goes_out_as_text_for_a_seat(hub):
+    async def go():
+        async with await VikakiClient.connect(hub.url) as c:
+            await c.thought("s", "Ace-king. Raise.", persona="ada")
+
+    run(go())
+    assert hub.wait_received(2)[1] == {"protocol_version": 1, "type": "thought", "seat_id": "s", "text": "Ace-king. Raise.", "persona": "ada"}
+
+
 def test_cancel_with_and_without_an_id(hub):
     async def go():
         async with await VikakiClient.connect(hub.url) as c:

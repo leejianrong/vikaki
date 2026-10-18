@@ -95,6 +95,15 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `gesture` | one of `nod`, `shake`, `tilt` | no |  |
 | `seconds` | number | no | 0.2 to 10 |
 
+## `thought`
+
+| field | type | required | bounds |
+| --- | --- | --- | --- |
+| `session_id` | string | no | 1 to 128 characters |
+| `seat_id` | string | yes | 1 to 128 characters |
+| `persona` | string | no | 1 to 64 characters |
+| `text` | string | yes | 1 to 1000 characters |
+
 ## `speech_started`
 
 | field | type | required | bounds |

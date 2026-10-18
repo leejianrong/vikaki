@@ -320,6 +320,21 @@ describe("the table page", () => {
     expect(m).toEqual({ scrollable: true, atEnd: true });
   });
 
+  it("shows a private thought in the Thoughts panel, apart from the chat, with a mark over the thinker until its next turn; it is never spoken (VIK-93)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const thought = "Ace-king, and nobody has bet. Time to raise.";
+    d1.think(thought);
+    const thoughts = page.getByRole("log", { name: "Thoughts" });
+    await thoughts.getByText(thought).waitFor({ timeout: 15_000 });
+    expect(await thoughts.innerText()).toContain("ada");
+    expect(await page.getByRole("log", { name: "Chat" }).innerText()).not.toContain(thought); // not table talk
+    expect(await page.getByLabel("ben says").isVisible()).toBe(false);
+    await page.getByLabel("ada has a thought").waitFor({ state: "visible" });
+    expect(await page.getByLabel("ben has a thought").isVisible()).toBe(false);
+    d1.send("turn_started");
+    await page.getByLabel("ada has a thought").waitFor({ state: "hidden", timeout: 15_000 });
+  });
+
   it("has the panel by default in the 3D view only: not in the row, not when embedded, and ?panel= decides (VIK-83)", { timeout: 120_000 }, async () => {
     const row = await setup("seats=3", undefined, false);
     expect(await row.page.locator("aside.table-panel").count()).toBe(0);

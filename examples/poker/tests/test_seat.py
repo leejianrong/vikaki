@@ -4,7 +4,7 @@ import pytest
 
 from vikaki_poker import Hand
 from vikaki_poker.llm import FakeLlm, LlmError, Usage
-from vikaki_poker.seat import Decision, SeatAgent, build_messages, parse_decision
+from vikaki_poker.seat import MAX_THINK, Decision, SeatAgent, build_messages, parse_decision
 
 FACING_BET = {"kinds": ["fold", "call", "raise"], "call_amount": 2, "min_raise_to": 4, "max_raise_to": 100}
 FREE = {"kinds": ["fold", "check", "raise"], "call_amount": 0, "min_raise_to": 2, "max_raise_to": 100}
@@ -119,3 +119,20 @@ def test_a_failing_model_never_stalls_the_seat():
     d = SeatAgent(h.to_act, "ada", Broken(), "m").decide(view)  # type: ignore[arg-type]
     assert d.action == "fold" and "HTTP 500" in d.note
     assert Usage().calls == 0
+
+
+def test_a_private_thought_is_read_tidied_and_capped_and_survives_a_bad_move():
+    legal = {"kinds": ["fold", "call", "raise"], "min_raise_to": 4, "max_raise_to": 50}
+    d = parse_decision('{"think": "  Two   pair,\\nI think. ", "action": "call"}', legal)
+    assert d.think == "Two pair, I think."
+    assert parse_decision('{"action": "call"}', legal).think == ""
+    assert parse_decision('{"think": 5, "action": "call"}', legal).think == ""  # not text
+    assert len(parse_decision('{"think": "' + "x" * 900 + '", "action": "call"}', legal).think) == MAX_THINK
+    bad = parse_decision('{"think": "Let me try a trick.", "action": "dance"}', legal)
+    assert bad.action == "fold" and bad.think == "Let me try a trick."  # the audience still hears what it thought
+
+
+def test_the_prompt_asks_for_a_think_field_that_nobody_at_the_table_hears():
+    _, view = make_view()
+    system = build_messages("ada", "", view, [])[0]["content"]
+    assert '"think"' in system and "Nobody at the table hears it" in system

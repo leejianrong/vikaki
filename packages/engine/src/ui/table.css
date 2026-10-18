@@ -107,6 +107,24 @@
 .table-overlay.with-panel .bubble[hidden] { display: none; }
 @keyframes bubble-in { from { opacity: 0; } }
 
+/* A private thought exists (VIK-93): a small mark beside the head, with the panel. */
+.thought-mark { display: none; }
+.table-overlay.with-panel .thought-mark {
+  position: absolute;
+  top: 20%;
+  transform: translate(64px, 6px); /* beside the head, clear of the bubble above it */
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 20px;
+  border-radius: var(--shape-full);
+  border: 2px solid var(--seat-colour);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font: 700 0.875rem/1 var(--md-ref-typeface-plain);
+}
+.table-overlay.with-panel .thought-mark[hidden] { display: none; }
+
 /* Embed mode (VIK-64): the host page draws its own state, so nothing here unless asked for. */
 .table-overlay.embed .table-info { display: none; }
 .table-overlay.embed:not(.names) .seat-plate { display: none; }
@@ -140,7 +158,10 @@ body.has-table-panel .table-overlay { right: var(--panel-width); }
 .table-panel .pct { min-width: 3.2em; text-align: end; font: 600 0.875rem/1.25rem var(--md-ref-typeface-plain); }
 .table-panel .note { margin: 0; font: 400 0.75rem/1rem var(--md-ref-typeface-plain); }
 
-.table-panel .chat { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-radius: var(--shape-l); background: var(--md-sys-color-surface-container-low); }
+.table-panel > * { flex-shrink: 0; }
+.table-panel .chat { max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-radius: var(--shape-l); background: var(--md-sys-color-surface-container-low); }
 .table-panel .chat:empty::before { content: "Nothing said yet"; color: var(--md-sys-color-on-surface-variant); }
 .table-panel .chat p { margin: 0; overflow-wrap: anywhere; }
 .table-panel .chat b { margin-inline-end: 6px; font-weight: 600; }
+.table-panel .thoughts { font-style: italic; }
+.table-panel .thoughts:empty::before { content: "No thoughts yet"; font-style: normal; }
