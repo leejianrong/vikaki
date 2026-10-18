@@ -335,6 +335,51 @@ describe("the table page", () => {
     await page.getByLabel("ada has a thought").waitFor({ state: "hidden", timeout: 15_000 });
   });
 
+  it("lets the panel be resized by dragging or by keys, keeps the table beside it, remembers the width, and goes two columns when wide (VIK-111)", { timeout: 120_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const handle = page.getByRole("separator", { name: "Resize panel" });
+    const panel = page.getByRole("complementary", { name: "Table panel" });
+    const geometry = () =>
+      page.evaluate(() => {
+        const c = document.querySelector("canvas")!;
+        const a = document.querySelector("aside.table-panel")!.getBoundingClientRect();
+        return { panelWidth: Math.round(a.width), canvasRight: c.getBoundingClientRect().right, panelLeft: a.left, inline: c.getAttribute("style") ?? "" };
+      });
+    const before = await geometry();
+    expect(before.panelWidth).toBe(340);
+    await handle.focus();
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Shift+ArrowLeft");
+    const keyed = await geometry();
+    expect(keyed.panelWidth).toBe(440); // +20 and +80
+    expect(await handle.getAttribute("aria-valuenow")).toBe("440");
+    const box = (await handle.boundingBox())!;
+    await page.mouse.move(box.x + 4, box.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(box.x - 280, box.y + 200, { steps: 5 });
+    await page.mouse.up();
+    const dragged = await geometry();
+    expect(dragged.panelWidth).toBeGreaterThanOrEqual(640); // 440 + the 280 px dragged, less the grab offset
+    expect(dragged.canvasRight).toBeLessThanOrEqual(dragged.panelLeft + 1); // the table makes room: no overlap
+    expect(dragged.inline).not.toMatch(/width|height/); // ADR-0012: the stylesheet sizes the canvas
+    d1.say("A line for the squeezed table.", "r1");
+    await page.getByLabel("ada says").waitFor({ state: "visible", timeout: 15_000 });
+    const bubble = (await page.getByLabel("ada says").boundingBox())!;
+    expect(bubble.x).toBeGreaterThanOrEqual(0); // the bubble is not cut off at the stage's edge
+    // wide: the chat sits to the right of the hands
+    const hands = (await panel.getByRole("group", { name: "ada, hand" }).boundingBox())!;
+    const chat = (await panel.getByRole("log", { name: "Chat" }).boundingBox())!;
+    expect(chat.x).toBeGreaterThan(hands.x + hands.width - 1);
+    await page.reload();
+    await page.getByRole("separator", { name: "Resize panel" }).waitFor();
+    expect((await geometry()).panelWidth).toBe(dragged.panelWidth); // remembered
+    await page.getByRole("separator", { name: "Resize panel" }).dblclick();
+    expect((await geometry()).panelWidth).toBe(340);
+    await page.getByRole("separator", { name: "Resize panel" }).focus();
+    await page.keyboard.press("Home");
+    expect((await geometry()).panelWidth).toBe(280);
+  });
+
   it("has the panel by default in the 3D view only: not in the row, not when embedded, and ?panel= decides (VIK-83)", { timeout: 120_000 }, async () => {
     const row = await setup("seats=3", undefined, false);
     expect(await row.page.locator("aside.table-panel").count()).toBe(0);

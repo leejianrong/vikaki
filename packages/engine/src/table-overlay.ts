@@ -72,8 +72,10 @@ export class TableOverlay {
       if (xs[i] !== undefined) m.style.left = `${Math.round(xs[i]!)}px`;
       if (tops?.[i] !== undefined) m.style.top = `${Math.round(tops[i]!)}px`;
     });
+    // A bubble is up to 240 px wide and centred on its head: keep it inside the stage when the table is squeezed (VIK-111).
+    const stage = this.root.clientWidth;
     this.bubbles.forEach((b, i) => {
-      if (xs[i] !== undefined) b.style.left = `${Math.round(xs[i]!)}px`;
+      if (xs[i] !== undefined) b.style.left = `${Math.round(stage > 260 ? Math.min(stage - 130, Math.max(130, xs[i]!)) : xs[i]!)}px`;
       if (tops?.[i] !== undefined) b.style.top = `${Math.round(tops[i]!)}px`;
     });
   }
