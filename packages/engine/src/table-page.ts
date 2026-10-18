@@ -10,6 +10,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
+import { TablePanel } from "./table-panel.ts";
 import { TableProps } from "./table-props.ts";
 import { buildTable, circleSeats, medianHeight, seatLookYaw, type SeatSpot } from "./table3d.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
@@ -97,6 +98,10 @@ try {
 
   const overlay = new TableOverlay(seats, document.body, embedOpts);
   if (spots) overlay.showCards = false; // they are on the table
+  // The spectator panel (VIK-83): on by default in the 3D view, off when embedded; `?panel=1` or `?panel=0` decides.
+  const wantPanel = params.has("panel") ? params.get("panel") === "1" : spots !== undefined && !embedOpts.embed;
+  const panel = wantPanel ? new TablePanel(seats) : undefined;
+  if (panel) overlay.withPanel = true;
   const puppets = avatars.map((a, i) => new Puppet(a, seed + i * 101, params.get("still") !== "1"));
   const symbols = avatars.map((a) => {
     const { head, top } = a.framing();
@@ -272,6 +277,7 @@ try {
     },
     onTableState: (state) => {
       overlay.setState(state);
+      panel?.setState(state);
       props?.setState(state);
     },
     onText: (line) => overlay.addText(line),

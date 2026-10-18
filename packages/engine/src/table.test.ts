@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addToTranscript, cardFace, frameRow, layoutRow, lookYaw, MAX_LOOK, parseSeats, seatFor } from "./table.ts";
+import { addToTranscript, cardFace, favourite, frameRow, layoutRow, lookYaw, MAX_LOOK, parseSeats, percent, seatFor } from "./table.ts";
 
 describe("parseSeats", () => {
   it("a number makes that many seats, named seat-1 to seat-N, with the hub's personas in order", () => {
@@ -142,5 +142,23 @@ describe("lookYaw", () => {
   it("turns further for a speaker further away, and never past a glance", () => {
     expect(lookYaw(0, 0.8)).toBeGreaterThan(lookYaw(0, 0.4));
     expect(lookYaw(0, 100)).toBe(MAX_LOOK);
+  });
+});
+
+describe("percent and favourite (VIK-83)", () => {
+  it("says a chance in whole percent, but never calls a live hand 0 or 100", () => {
+    expect(percent(0.623)).toBe("62%");
+    expect(percent(0.5)).toBe("50%");
+    expect(percent(0)).toBe("0%");
+    expect(percent(1)).toBe("100%");
+    expect(percent(0.003)).toBe("<1%");
+    expect(percent(0.997)).toBe(">99%");
+  });
+
+  it("marks the one seat in the lead, and nobody when there are no chances or the lead is shared", () => {
+    expect(favourite([{ seat_id: "a", win: 0.2 }, { seat_id: "b", win: 0.7 }, { seat_id: "c", win: 0.1 }])).toBe("b");
+    expect(favourite([{ seat_id: "a", win: 0.5 }, { seat_id: "b", win: 0.5 }])).toBeUndefined();
+    expect(favourite([{ seat_id: "a" }, { seat_id: "b" }])).toBeUndefined();
+    expect(favourite([{ seat_id: "a", win: 1 }, { seat_id: "b" }])).toBeUndefined(); // one chance alone says nothing about a lead
   });
 });

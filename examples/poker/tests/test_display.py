@@ -75,3 +75,63 @@ def test_the_state_is_a_valid_table_state_message():
     h = fresh()
     s = table_state(h)
     make("table_state", **s)
+
+
+# ---- the spectator's numbers (VIK-83) ----
+
+
+def test_face_down_hands_come_with_no_words_and_no_odds_because_they_would_give_the_hand_away():
+    s = table_state(fresh())
+    for x in s["seats"]:
+        assert "hand" not in x and "win" not in x
+
+
+def test_face_up_hands_come_with_their_name_and_their_chance_to_win_which_add_up_to_one():
+    h = fresh()
+    s = table_state(h, show_cards=True)
+    live = [x for x in s["seats"] if "win" in x]
+    assert len(live) == 3
+    assert sum(x["win"] for x in live) == pytest.approx(1.0, abs=0.001)
+    for x in s["seats"]:
+        assert x["hand"]  # "pocket kings", "ace-king suited", ...
+    assert 0 < min(x["win"] for x in live) < max(x["win"] for x in live) < 1
+
+
+def test_a_folded_seat_has_neither_and_the_others_share_the_pot():
+    h = fresh()
+    first = h.to_act
+    h.act(first, "fold")
+    s = table_state(h, show_cards=True)
+    assert "hand" not in seat(s, first) and "win" not in seat(s, first)
+    assert sum(x["win"] for x in s["seats"] if "win" in x) == pytest.approx(1.0, abs=0.001)
+    assert seat(s, first)["action"] == "folded"
+
+
+def test_at_the_showdown_the_winner_has_every_chance_and_the_hands_have_names():
+    h = fresh()
+    call_down(h)
+    s = table_state(h)
+    wins = sorted(x["win"] for x in s["seats"] if "win" in x)
+    assert wins[-1] == 1.0 and wins[0] == 0.0 or sum(wins) == pytest.approx(1.0)
+    assert all(" " in x["hand"] or x["hand"].endswith("high") for x in s["seats"])
+
+
+def test_what_a_seat_did_last_is_said_in_a_spectators_words_and_blinds_are_not_actions():
+    h = fresh()
+    assert all("action" not in x for x in table_state(h)["seats"])  # only blinds so far
+    first = h.to_act
+    h.act(first, "call")
+    assert seat(table_state(h), first)["action"] == "called 2"
+    second = h.to_act
+    h.act(second, "raise", 8)
+    assert seat(table_state(h), second)["action"] == "raised to 8"
+
+
+def test_the_same_hands_and_board_are_worked_out_once():
+    from vikaki_poker.display import _win_chances
+
+    _win_chances.cache_clear()
+    h = fresh()
+    table_state(h, show_cards=True)
+    table_state(h, show_cards=True)
+    assert _win_chances.cache_info().hits >= 1 and _win_chances.cache_info().misses == 1

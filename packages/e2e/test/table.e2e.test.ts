@@ -151,22 +151,22 @@ describe("the table page", () => {
     const table = page.getByRole("region", { name: "Table" });
     await table.getByText("Pot 1,200").waitFor({ timeout: 15_000 });
     expect(await table.getByRole("list", { name: "Board" }).getByRole("listitem").allInnerTexts()).toEqual(["A♠", "10♦", "7♣"]);
-    const ada = page.getByRole("group", { name: "ada" });
+    const ada = page.getByRole("group", { name: "ada", exact: true });
     expect(await ada.innerText()).toContain("Stack 880");
     expect(await ada.innerText()).toContain("Bet 40");
     expect(await ada.getByRole("listitem").allInnerTexts()).toEqual(["K♥", "Q♥"]);
     await ada.getByLabel("Dealer").waitFor({ timeout: 15_000 });
-    const ben = page.getByRole("group", { name: "ben" });
+    const ben = page.getByRole("group", { name: "ben", exact: true });
     expect(await ben.getAttribute("aria-current")).toBe("true"); // the turn marker
     expect(await ada.getAttribute("aria-current")).toBeNull();
     expect(await ben.getByLabel("face-down card").count()).toBe(2);
-    expect(await page.getByRole("group", { name: "cy" }).innerText()).toContain("Folded");
+    expect(await page.getByRole("group", { name: "cy", exact: true }).innerText()).toContain("Folded");
 
     d1.say("Raise it is.", "t1");
     await page.getByRole("log", { name: "Transcript" }).getByText("Raise it is.").waitFor({ timeout: 15_000 });
     expect(await page.getByRole("log", { name: "Transcript" }).innerText()).toContain("ada");
     // each plate sits under its own avatar, left to right
-    const xs = await Promise.all(["ada", "ben", "cy"].map(async (n) => (await page.getByRole("group", { name: n }).boundingBox())!.x));
+    const xs = await Promise.all(["ada", "ben", "cy"].map(async (n) => (await page.getByRole("group", { name: n, exact: true }).boundingBox())!.x));
     expect(xs[0]!).toBeLessThan(xs[1]!);
     expect(xs[1]!).toBeLessThan(xs[2]!);
   });
@@ -240,7 +240,7 @@ describe("the table page", () => {
   it("seats the avatars round a 3D table with ?view=table: each plate under its own head, the speaker's mouth, the others' heads turned to look (VIK-62)", { timeout: 90_000 }, async () => {
     const { page, drivers: [, d2] } = await setup("seats=3&view=table");
     expect(await page.evaluate(() => window.__vikaki!.table!.view)).toBe("table");
-    const xs = await Promise.all(["ada", "ben", "cy"].map(async (n) => (await page.getByRole("group", { name: n }).boundingBox())!.x));
+    const xs = await Promise.all(["ada", "ben", "cy"].map(async (n) => (await page.getByRole("group", { name: n, exact: true }).boundingBox())!.x));
     expect(xs[0]!).toBeLessThan(xs[1]!);
     expect(xs[1]!).toBeLessThan(xs[2]!);
     await page.evaluate(() => window.__vikaki!.table!.resetPeaks());
@@ -254,6 +254,64 @@ describe("the table page", () => {
     const [m1, m2, m3] = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.peak.mouth)); // peaks of every frame since the reset, whenever the line began
     expect(m2).toBeGreaterThan(0.3);
     expect(Math.max(m1!, m3!)).toBeLessThan(0.05);
+  });
+
+  it("shows a spectator panel beside the 3D table: pot, board, and per seat the cards, the hand in words, the chance to win as a bar, and what it did (VIK-83)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    d1.ws.send(
+      JSON.stringify(
+        make("table_state", {
+          pot: 48,
+          street: "flop",
+          board: ["Ks", "8d", "3c"],
+          dealer: "seat-1",
+          turn: "seat-3",
+          seats: [
+            { seat_id: "seat-1", stack: 180, bet: 12, cards: ["Kd", "Kc"], hand: "three of a kind, kings", win: 0.91, action: "raised to 12" },
+            { seat_id: "seat-2", stack: 188, folded: true, cards: ["back", "back"] },
+            { seat_id: "seat-3", stack: 160, bet: 12, cards: ["As", "Ah"], hand: "pair of aces", win: 0.09, action: "called 12" },
+          ],
+        }),
+      ),
+    );
+    const panel = page.getByRole("complementary", { name: "Table panel" });
+    await panel.getByText("Pot 48").waitFor();
+    expect(await panel.getByRole("list", { name: "Board" }).getByRole("listitem").count()).toBe(3);
+    const ada = panel.getByRole("group", { name: "ada, hand" });
+    expect(await ada.innerText()).toContain("Stack 180");
+    expect(await ada.locator(".hand-name").textContent()).toBe("three of a kind, kings");
+    expect(await ada.getByRole("list", { name: "Cards" }).getByRole("listitem").allInnerTexts()).toEqual(["K♦", "K♣"]);
+    expect(await ada.getByRole("meter", { name: "ada chance to win" }).getAttribute("aria-valuenow")).toBe("91");
+    expect(await ada.innerText()).toContain("91%");
+    expect(await ada.innerText()).toContain("raised to 12");
+    const ben = panel.getByRole("group", { name: "ben, hand" });
+    expect(await ben.innerText()).toContain("Folded");
+    expect(await ben.getByRole("meter").count()).toBe(0); // a folded seat has no chance to show
+    expect(await panel.getByRole("group", { name: "cy, hand" }).getAttribute("aria-current")).toBe("true"); // whose turn it is
+    // the panel sits beside the canvas, which the stylesheet sizes (ADR-0012)
+    const box = await page.evaluate(() => {
+      const c = document.getElementById("stage") as HTMLCanvasElement;
+      const a = document.querySelector("aside.table-panel")!.getBoundingClientRect();
+      return { canvasRight: c.getBoundingClientRect().right, panelLeft: a.left, inline: c.getAttribute("style") };
+    });
+    expect(box.canvasRight).toBeLessThanOrEqual(box.panelLeft + 1);
+    expect(box.inline ?? "").not.toMatch(/width|height/);
+    // the pot strip over the canvas is not drawn twice
+    expect(await page.locator(".table-info").isVisible()).toBe(false);
+  });
+
+  it("has the panel by default in the 3D view only: not in the row, not when embedded, and ?panel= decides (VIK-83)", { timeout: 120_000 }, async () => {
+    const row = await setup("seats=3", undefined, false);
+    expect(await row.page.locator("aside.table-panel").count()).toBe(0);
+    await row.page.close();
+    const off = await setup("seats=3&view=table&panel=0", undefined, false);
+    expect(await off.page.locator("aside.table-panel").count()).toBe(0);
+    await off.page.close();
+    const embedded = await setup("seats=3&view=table&embed=1", undefined, false);
+    expect(await embedded.page.locator("aside.table-panel").count()).toBe(0);
+    await embedded.page.close();
+    const forced = await setup("seats=3&panel=1", undefined, false);
+    expect(await forced.page.locator("aside.table-panel").count()).toBe(1);
   });
 
   it("puts table_state on the 3D table: the board and each seat's cards, chips, and the dealer button; a folded seat's cards go (VIK-62)", { timeout: 90_000 }, async () => {

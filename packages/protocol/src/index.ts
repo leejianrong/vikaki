@@ -122,6 +122,10 @@ export const TableState = z
           bet: z.number().min(0).optional(),
           folded: z.boolean().optional(),
           cards: z.array(card).max(10).optional(),
+          /** For a spectator panel (VIK-83): the seat's hand in words ("pair of kings"), its chance to win the pot from 0 to 1, and what it did last ("raised to 12"). The game works these out and sends them only when the table may see the cards. */
+          hand: z.string().min(1).max(60).optional(),
+          win: z.number().min(0).max(1).optional(),
+          action: z.string().min(1).max(40).optional(),
         }),
       )
       .max(16),
