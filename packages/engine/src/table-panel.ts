@@ -4,7 +4,7 @@
 import type { MessageOf } from "@vikaki/protocol";
 import { makeResizable } from "./panel-resize.ts";
 import { cardEl } from "./table-overlay.ts";
-import { addToTranscript, CHAT_LINES, favourite, percent, seatColour, type Seat, type TranscriptLine } from "./table.ts";
+import { addToTranscript, CHAT_LINES, favourite, lineLabel, percent, seatColour, type Seat, type TranscriptLine } from "./table.ts";
 import { el } from "./ui/dom.ts";
 import "./ui/material.ts";
 import "./ui/table.css";
@@ -40,13 +40,13 @@ export class TablePanel {
   }
 
   /** A whole line or a piece of one (the same `id` grows it): wrapped in full, the name in the seat's colour, newest last and scrolled into view unless the reader has scrolled up. */
-  addText(line: { id: string; seat: string; text?: string; delta?: string }): void {
+  addText(line: { id: string; seat: string; text?: string; delta?: string; to?: string }): void {
     this.lines = addToTranscript(this.lines, line, CHAT_LINES);
     const atEnd = this.chat.scrollHeight - this.chat.scrollTop - this.chat.clientHeight < 24;
     this.chat.replaceChildren(
       ...this.lines.map((l) => {
         const i = Math.max(0, this.seats.findIndex((s) => s.seat === l.seat));
-        const who = el("b", { textContent: this.seats[i] ? label(this.seats[i]!) : l.seat });
+        const who = el("b", { textContent: lineLabel(l, (id) => { const s = this.seats.find((x) => x.seat === id); return s ? label(s) : id; }) });
         who.style.color = seatColour(i);
         return el("p", {}, who, l.text);
       }),

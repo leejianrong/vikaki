@@ -320,6 +320,23 @@ describe("the table page", () => {
     expect(m).toEqual({ scrollable: true, atEnd: true });
   });
 
+  it("shows who a line is for: \"ada → ben\" in the Chat and an arrow in the bubble, and nothing extra for a line to the table (VIK-120)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    d1.say("Nice try, Ben.", "t1", { to: "seat-2" });
+    const chat = page.getByRole("log", { name: "Chat" });
+    await chat.getByText("Nice try, Ben.").waitFor({ timeout: 15_000 });
+    expect(await chat.innerText()).toContain("ada → ben");
+    const bubble = page.getByLabel("ada says");
+    await bubble.waitFor({ state: "visible" });
+    expect(await bubble.innerText()).toContain("→ ben");
+    await bubble.waitFor({ state: "hidden", timeout: 15_000 });
+    d1.say("Hello everyone.", "t2");
+    await chat.getByText("Hello everyone.").waitFor({ timeout: 15_000 });
+    const last = await chat.locator("p").last().innerText();
+    expect(last).toContain("ada");
+    expect(last).not.toContain("→");
+  });
+
   it("shows a private thought in the Thoughts panel, apart from the chat, with a mark over the thinker until its next turn; it is never spoken (VIK-93)", { timeout: 90_000 }, async () => {
     const { page, drivers: [d1] } = await setup("seats=3&view=table");
     const thought = "Ace-king, and nobody has bet. Time to raise.";

@@ -25,8 +25,8 @@ class Reaction:
 
 
 class Reactor(Protocol):
-    def react(self, listener: str, speaker: str, text: str, emotion: str | None) -> Reaction | None:
-        """How `listener` feels about `speaker` saying `text` (in `emotion`, if the speaker showed one). None to stay still."""
+    def react(self, listener: str, speaker: str, text: str, emotion: str | None, addressed: bool = False) -> Reaction | None:
+        """How `listener` feels about `speaker` saying `text` (in `emotion`, if the speaker showed one). None to stay still. `addressed` is true when the line was for this listener."""
         ...
 
 
@@ -44,10 +44,15 @@ ANSWERS: dict[str, Reaction] = {
 class MirrorReactor:
     """No model: answer the speaker's emotion from `ANSWERS`. Free, instant and repeatable, so it is what the dry run and the tests use."""
 
-    def react(self, listener: str, speaker: str, text: str, emotion: str | None) -> Reaction | None:
+    def react(self, listener: str, speaker: str, text: str, emotion: str | None, addressed: bool = False) -> Reaction | None:
         if listener == speaker:
             return None
-        return ANSWERS.get(emotion or "")
+        answer = ANSWERS.get(emotion or "")
+        if not addressed:
+            return answer
+        # a line meant for this listener always draws something, and is held longer
+        base = answer or Reaction("surprised", "tilt")
+        return Reaction(base.emotion, base.gesture, 2.5)
 
 
 SYSTEM = """You are {persona}, a friendly cartoon character at a poker table, listening to another player. Character: {style}
@@ -76,11 +81,11 @@ class LlmReactor:
     max_tokens: int = 40
     usage: Usage = field(default_factory=Usage)
 
-    def react(self, listener: str, speaker: str, text: str, emotion: str | None) -> Reaction | None:
+    def react(self, listener: str, speaker: str, text: str, emotion: str | None, addressed: bool = False) -> Reaction | None:
         if listener == speaker:
             return None
         persona, style = self.seats.get(listener, (listener, ""))
-        heard = f"{self.seats.get(speaker, (speaker, ''))[0]} just said: \"{text}\"" + (f" (looking {emotion})." if emotion else ".")
+        heard = f"{self.seats.get(speaker, (speaker, ''))[0]} just said{' to you' if addressed else ''}: \"{text}\"" + (f" (looking {emotion})." if emotion else ".")
         messages = [
             {"role": "system", "content": SYSTEM.format(persona=persona, style=style or "friendly", emotions=", ".join(EMOTIONS))},
             {"role": "user", "content": heard},

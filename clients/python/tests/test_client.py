@@ -31,6 +31,15 @@ def test_say_sends_the_line_and_wait_finished_returns_the_hubs_verdict(hub):
     assert done["type"] == "speech_finished" and done["utterance_id"] == uid and done["timing"]["audio_ms"] == 12
 
 
+def test_a_line_can_say_who_it_is_for(hub):
+    async def go():
+        async with await VikakiClient.connect(hub.url) as c:
+            await c.say("Nice try, Ben.", seat_id="seat-1", utterance_id="u-to", to="seat-2")
+
+    run(go())
+    assert hub.received[1]["to"] == "seat-2"
+
+
 def test_a_given_utterance_id_is_used_and_an_interrupted_line_is_returned_not_raised(make_hub):
     def script(msg, h):
         if msg["type"] == "utterance":

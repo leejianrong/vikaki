@@ -3,7 +3,7 @@
 // plates say is what the game sent. Plain DOM with roles and names, so tests find things the way a person would.
 import type { MessageOf } from "@vikaki/protocol";
 import type { EmbedOptions } from "./embed.ts";
-import { addToTranscript, cardFace, seatColour, type Seat, type TranscriptLine } from "./table.ts";
+import { addToTranscript, cardFace, lineLabel, seatColour, type Seat, type TranscriptLine } from "./table.ts";
 import { el } from "./ui/dom.ts";
 import "./ui/material.ts";
 import "./ui/table.css";
@@ -113,14 +113,15 @@ export class TableOverlay {
     }
   }
 
-  addText(line: { id: string; seat: string; text?: string; delta?: string }): void {
+  addText(line: { id: string; seat: string; text?: string; delta?: string; to?: string }): void {
     this.lines = addToTranscript(this.lines, line);
     const name = (seat: string) => {
       const s = this.seats.find((x) => x.seat === seat);
       return s ? label(s) : seat;
     };
-    this.log.replaceChildren(...this.lines.map((l) => el("p", {}, el("b", { textContent: name(l.seat) }), l.text)));
-    this.showBubble(line.seat, this.lines.find((l) => l.id === line.id)?.text ?? "");
+    this.log.replaceChildren(...this.lines.map((l) => el("p", {}, el("b", { textContent: lineLabel(l, name) }), l.text)));
+    const said = this.lines.find((l) => l.id === line.id);
+    this.showBubble(line.seat, said?.text ?? "", said?.to ? name(said.to) : undefined);
   }
 
   /** A small mark over a seat that has a private thought (VIK-93): on when one arrives, off when that seat's next turn begins. */
@@ -130,12 +131,12 @@ export class TableOverlay {
   }
 
   /** The speaker's bubble shows the line as far as it has arrived and fades some seconds after the last piece; no other seat keeps one. */
-  private showBubble(seat: string, text: string): void {
+  private showBubble(seat: string, text: string, to?: string): void {
     this.bubbles.forEach((b, i) => {
       const mine = this.seats[i]!.seat === seat;
       clearTimeout(this.bubbleTimers[i]);
       if (!mine) return void (b.hidden = true);
-      b.textContent = text;
+      b.replaceChildren(...(to ? [el("span", { className: "to", textContent: `→ ${to}` }), text] : [text]));
       b.hidden = text === "";
       this.bubbleTimers[i] = setTimeout(() => (b.hidden = true), BUBBLE_MS);
     });

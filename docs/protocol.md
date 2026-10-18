@@ -35,7 +35,7 @@ Only a driver lists seats. The hub still speaks one line at a time, so two seats
 
 | type | fields | notes |
 | --- | --- | --- |
-| `utterance` | `seat_id`, `utterance_id`, `text` **or** `delta` (+ `final`), optional `emotion`, `intensity` (0..1), `persona`, `kind` (`banter`, `clue`, `table_talk`) | `text` is a whole line. For a line still being written, send `delta` chunks in order and end with `final: true`. |
+| `utterance` | `seat_id`, `utterance_id`, `text` **or** `delta` (+ `final`), optional `emotion`, `intensity` (0..1), `persona`, `kind` (`banter`, `clue`, `table_talk`), `to` (the seat the line is for: a page shows "Ada → Ben" and the addressee reacts; left out, it is to the whole table) | `text` is a whole line. For a line still being written, send `delta` chunks in order and end with `final: true`. |
 | `cancel` | optional `utterance_id` | Stop that line now. Without an id, stop everything speaking or queued. A controller sends the same message. |
 | `turn_started` / `turn_ended` | `seat_id`, optional `persona` | While a turn is on, the avatar looks thoughtful (head tipped, a bubble of dots). A line that starts ends it; a driver that never sends `turn_ended` is cleared after 30 s. `vikaki say --think 2` does this before speaking. `persona` says whose turn it is: a page showing one persona ignores other personas' turns (and turns that name nobody). |
 | `game_over` | `outcome` (`won`, `lost`, `drew`), optional `seat_id` | |

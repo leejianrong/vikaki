@@ -294,3 +294,14 @@ describe("table_state beats (VIK-113, VIK-94)", () => {
     expect(parseMessage({ protocol_version: 1, type: "table_state", seats, winners: [{ amount: 3 }] }).ok).toBe(false);
   });
 });
+
+describe("utterance addressee (VIK-120)", () => {
+  it("may say who the line is for: a seat, or nobody in particular", () => {
+    expect(parseMessage({ protocol_version: 1, type: "utterance", seat_id: "seat-1", utterance_id: "u1", text: "Nice try, Ben.", to: "seat-2" })).toMatchObject({ ok: true, message: { to: "seat-2" } });
+    expect(parseMessage({ protocol_version: 1, type: "utterance", seat_id: "seat-1", utterance_id: "u1", text: "Hello all." }).ok).toBe(true);
+    expect(parseMessage({ protocol_version: 1, type: "utterance", seat_id: "seat-1", utterance_id: "u1", delta: "Nice ", to: "seat-2" }).ok).toBe(true);
+  });
+  it("refuses an empty addressee", () => {
+    expect(parseMessage({ protocol_version: 1, type: "utterance", seat_id: "s", utterance_id: "u", text: "hi", to: "" }).ok).toBe(false);
+  });
+});
