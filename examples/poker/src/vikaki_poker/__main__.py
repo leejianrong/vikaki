@@ -35,6 +35,8 @@ def _parser() -> argparse.ArgumentParser:
     play.add_argument("--fake-llm", action="store_true", help=f"no model calls: a scripted stand-in (no {KEY_ENV} needed)")
     play.add_argument("--no-reactions", action="store_true", help="the seats that are listening stay still (no silent reactions)")
     play.add_argument("--show-cards", action="store_true", help="show every live hand face up on the page (the default: the table page is a spectator's view, with each seat's hand and chance to win)")
+    play.add_argument("--stack", type=int, help="chips each seat starts with (default: the table file's)")
+    play.add_argument("--blinds", help="the blinds as SMALL/BIG, such as 5/10 (default: the table file's); with a short --stack they end a --no-rebuy game sooner")
     play.add_argument("--no-rebuy", action="store_true", help="a player who goes broke is out, and the session ends when one player has every chip (default: they buy back in)")
     play.add_argument("--hide-cards", action="store_true", help="keep the hands face down until a showdown, with no hand names or odds on the page")
     play.add_argument("--model", help="play every seat with this model instead of the table file's")
@@ -65,6 +67,20 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
                 seat.model = args.model
         if llm is None:
             llm = FakeLlm(DEMO_REPLIES) if args.fake_llm else OpenRouterLlm.from_env(reasoning=args.reasoning, **({"base_url": args.base_url} if args.base_url else {}))
+        if args.stack is not None:
+            if args.stack <= 0:
+                raise TableError("--stack must be a positive whole number")
+            table.stack = args.stack
+        if args.blinds is not None:
+            try:
+                small, big = (int(x) for x in args.blinds.split("/"))
+            except ValueError:
+                raise TableError("--blinds must look like 5/10") from None
+            if not 0 < small <= big:
+                raise TableError("--blinds must look like 5/10, with the small blind no bigger than the big one")
+            table.small_blind, table.big_blind = small, big
+        if table.stack < 2 * table.big_blind:
+            raise TableError(f"a stack of {table.stack} is under two big blinds ({table.big_blind})")
     except (TableError, LlmError) as err:
         print(f"vikaki_poker: {err}", file=sys.stderr)
         return 2

@@ -380,3 +380,24 @@ def test_a_player_who_goes_broke_buys_back_in_and_the_session_goes_on():
     assert all(v > 0 for v in session.stacks.values())
     # chips are conserved apart from the rebuys: what is on the table is the starting stacks plus every rebuy
     assert sum(session.stacks.values()) == 2 * 10 + 10 * sum(session.rebuys.values())
+
+
+def test_stack_and_blinds_can_be_set_on_the_command_line(capsys):
+    assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "1", "--stack", "60", "--blinds", "5/10", "--no-reactions"]) == 0
+    out = capsys.readouterr().out
+    assert "--- hand 1: seat-1 60, seat-2 60, seat-3 60" in out
+    # the big blind was 10: the hand's first lines are played over blinds of 5 and 10, so the stacks are no longer all 60 after it
+    assert "chips:" in out and "seat-1 60, seat-2 60, seat-3 60" not in out.split("chips:")[1].splitlines()[0]
+
+
+def test_bad_stack_or_blinds_are_refused_saying_what_is_wrong(capsys):
+    for args, message in [
+        (["--stack", "0"], "--stack must be a positive"),
+        (["--blinds", "10"], "--blinds must look like 5/10"),
+        (["--blinds", "a/b"], "--blinds must look like 5/10"),
+        (["--blinds", "10/5"], "small blind no bigger"),
+        (["--blinds", "0/2"], "small blind no bigger"),
+        (["--stack", "10", "--blinds", "5/10"], "under two big blinds"),
+    ]:
+        assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", *args]) == 2, args
+        assert message in capsys.readouterr().err, args
