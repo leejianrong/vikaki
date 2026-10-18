@@ -111,6 +111,14 @@ export interface TranscriptLine {
 /** Lines kept in the transcript strip. */
 export const TRANSCRIPT_LINES = 3;
 
+/** Lines kept in the panel's chat, which scrolls. */
+export const CHAT_LINES = 80;
+
+/** The Material colour role that names a seat's lines in the chat and its bubble: neighbours differ, and any number of seats get one. */
+export function seatColour(i: number): string {
+  return `var(--md-sys-color-${["primary", "tertiary", "secondary", "error"][i % 4]})`;
+}
+
 /**
  * Add what an `utterance` message carries to the transcript: a whole `text` makes a line, `delta` pieces grow the line of the same id.
  * Returns the last `max` lines; the list it was given is not changed.

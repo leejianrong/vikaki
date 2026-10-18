@@ -300,6 +300,26 @@ describe("the table page", () => {
     expect(await page.locator(".table-info").isVisible()).toBe(false);
   });
 
+  it("shows what is said in a scrolling Chat in the panel, and a fading bubble over the speaker only; no strip at the bottom (VIK-91)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1, d2] } = await setup("seats=3&view=table");
+    const long = "Well now, that is a lot of chips to put in the middle on a flop like this, but fine, I will call and see what you have got. ".repeat(2).trim();
+    d1.say(long, "c1");
+    const chat = page.getByRole("log", { name: "Chat" });
+    await chat.getByText(long).waitFor({ timeout: 15_000 }); // the whole line, not cut off
+    expect(await page.locator(".transcript").isVisible()).toBe(false);
+    const bubble = page.getByLabel("ada says");
+    await bubble.waitFor({ state: "visible" });
+    expect(await page.getByLabel("ben says").isVisible()).toBe(false);
+    d2.say("Fold.", "c2");
+    await page.getByLabel("ben says").waitFor({ state: "visible", timeout: 15_000 });
+    expect(await bubble.isVisible()).toBe(false); // only the speaker has one
+    await page.getByLabel("ben says").waitFor({ state: "hidden", timeout: 15_000 }); // and it fades
+    for (let i = 0; i < 12; i++) d1.say(`Line number ${i}`, `n${i}`);
+    await chat.getByText("Line number 11").waitFor({ timeout: 15_000 });
+    const m = await chat.evaluate((c) => ({ scrollable: c.scrollHeight > c.clientHeight, atEnd: c.scrollHeight - c.scrollTop - c.clientHeight < 2 }));
+    expect(m).toEqual({ scrollable: true, atEnd: true });
+  });
+
   it("has the panel by default in the 3D view only: not in the row, not when embedded, and ?panel= decides (VIK-83)", { timeout: 120_000 }, async () => {
     const row = await setup("seats=3", undefined, false);
     expect(await row.page.locator("aside.table-panel").count()).toBe(0);

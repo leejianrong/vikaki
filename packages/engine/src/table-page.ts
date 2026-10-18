@@ -148,7 +148,10 @@ try {
       camera.position.set(0, tableY + 1.3, back);
       camera.lookAt(0, tableY + 0.18, -0.3);
       camera.updateMatrixWorld();
-      overlay.place(frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth));
+      overlay.place(
+        frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth),
+        frames.map((f) => ((1 - new Vector3(f.head.x, f.top, f.head.z).project(camera).y) / 2) * canvas.clientHeight),
+      );
       return;
     }
     if (duet) {
@@ -285,7 +288,10 @@ try {
       panel?.setState(state);
       props?.setState(state);
     },
-    onText: (line) => overlay.addText(line),
+    onText: (line) => {
+      overlay.addText(line);
+      panel?.addText(line);
+    },
     onLifecycle: (e) => embedAudio?.bridge.send(e), // embed mode: tell the framing page (ADR-0020), if it named itself
     onReport: (what) => live.events.push(what),
     onState: (state, soundBlocked) => {

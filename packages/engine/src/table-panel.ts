@@ -3,7 +3,7 @@
 // knows no poker: the words and the odds are the game's, sent when the table may see the cards. Plain DOM with roles and names for tests.
 import type { MessageOf } from "@vikaki/protocol";
 import { cardEl } from "./table-overlay.ts";
-import { favourite, percent, type Seat } from "./table.ts";
+import { addToTranscript, CHAT_LINES, favourite, percent, seatColour, type Seat, type TranscriptLine } from "./table.ts";
 import { el } from "./ui/dom.ts";
 import "./ui/material.ts";
 import "./ui/table.css";
@@ -17,10 +17,12 @@ export class TablePanel {
   private readonly root = el("aside", { className: "side-sheet table-panel", ariaLabel: "Table panel" });
   private readonly head = el("section", { className: "panel-head", ariaLabel: "Pot and board" });
   private readonly cards: HTMLElement[];
+  private readonly chat = el("div", { className: "chat", role: "log", ariaLabel: "Chat", tabIndex: 0 });
+  private lines: TranscriptLine[] = [];
 
   constructor(private readonly seats: Seat[], parent: HTMLElement = document.body) {
     this.cards = seats.map((s) => el("section", { className: "seat-card", role: "group", ariaLabel: `${label(s)}, hand` }));
-    this.root.append(el("h1", { className: "title-large", textContent: "Table" }), this.head, ...this.cards);
+    this.root.append(el("h1", { className: "title-large", textContent: "Table" }), this.head, ...this.cards, el("h2", { className: "title-medium", textContent: "Chat" }), this.chat);
     document.body.classList.add("has-panel", "has-table-panel");
     parent.append(this.root);
     this.draw();
@@ -28,6 +30,21 @@ export class TablePanel {
 
   setState(state: State): void {
     this.draw(state);
+  }
+
+  /** A whole line or a piece of one (the same `id` grows it): wrapped in full, the name in the seat's colour, newest last and scrolled into view unless the reader has scrolled up. */
+  addText(line: { id: string; seat: string; text?: string; delta?: string }): void {
+    this.lines = addToTranscript(this.lines, line, CHAT_LINES);
+    const atEnd = this.chat.scrollHeight - this.chat.scrollTop - this.chat.clientHeight < 24;
+    this.chat.replaceChildren(
+      ...this.lines.map((l) => {
+        const i = Math.max(0, this.seats.findIndex((s) => s.seat === l.seat));
+        const who = el("b", { textContent: this.seats[i] ? label(this.seats[i]!) : l.seat });
+        who.style.color = seatColour(i);
+        return el("p", {}, who, l.text);
+      }),
+    );
+    if (atEnd) this.chat.scrollTop = this.chat.scrollHeight;
   }
 
   private draw(st?: State): void {
