@@ -100,3 +100,34 @@ def test_dotenv_fills_missing_variables_only(tmp_path, monkeypatch):
 
     assert os.environ["OPENROUTER_API_KEY"] == "from-file" and os.environ["OTHER"] == "two words" and os.environ["KEEP"] == "already set"
     load_dotenv(str(tmp_path / "missing.env"))  # no file is fine
+
+
+def test_reasoning_is_off_by_default_so_a_thinking_model_spends_its_tokens_on_the_answer():
+    seen: dict = {}
+    OpenRouterLlm(KEY, post=ok_post(seen)).complete(MESSAGES, model="deepseek/deepseek-v4.1-flash", max_tokens=200)
+    assert seen["body"]["reasoning"] == {"enabled": False}
+
+
+def test_reasoning_can_be_left_to_the_model():
+    seen: dict = {}
+    OpenRouterLlm(KEY, reasoning=True, post=ok_post(seen)).complete(MESSAGES, model="m", max_tokens=200)
+    assert "reasoning" not in seen["body"]
+
+
+def test_an_http_error_carries_the_providers_reason_but_never_the_key(monkeypatch):
+    import io
+    import urllib.error
+
+    from vikaki_poker import llm as llm_module
+
+    body = json.dumps({"error": {"message": f"0 endpoints available matching your guardrail restrictions. Authorization: Bearer {KEY}"}}).encode()
+
+    def boom(*a, **kw):
+        raise urllib.error.HTTPError("https://openrouter.ai", 404, "Not Found", {}, io.BytesIO(body))
+
+    monkeypatch.setattr(llm_module.urllib.request, "urlopen", boom)
+    with pytest.raises(LlmError) as err:
+        OpenRouterLlm(KEY).complete(MESSAGES, model="m", max_tokens=5)
+    text = str(err.value)
+    assert "HTTP 404" in text and "guardrail" in text
+    assert KEY not in text

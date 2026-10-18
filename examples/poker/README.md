@@ -32,7 +32,7 @@ echo 'OPENROUTER_API_KEY=sk-or-...' > .env
 uv run --with ../../clients/python python -m vikaki_poker play --table table.example.yaml --hands 3
 ```
 
-Each seat's model is set in `table.example.yaml` (OpenRouter model ids; the example uses DeepSeek's cheap chat model), or `--model` plays every seat with one. The key is read from the environment only, goes only into the request's `Authorization` header, and is never logged. At the end the command prints calls and tokens per seat (and cost, when the provider reports it); `max_tokens` in the table file caps each reply. `--base-url` points at another OpenAI-compatible endpoint.
+Each seat's model is set in `table.example.yaml` (OpenRouter model ids; the example uses `deepseek/deepseek-v4.1-flash`, about a tenth of a cent a hand). Thinking models run with reasoning off, which keeps the reply inside `max_tokens` and avoids dead air at the table; `--reasoning` leaves it to the model. An error from the provider (for example an OpenRouter guardrail blocking the model) is shown with its reason, or `--model` plays every seat with one. The key is read from the environment only, goes only into the request's `Authorization` header, and is never logged. At the end the command prints calls and tokens per seat (and cost, when the provider reports it); `max_tokens` in the table file caps each reply. `--base-url` points at another OpenAI-compatible endpoint.
 
 ## The engine on its own
 

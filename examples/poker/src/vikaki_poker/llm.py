@@ -8,6 +8,7 @@ an error message and never part of `repr`.
 from __future__ import annotations
 
 import json
+import re
 import os
 import urllib.error
 import urllib.request
@@ -69,13 +70,23 @@ class FakeLlm:
 Post = Callable[[str, dict[str, str], dict[str, Any], float], dict[str, Any]]
 
 
+def _reason(err: urllib.error.HTTPError) -> str:
+    """The provider's own words for an error (OpenAI-style `{"error": {"message": ...}}`), short, and with anything shaped like a bearer token removed."""
+    try:
+        message = str(json.loads(err.read()).get("error", {}).get("message", ""))
+    except Exception:  # noqa: BLE001 (any unreadable body just means no reason to add)
+        return ""
+    message = re.sub(r"(?i)(bearer\s+)\S+|sk-[A-Za-z0-9_-]{8,}", lambda m: (m.group(1) or "") + "[REDACTED]", message)
+    return f": {' '.join(message.split())[:240]}" if message else ""
+
+
 def _urllib_post(url: str, headers: dict[str, str], body: dict[str, Any], timeout: float) -> dict[str, Any]:
     request = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (https to the configured endpoint)
             return json.loads(response.read())
     except urllib.error.HTTPError as err:
-        raise LlmError(f"the model service answered HTTP {err.code}") from None
+        raise LlmError(f"the model service answered HTTP {err.code}{_reason(err)}") from None
     except (urllib.error.URLError, TimeoutError, OSError) as err:
         raise LlmError(f"could not reach the model service ({type(err).__name__})") from None
     except json.JSONDecodeError:
@@ -85,13 +96,14 @@ def _urllib_post(url: str, headers: dict[str, str], body: dict[str, Any], timeou
 class OpenRouterLlm:
     """An OpenAI-compatible chat endpoint. `post` is the transport, replaceable in tests."""
 
-    def __init__(self, api_key: str, *, base_url: str = DEFAULT_BASE_URL, timeout: float = 60.0, temperature: float = 0.8, post: Post = _urllib_post) -> None:
+    def __init__(self, api_key: str, *, base_url: str = DEFAULT_BASE_URL, timeout: float = 60.0, temperature: float = 0.8, reasoning: bool = False, post: Post = _urllib_post) -> None:
         if not api_key:
             raise LlmError(f"no API key: set {KEY_ENV}")
         self._api_key = api_key
         self._url = base_url.rstrip("/") + "/chat/completions"
         self._timeout = timeout
         self._temperature = temperature
+        self._reasoning = reasoning
         self._post = post
 
     @classmethod
@@ -103,6 +115,10 @@ class OpenRouterLlm:
 
     def complete(self, messages: Sequence[Message], *, model: str, max_tokens: int) -> LlmReply:
         body = {"model": model, "messages": list(messages), "max_tokens": max_tokens, "temperature": self._temperature, "usage": {"include": True}}
+        if not self._reasoning:
+            # A thinking model (DeepSeek V4 flash, ...) spends max_tokens on its reasoning first and can run out before the JSON answer, and
+            # thinking is dead air at a table. Models that cannot think ignore this.
+            body["reasoning"] = {"enabled": False}
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         data = self._post(self._url, headers, body, self._timeout)
         try:
