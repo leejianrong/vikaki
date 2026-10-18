@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { InstancedMesh } from "three";
-import { chipCounts, chipPile, MAX_COLUMN, seatSlots, TableProps } from "./table-props.ts";
+import { BOARD_CARD, boardSlots, chipCounts, chipPile, HOLE_CARD, MAX_COLUMN, seatSlots, TableProps } from "./table-props.ts";
 import { circleSeats } from "./table3d.ts";
 
 describe("chipCounts", () => {
@@ -51,5 +51,48 @@ describe("TableProps", () => {
     const chips = props.group.children.filter((c): c is InstancedMesh => c instanceof InstancedMesh);
     expect(chips).toHaveLength(4);
     expect(chips.every((c) => !c.frustumCulled)).toBe(true);
+  });
+});
+
+describe("the layout of the table (VIK-84)", () => {
+  it("lays the board out as five cards in a row that do not overlap each other, centred on the table", () => {
+    const slots = boardSlots();
+    expect(slots).toHaveLength(5);
+    expect(slots[0]!.x + slots[4]!.x).toBeCloseTo(0, 8);
+    expect(slots[1]!.x - slots[0]!.x).toBeGreaterThan(BOARD_CARD.w);
+    expect(new Set(slots.map((s) => s.z)).size).toBe(1);
+  });
+
+  it("keeps every seat's two cards, bet and stack clear of the board and of each other, for tables of 2 to 6", () => {
+    const need = Math.max(BOARD_CARD.w, HOLE_CARD.w) * 1.2;
+    for (const n of [2, 3, 4, 5, 6]) {
+      const seats = circleSeats(n).map(seatSlots);
+      const board = boardSlots();
+      for (const [i, s] of seats.entries()) {
+        for (const c of s.cards) for (const b of board) expect(Math.hypot(c.x - b.x, c.z - b.z), `${n} seats: seat ${i}'s card near the board`).toBeGreaterThan(need * 0.75);
+        expect(Math.hypot(s.cards[0]!.x - s.cards[1]!.x, s.cards[0]!.z - s.cards[1]!.z)).toBeGreaterThan(HOLE_CARD.w * 1.2); // a pair side by side, not stacked
+        for (const [j, o] of seats.entries()) {
+          if (j <= i) continue;
+          expect(Math.hypot(s.cards[0]!.x - o.cards[0]!.x, s.cards[0]!.z - o.cards[0]!.z), `${n} seats: seat ${i} and ${j}'s cards`).toBeGreaterThan(need);
+        }
+        for (const p of [...s.cards, s.stack, s.bet, s.button]) expect(Math.hypot(p.x, p.z), `${n} seats: seat ${i} on the felt`).toBeLessThan(0.78); // TABLE_RADIUS
+      }
+    }
+  });
+
+  it("draws a pot label with the amount, face-down hands until the showdown, and the hands face up at it", () => {
+    // no browser here: a canvas that accepts every drawing call is enough, the test is about what is drawn, not how it looks
+    const noop: unknown = new Proxy(() => noop, { get: () => noop, set: () => true });
+    vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => noop }) });
+    const props = new TableProps(0.7, circleSeats(3), ["a", "b", "c"]);
+    const seats = [{ seat_id: "a", stack: 90, cards: ["As", "Kd"] }, { seat_id: "b", stack: 90, cards: ["2c", "7d"] }, { seat_id: "c", stack: 90, folded: true, cards: ["back", "back"] }];
+    props.setState({ protocol_version: 1, type: "table_state", pot: 1234, street: "flop", board: ["Ks", "8d", "3c"], seats });
+    expect(props.drawn.pot).toBe("Pot 1,234");
+    expect(props.drawn.handsFaceUp).toBe(false);
+    props.setState({ protocol_version: 1, type: "table_state", pot: 0, street: "showdown", board: ["Ks", "8d", "3c", "2h", "9s"], seats });
+    expect(props.drawn.handsFaceUp).toBe(true);
+    expect(props.drawn.pot).toBeUndefined();
+    expect(props.drawn.boardCards).toBe(5);
+    vi.unstubAllGlobals();
   });
 });

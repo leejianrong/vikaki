@@ -139,9 +139,9 @@ try {
     }
     if (spots) {
       // A low three-quarter view over the near rim: faces stay readable, the cards and chips show (the spike's `low`).
-      const back = 3.1 * Math.max(1, 1.5 / Math.max(camera.aspect, 0.1));
-      camera.position.set(0, tableY + 1.1, back);
-      camera.lookAt(0, tableY + 0.3, -0.35);
+      const back = 3.3 * Math.max(1, 1.5 / Math.max(camera.aspect, 0.1));
+      camera.position.set(0, tableY + 1.3, back);
+      camera.lookAt(0, tableY + 0.12, -0.2);
       camera.updateMatrixWorld();
       overlay.place(frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth));
       return;

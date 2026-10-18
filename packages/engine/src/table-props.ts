@@ -1,7 +1,7 @@
 // What `table_state` looks like on the 3D table (VIK-62): cards, chips and the dealer button as plain meshes. Like the overlay, it draws
 // what the game sent and holds no game logic. The layout and the chip counting are pure (and tested); `TableProps` is the three.js part.
 import type { MessageOf } from "@vikaki/protocol";
-import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, type Texture } from "three";
+import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Sprite, SpriteMaterial, type Texture } from "three";
 import { cardFace } from "./table.ts";
 import type { SeatSpot } from "./table3d.ts";
 
@@ -36,8 +36,14 @@ export interface ChipSpot {
   z: number;
 }
 
-const CHIP_H = 0.012;
-const COLUMN_GAP = 0.055;
+const CHIP_H = 0.016;
+const CHIP_R = 0.036;
+const COLUMN_GAP = 0.078;
+/** Sizes in metres: the board is big enough to read from the camera, a hand a little smaller. A real card is about 0.064 by 0.089: these are cartoon-sized. */
+export const BOARD_CARD = { w: 0.12, h: 0.168, gap: 0.146 } as const;
+export const HOLE_CARD = { w: 0.1, h: 0.14 } as const;
+/** How far the board's cards lean back toward the camera, in radians, so they are not seen edge-on from a low angle. */
+const LEAN = 0.6;
 
 /** Where the chips of `amount` go: one column per colour, side by side along `across` (a unit vector), centred on (`cx`, `cz`), standing on `baseY`. */
 export function chipPile(amount: number, cx: number, cz: number, across: { x: number; z: number }, baseY: number): ChipSpot[] {
@@ -61,14 +67,23 @@ export interface SeatSlots {
   across: { x: number; z: number };
 }
 
+/** The five places the board's cards go, left to right, on the felt (x and z). */
+export function boardSlots(): { x: number; z: number }[] {
+  return Array.from({ length: 5 }, (_, i) => ({ x: (i - 2) * BOARD_CARD.gap, z: BOARD_Z }));
+}
+
 export function seatSlots(spot: SeatSpot): SeatSlots {
   const len = Math.hypot(spot.x, spot.z) || 1;
   const ux = spot.x / len; // outward, from the middle toward the seat
   const uz = spot.z / len;
   const across = { x: -uz, z: ux }; // a quarter turn
   const at = (r: number, side = 0) => ({ x: ux * r + across.x * side, z: uz * r + across.z * side });
-  return { cards: [at(0.52, -0.06), at(0.52, 0.06)], stack: at(0.6, 0.2), bet: at(0.36, 0.1), button: at(0.62, -0.19), across };
+  return { cards: [at(0.5, -0.07), at(0.5, 0.07)], stack: at(0.62, 0.22), bet: at(0.3, 0.14), button: at(0.62, -0.2), across };
 }
+
+/** Where the middle of the board's row lies, a little toward the far side so the pot's chips are in front of it. */
+const BOARD_Z = -0.14;
+const POT_AT = { x: 0, z: 0.3 };
 
 const cardTextures = new Map<string, Texture>();
 
@@ -98,6 +113,42 @@ function cardTexture(card: string): Texture {
   return t;
 }
 
+/** A sprite with `text` on a rounded plate: the pot's label over its chips. Redrawn when the text changes. */
+function labelTexture(text: string): CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 96;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "rgba(20,24,30,0.78)";
+  g.beginPath();
+  g.roundRect(4, 4, 248, 88, 44);
+  g.fill();
+  g.fillStyle = "#fdf8ee";
+  g.font = "bold 52px sans-serif";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillText(text, 128, 50);
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+function buttonTexture(): CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#fdf8ee";
+  g.fillRect(0, 0, 128, 128);
+  g.fillStyle = "#6b4e16";
+  g.font = "bold 84px sans-serif";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillText("D", 64, 70);
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
 /** Most chips one colour can draw at once, over every column on the table. */
 const CHIP_CAPACITY = 400;
 
@@ -106,26 +157,43 @@ export class TableProps {
   private readonly cards = new Group();
   private readonly chips: InstancedMesh[];
   private readonly button: Mesh;
-  private readonly cardGeometry = new PlaneGeometry(0.084, 0.118);
+  private readonly boardGeometry = new PlaneGeometry(BOARD_CARD.w, BOARD_CARD.h);
+  private readonly holeGeometry = new PlaneGeometry(HOLE_CARD.w, HOLE_CARD.h);
+  private readonly potLabel = new Sprite(new SpriteMaterial({ transparent: true, depthTest: false }));
+  private potText = "";
+  /** The button's top, textured with a "D" the first time it is shown (drawing needs a document, which a plain construction does not). */
+  private readonly buttonFace = new MeshBasicMaterial({ color: 0xfdf8ee });
   private last = "";
   /** What is drawn now, for tests. */
-  readonly drawn = { boardCards: 0, seatCards: [] as number[], chips: 0, dealer: undefined as string | undefined };
+  readonly drawn = { boardCards: 0, seatCards: [] as number[], chips: 0, dealer: undefined as string | undefined, /** The words on the pot's label, or undefined with no pot. */ pot: undefined as string | undefined, /** True when the hands on the table are shown face up (a showdown), false while they are face down. */ handsFaceUp: false };
 
   constructor(
     private readonly tableY: number,
     private readonly spots: SeatSpot[],
     private readonly seatIds: string[],
   ) {
-    const geometry = new CylinderGeometry(0.026, 0.026, CHIP_H, 20);
+    const geometry = new CylinderGeometry(CHIP_R, CHIP_R, CHIP_H, 24);
     this.chips = CHIPS.map((c) => {
       const m = new InstancedMesh(geometry, new MeshStandardMaterial({ color: c.colour, roughness: 0.5 }), CHIP_CAPACITY);
       m.count = 0;
       m.frustumCulled = false; // its bounding sphere is taken while empty, so it would be culled for good
       return m;
     });
-    this.button = new Mesh(new CylinderGeometry(0.03, 0.03, 0.01, 24), new MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }));
+    const face = this.buttonFace;
+    this.button = new Mesh(new CylinderGeometry(0.048, 0.048, 0.014, 32), [new MeshStandardMaterial({ color: 0xfdf8ee, roughness: 0.4 }), face, face]);
     this.button.visible = false;
-    this.group.add(this.cards, this.button, ...this.chips);
+    this.potLabel.visible = false;
+    this.potLabel.scale.set(0.3, 0.1125, 1);
+    this.potLabel.renderOrder = 10;
+    // five outlines where the board's cards will land, so an empty flop, turn and river are visible as places on the felt
+    const slotMat = new MeshBasicMaterial({ color: 0x1f5a38 });
+    for (let i = 0; i < 5; i++) {
+      const slot = new Mesh(new PlaneGeometry(BOARD_CARD.w + 0.012, BOARD_CARD.h + 0.012), slotMat);
+      slot.rotation.x = -Math.PI / 2;
+      slot.position.set(boardSlots()[i]!.x, tableY + 0.0015, BOARD_Z);
+      this.group.add(slot);
+    }
+    this.group.add(this.cards, this.button, this.potLabel, ...this.chips);
   }
 
   setState(state: State): void {
@@ -134,14 +202,18 @@ export class TableProps {
     this.last = key;
     const y = this.tableY;
     this.cards.clear();
-    const card = (name: string, x: number, z: number, lift: number) => {
-      const m = new Mesh(this.cardGeometry, new MeshBasicMaterial({ map: cardTexture(name) }));
-      m.rotation.x = -Math.PI / 2;
-      m.position.set(x, y + 0.002 + lift, z);
+    /** `lean` raises the card's far edge toward the camera (negative x rotation from flat); `yaw` turns it about its own middle. */
+    const card = (name: string, x: number, z: number, lift: number, lean: number, size: { h: number }, yaw = 0, geometry = this.holeGeometry) => {
+      const m = new Mesh(geometry, new MeshBasicMaterial({ map: cardTexture(name) }));
+      m.rotation.order = "YXZ";
+      m.rotation.set(-Math.PI / 2 + lean, yaw, 0);
+      m.position.set(x, y + 0.004 + lift + Math.sin(lean) * (size.h / 2), z);
       this.cards.add(m);
     };
     const board = state.board ?? [];
-    board.forEach((c, i) => card(c, (i - (board.length - 1) / 2) * 0.1, -0.02, 0));
+    board.forEach((c, i) => card(c, boardSlots()[i]!.x, BOARD_Z, 0, LEAN, BOARD_CARD, 0, this.boardGeometry));
+    // The hands on the table stay face down, like a real table, until the showdown turns them over; the panel beside the table shows them meanwhile.
+    this.drawn.handsFaceUp = state.street === "showdown";
     this.drawn.boardCards = board.length;
     this.drawn.seatCards = this.seatIds.map(() => 0);
 
@@ -158,7 +230,8 @@ export class TableProps {
       if (!row.folded) {
         (row.cards ?? []).forEach((c, k, all) => {
           const p = slots.cards[all.length === 1 ? 0 : Math.min(k, 1)]!;
-          card(c, p.x, p.z, 0.001 * k);
+          const shown = this.drawn.handsFaceUp ? c : "back";
+          card(shown, p.x, p.z, 0.001 * k, 0.12, HOLE_CARD, k === 0 ? 0.08 : -0.08);
         });
         this.drawn.seatCards[i] = row.cards?.length ?? 0;
       }
@@ -166,11 +239,23 @@ export class TableProps {
       if (row.bet) put(row.bet, slots.bet.x, slots.bet.z, slots.across);
       if (state.dealer === row.seat_id) {
         this.button.position.set(slots.button.x, y + 0.005, slots.button.z);
+        this.buttonFace.map ??= buttonTexture();
+        this.buttonFace.needsUpdate = true;
         this.button.visible = true;
         this.drawn.dealer = row.seat_id;
       }
     }
-    if (state.pot) put(state.pot, 0, 0.12, { x: 1, z: 0 });
+    if (state.pot) put(state.pot, POT_AT.x, POT_AT.z, { x: 1, z: 0 });
+    this.drawn.pot = state.pot ? `Pot ${state.pot.toLocaleString("en-US")}` : undefined;
+    if (this.drawn.pot !== this.potText) {
+      this.potText = this.drawn.pot ?? "";
+      const old = this.potLabel.material.map;
+      this.potLabel.material.map = this.drawn.pot ? labelTexture(this.drawn.pot) : null;
+      this.potLabel.material.needsUpdate = true;
+      old?.dispose();
+    }
+    this.potLabel.visible = Boolean(state.pot);
+    this.potLabel.position.set(POT_AT.x, y + 0.07, POT_AT.z + 0.17); // in front of the chips, below the board
     const m = new Matrix4();
     let total = 0;
     this.chips.forEach((mesh, kind) => {

@@ -334,7 +334,7 @@ describe("the table page", () => {
     state({});
     await page.waitForFunction(() => window.__vikaki!.table!.props!.boardCards === 3, null, { timeout: 15_000 });
     const props = () => page.evaluate(() => ({ ...window.__vikaki!.table!.props! }));
-    expect(await props()).toMatchObject({ boardCards: 3, seatCards: [2, 2, 2], dealer: "seat-1" });
+    expect(await props()).toMatchObject({ boardCards: 3, seatCards: [2, 2, 2], dealer: "seat-1", pot: "Pot 130", handsFaceUp: false }); // the pot has a label; hands stay face down
     expect((await props()).chips).toBeGreaterThan(20);
     state({ folded: true });
     await page.waitForFunction(() => window.__vikaki!.table!.props!.seatCards[2] === 0, null, { timeout: 15_000 });
