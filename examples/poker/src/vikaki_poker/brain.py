@@ -11,6 +11,7 @@ import random
 import zlib
 from dataclasses import dataclass, fields
 
+from .governor import budget_for
 from .facts import advice, equity_vs_random, hand_name, improving_cards, position, pot_odds, preflop_strength
 
 STRATEGY_PRIMER = """How to play no-limit Hold'em well (a short guide):
@@ -26,7 +27,6 @@ STRATEGY_PRIMER = """How to play no-limit Hold'em well (a short guide):
 
 def _level(x: float, low: str, mid: str, high: str) -> str:
     return low if x < 0.34 else high if x > 0.66 else mid
-
 
 @dataclass(frozen=True)
 class Traits:
@@ -108,10 +108,11 @@ def personality_text(name: str, traits: Traits, style: str = "") -> str:
         "- Talking: "
         + _level(
             t.talkative,
-            'you are quiet. Most turns your "say" is empty; when you speak it is a few words.',
-            'you chat now and then: a short sentence on about half your turns.',
-            'you are a chatterbox. Say something nearly every turn, one or two short sentences: banter, a comment on what someone just did, a joke, a prediction.',
+            f'you are quiet: about 2 turns in 10 you say something, at most {budget_for(t.talkative).max_words} words, and otherwise your "say" is empty.',
+            f'you chat now and then: about every other turn, one short sentence of at most {budget_for(t.talkative).max_words} words.',
+            f'you are a chatterbox: most turns, one or two short sentences of at most {budget_for(t.talkative).max_words} words in all. Banter, a jibe at someone, a prediction.',
         )
+        + " Talk is for gaining information (fishing for a tell, asking what someone has) or for banter, never to narrate your own move. At most one line per street; a longer or extra line is simply not heard."
     )
     lines.append(
         "- Feelings: "

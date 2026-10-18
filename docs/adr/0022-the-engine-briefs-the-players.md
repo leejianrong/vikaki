@@ -44,3 +44,7 @@ Around it:
 - A turn's prompt is longer (about 1.1k input tokens a call, about a fifth of a cent). The run above cost about 4 cents for 206 calls.
 - The numbers assume random opponent hands and the guide says to discount them against a raise; it is a rule of thumb, not solved poker.
 - A personality is guidance a model may ignore. The stats are how we notice.
+
+## Update: a quiet table (VIK-92, 2026-10-19)
+
+The first real runs had a line on nearly every move, mostly narration. The `talkative` trait is now a budget in the prompt (quiet: about 2 turns in 10, at most 6 words; middling: 12; chatty: 24) and the guide says talk is for information or banter. `governor.py` enforces it whatever the model does: at most one line per seat per street, a word cap, and turns of silence after speaking (3, 1, 0). A line over budget is dropped, not trimmed, and the log says why (`line dropped: 10 words, the budget is 6`). Twenty scripted hands with a seat that speaks every turn: 1.0 lines per move before, 0.8 (chatty), 0.5 (middling) and 0.3 (quiet) after. The check with real models is still to do: the key hit its daily limit that day.
