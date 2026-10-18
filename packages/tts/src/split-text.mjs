@@ -32,17 +32,19 @@ function bestCut(text, max, min) {
 
 /**
  * Split `text` into pieces of at most `max` characters (and, except the last, at least `min`), cutting at semicolons, colons and
- * dashes first, then commas, then before a conjunction, then at a space. A text already short enough comes back whole.
+ * dashes first, then commas, then before a conjunction, then at a space. A text already short enough comes back whole. The first piece is at most
+ * `first` characters (default: `max`).
  *
  * Why: the speech engine makes a whole sentence in one call that cannot be interrupted, so cancelling one leaves the next line
  * waiting for the rest of it (measured: a 200 character sentence delayed the next line by 6 seconds). In pieces, a cancel lands
  * between them and costs one piece.
  */
-export function splitLong(text, max = 70, min = 20) {
+export function splitLong(text, max = 70, min = 20, first = max) {
   const pieces = [];
   let rest = text.trim();
-  while (rest.length > max) {
-    const cut = bestCut(rest, max, Math.min(min, max));
+  // The first piece may be shorter than the rest (`first`): the line's sound starts when it is made, and the rest is made while it plays (VIK-116).
+  for (let limit = Math.min(first, max); rest.length > limit; limit = max) {
+    const cut = bestCut(rest, limit, Math.min(min, limit));
     pieces.push(rest.slice(0, cut).trim());
     rest = rest.slice(cut).trim();
   }

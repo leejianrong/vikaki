@@ -5,7 +5,7 @@ import { WorkerTts } from "./worker-tts.ts";
 export interface KokoroOptions {
   /** Hugging Face model id. */
   model?: string;
-  /** Weight precision. q8 is about 90 MB and runs on CPU. */
+  /** Weight precision: fp32 (about 330 MB) by default, which was three times faster than q8 (about 90 MB) on the machine it was measured on (VIK-116). `VIKAKI_KOKORO_DTYPE` sets it too. */
   dtype?: "q8" | "q4" | "fp16" | "fp32";
   voice?: string;
   /** Where to import kokoro-js from. Defaults to the package name; tests can pass a file path. */

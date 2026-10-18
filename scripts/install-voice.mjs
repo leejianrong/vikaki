@@ -5,11 +5,13 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chosenDtype, MODEL_FILES } from "../packages/tts/src/kokoro-defaults.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = join(root, ".vikaki", "voice");
 const entry = join(dir, "node_modules", "kokoro-js", "dist", "kokoro.js");
-const modelFile = join(dir, "node_modules", "@huggingface", "transformers", ".cache", "onnx-community", "Kokoro-82M-v1.0-ONNX", "onnx", "model_quantized.onnx");
+const dtype = chosenDtype();
+const modelFile = join(dir, "node_modules", "@huggingface", "transformers", ".cache", "onnx-community", "Kokoro-82M-v1.0-ONNX", "onnx", MODEL_FILES[dtype]);
 
 const step = (msg) => console.log(`\n==> ${msg}`);
 const fail = (msg) => {
@@ -29,11 +31,11 @@ if (!existsSync(entry)) {
 }
 
 if (!existsSync(modelFile)) {
-  step("Downloading the voice model (about 90 MB) and checking that it speaks.");
+  step(`Downloading the voice model (${dtype === "q8" ? "about 90 MB" : dtype === "fp16" ? "about 165 MB" : "about 330 MB"}) and checking that it speaks.`);
   const probe = `
     const { KokoroTTS } = await import(${JSON.stringify(entry)});
     const t0 = Date.now();
-    const tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", { dtype: "q8", device: "cpu" });
+    const tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", { dtype: ${JSON.stringify(dtype)}, device: "cpu" });
     const a = await tts.generate("Hello, I am ready.", { voice: "af_heart" });
     console.log("model loaded and spoke " + (a.audio.length / a.sampling_rate).toFixed(1) + " s of audio in " + ((Date.now() - t0) / 1000).toFixed(0) + " s");`;
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", probe], { cwd: dir, stdio: "inherit" });

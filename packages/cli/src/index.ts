@@ -94,7 +94,7 @@ async function chooseTts(kind: string, voice: string | undefined): Promise<{ tts
     console.log("");
     return { tts: new FakeTts() };
   }
-  console.log("loading the voice (the first run downloads a model of about 90 MB)...");
+  console.log("loading the voice (the first run downloads a model of about 330 MB)...");
   const tts = await KokoroTts.create({ voice, importFrom: found?.entry });
   return { tts, voice: voice ?? "af_heart" };
 }
