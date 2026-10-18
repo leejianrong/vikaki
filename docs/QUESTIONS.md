@@ -40,7 +40,7 @@ None. Round 1 closed 2026-10-07.
 | Q22 | TTS engine | DECIDED | Kokoro (Apache-2.0) as an optional on-demand engine; FakeTts for tests; Piper rejected (GPL-3.0). Measured about 1.6 s to a first short sentence on CPU | ADR-0010, docs/tts.md |
 | Q23 | Does the game wait for speech | DEFERRED | Game-side per-game setting. We only emit events | PLAN §Deferred |
 | Q24 | Do humans see their own avatar | DEFERRED | In mic mode the page is the preview. Multi-viewer decision belongs to the game side | PLAN §Deferred |
-| Q25 | STT and `human_utterance` | DEFERRED | After M1 | PLAN §Deferred |
+| Q25 | STT and `human_utterance` | PARTLY DECIDED: `human_utterance` is text from the framing page to the seat's driver ([ADR-0024](adr/0024-a-humans-speech-is-text-from-the-page-to-the-seats-driver.md)); speech-to-text itself stays deferred | After M1 | PLAN §Deferred |
 | Q26 | Native speech-to-speech models | DEFERRED | Protocol must still allow text beside audio | PLAN §Deferred |
 | Q27 | Hosted or neural avatar renderers | DEFERRED | Swappable renderer later, not M1 | PLAN §Deferred |
 | Q29 | Hosting seams | ASSUMED | Optional `session_id`, driver auth token, stateless env-configured hub, URL assets, usage counters | ADR-0001 |

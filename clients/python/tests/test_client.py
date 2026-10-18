@@ -75,6 +75,27 @@ def test_a_thought_goes_out_as_text_for_a_seat(hub):
     assert hub.wait_received(2)[1] == {"protocol_version": 1, "type": "thought", "seat_id": "s", "text": "Ace-king. Raise.", "persona": "ada"}
 
 
+def test_a_humans_speech_for_the_seat_arrives_with_the_other_events(hub):
+    async def go():
+        async with await VikakiClient.connect(hub.url, seats=[{"seat_id": "s"}]) as c:
+            heard = []
+            c.on_event(heard.append)
+            hub.push({"protocol_version": 1, "type": "human_utterance", "seat_id": "s", "text": "Ocean", "final": False})
+            hub.push({"protocol_version": 1, "type": "human_utterance", "seat_id": "s", "text": "Ocean waves", "final": True})
+            hub.push({"protocol_version": 1, "type": "speech_started", "utterance_id": "zz"})
+            got = []
+            async for e in c.events():
+                got.append(e)
+                if e["type"] == "speech_started":
+                    break
+            return heard, got
+
+    heard, got = run(go())
+    humans = [e for e in got if e["type"] == "human_utterance"]
+    assert [(e["seat_id"], e["text"], e["final"]) for e in humans] == [("s", "Ocean", False), ("s", "Ocean waves", True)]
+    assert [e["type"] for e in heard] == ["human_utterance", "human_utterance", "speech_started"]
+
+
 def test_cancel_with_and_without_an_id(hub):
     async def go():
         async with await VikakiClient.connect(hub.url) as c:

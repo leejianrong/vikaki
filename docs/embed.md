@@ -80,6 +80,7 @@ A browser keeps the avatar page silent until the person has clicked on it, and a
 | page to host | `{ "type": "audio_unlocked" }` | Sound is allowed now. |
 | host to page | `{ "type": "unlock" }` | Send it from a click handler on your page. The page resumes its audio. |
 | page to host | `{ "type": "speech_started" \| "speech_finished" \| "speech_interrupted", "utterance_id", "seat_id", "reason"? }` | How a line is going, to light up who is speaking or to wait for the end ([protocol.md](protocol.md#messages-to-the-page-that-frames-the-avatar-page)). `reason` only on an interruption. |
+| host to page | `{ "type": "human_utterance", "seat_id", "text", "final"? }` | What a person said for a seat, from your recogniser (VIK-69). The page sends it to the hub, and the hub gives it to that seat's driver. See "A human's speech" below. |
 | host to page | `{ "type": "audio_status" }` | Ask the page to say again which of the two it is (if your listener started after the frame loaded). |
 
 Rules, all of them tested:
@@ -93,6 +94,20 @@ Rules, all of them tested:
 - The page also writes a note to the browser console when it finds sound blocked, saying what to do.
 
 Tested in Chromium. Firefox and Safari were not tested: check your target browser once by hand (open your page, do not touch the frame, press your start button, speak a line). If `unlock` does not work there, the in-frame button is the fallback.
+
+## A human's speech
+
+A game that lets a person speak (Wavelength's clue) brings its own speech-to-text, such as the browser's, and posts each result to the frame ([ADR-0024](adr/0024-a-humans-speech-is-text-from-the-page-to-the-seats-driver.md), VIK-69):
+
+```js
+frame.contentWindow.postMessage({ type: "human_utterance", seat_id: "seat-1", text: "ocean waves", final: true }, HUB);
+```
+
+- `final: false` is a partial transcript still being recognised; leave `final` out (or send `true`) for the finished line.
+- The same rules as `unlock`: send it to the hub's origin, never `"*"`; the page accepts it only from the parent window and only when `?parent=` names your origin. A message that is not well formed (no `seat_id`, empty `text`) is dropped.
+- The hub gives it to the driver of that seat (the whole table's driver gets every seat's), as a `human_utterance` message. In the Python client it comes through `events()` and `on_event`. It goes to no other seat's driver and no other viewer.
+- It is not spoken back and does not interrupt a line being played. To answer, the driver sends an `utterance`.
+- The page must be connected to the hub (`?live=1`, and `?seats=` pages always are) for the message to go anywhere.
 
 ## Who may embed it, and the Host and token rules
 

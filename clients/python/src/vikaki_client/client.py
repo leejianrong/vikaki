@@ -248,7 +248,7 @@ class VikakiClient:
         return result
 
     async def events(self) -> AsyncIterator[Event]:
-        """Every message from the hub after `welcome` (`speech_started`, `speech_finished`, `speech_interrupted`, `error`), in order.
+        """Every message from the hub after `welcome` (`speech_started`, `speech_finished`, `speech_interrupted`, `error`, and `human_utterance`: what a human said for this driver's seat, `seat_id`, `text`, and `final` false while it is still being recognised), in order.
 
         Ends when the connection closes. The last 1000 not yet read are kept; older ones are dropped.
         """
@@ -301,7 +301,7 @@ class VikakiClient:
             fut = self._outcomes.get(uid)
             if fut is not None and not fut.done():
                 fut.set_result(message)
-        if kind in ("speech_started", "speech_finished", "speech_interrupted", "error"):
+        if kind in ("speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance"):
             self._events.append(message)
             self._events_ready.set()
             for listener in list(self._listeners):

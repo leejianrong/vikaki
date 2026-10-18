@@ -36,6 +36,12 @@ uid = v.say_stream(token_iterator, seat_id="seat-1")
 
 `cancel()` stops everything speaking; `cancel(uid)` stops one line.
 
+A human's speech, as text, comes back with the other events (the host page's recogniser sends it through the avatar page, [ADR-0024](../../docs/adr/0024-a-humans-speech-is-text-from-the-page-to-the-seats-driver.md)): `{"type": "human_utterance", "seat_id": "seat-1", "text": "ocean waves", "final": True}`, with `final` false while it is still being recognised. A seat driver hears only its own seat's.
+
+```python
+v.on_event(lambda e: e["type"] == "human_utterance" and e.get("final", True) and handle(e["seat_id"], e["text"]))
+```
+
 ### At a table of several seats
 
 One client per LLM, each bound to its seat ([ADR-0017](../../docs/adr/0017-one-driver-per-seat.md)):

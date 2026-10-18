@@ -132,6 +132,13 @@ export class SpeechPlayer {
     this.playback.cancelAll("human_spoke");
   }
 
+  /** What a human said for a seat, handed to the hub for that seat's driver (VIK-69, ADR-0024). False if the hub is not connected. */
+  sendHumanUtterance(speech: { seat_id: string; text: string; final?: boolean }): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify(make("human_utterance", speech)));
+    return true;
+  }
+
   private state(s: LiveState): void {
     this.current = s;
     this.lastBlocked = !this.o.session.running;

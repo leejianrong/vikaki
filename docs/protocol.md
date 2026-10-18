@@ -53,6 +53,7 @@ Only a driver lists seats. The hub still speaks one line at a time, so two seats
 | `speech_finished` | `utterance_id`, optional `timing` |
 | `speech_interrupted` | `utterance_id`, `reason` (`cancelled`, `superseded`, `human_spoke`, `driver_disconnected`) |
 | `error` | `code`, `message`, optional `utterance_id` |
+| `human_utterance` | `seat_id`, `text`, optional `final` | What a person said for this driver's seat, from the page ([below](#a-humans-speech)). |
 
 `timing` is what the page measured on its own clock, in ms from receiving the line: `audio_ms` until the first sound was heard, and `frame_ms` until the first rendered frame with the mouth open (absent if the line ended first). It is reported, never gated. `vikaki say` also measures send-to-heard itself and prints `time to first audio` and, when a page reported it, `time to first video frame`. `vikaki serve` prints how long the engine took to make the first audio. The local target is under 1500 ms (Q16).
 
@@ -90,6 +91,16 @@ When the hub has a speech engine, it speaks each `utterance` and sends the resul
 - If a speech engine fails, the driver gets `error` with `code: "tts_failed"` and the `utterance_id`, and the utterance is cancelled.
 - **With no viewer connected** the hub plays the speech itself in real time and sends the driver the same `speech_started` and `speech_finished` (or `speech_interrupted`), so a game never waits on a face that is not there.
 - A viewer whose browser has not yet been allowed to make sound (no click yet) does the same: it keeps time silently and reports on schedule.
+
+## A human's speech
+
+`human_utterance` carries what a person said, as text, for a seat ([ADR-0024](adr/0024-a-humans-speech-is-text-from-the-page-to-the-seats-driver.md)). There is no speech-to-text in the hub: whoever has the microphone and a recogniser (a game's page) turns the speech into text and hands it to the avatar page, which sends it to the hub as a viewer. A driver may not send it.
+
+| type | fields | notes |
+| --- | --- | --- |
+| `human_utterance` | `seat_id`, `text` (1 to 2000 characters), optional `final` | `final: false` is a partial transcript still being recognised; leave `final` out (or `true`) for the finished line. Sent by a viewer; the hub gives it to the driver of that seat (the whole table's driver gets every seat's) and to nobody else. A seat nobody drives is dropped without an error. It is not spoken and does not interrupt a line being played. |
+
+The embedding page sends it with `postMessage` ([embed.md](embed.md#a-humans-speech)). The Python client hands it to the driver through `events()` and `on_event`.
 
 ## Messages to the page that frames the avatar page
 

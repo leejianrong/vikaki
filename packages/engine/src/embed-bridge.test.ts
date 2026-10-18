@@ -14,13 +14,14 @@ describe("parseParentOrigin", () => {
 function setup(o: { parentOrigin?: string; ancestorOrigin?: string; locked?: boolean | undefined; noParent?: boolean } = {}) {
   const posted: { message: unknown; to: string }[] = [];
   const parent = { postMessage: (message: unknown, to: string) => posted.push({ message, to }) };
-  const state = { locked: "locked" in o ? o.locked : true, unlocks: 0 };
+  const state = { locked: "locked" in o ? o.locked : true, unlocks: 0, speech: [] as unknown[] };
   const bridge = new EmbedBridge({
     parentOrigin: "parentOrigin" in o ? o.parentOrigin : "https://game.example",
     parent: o.noParent ? null : parent,
     ancestorOrigin: o.ancestorOrigin,
     onUnlock: () => state.unlocks++,
     isLocked: () => state.locked,
+    onHumanUtterance: (u) => state.speech.push(u),
   });
   return { bridge, parent, posted, state };
 }
@@ -68,6 +69,28 @@ describe("EmbedBridge", () => {
     expect(state.unlocks).toBe(0);
     expect(bridge.handle({ origin: "https://game.example", source: parent, data: { type: "unlock" } })).toBe(true);
     expect(state.unlocks).toBe(1);
+  });
+
+  it("passes a human's speech from the parent window and the named origin to the page, and from nobody else (VIK-69)", () => {
+    const { bridge, parent, state } = setup();
+    const data = { type: "human_utterance", seat_id: "seat-1", text: "Ocean", final: true };
+    expect(bridge.handle({ origin: "https://game.example", source: {}, data })).toBe(false);
+    expect(bridge.handle({ origin: "https://evil.example", source: parent, data })).toBe(false);
+    expect(state.speech).toEqual([]);
+    expect(bridge.handle({ origin: "https://game.example", source: parent, data })).toBe(true);
+    expect(bridge.handle({ origin: "https://game.example", source: parent, data: { type: "human_utterance", seat_id: "seat-2", text: "Tide" } })).toBe(true);
+    expect(state.speech).toEqual([
+      { seat_id: "seat-1", text: "Ocean", final: true },
+      { seat_id: "seat-2", text: "Tide" },
+    ]);
+  });
+
+  it("drops a human's speech that is not well formed", () => {
+    const { bridge, parent, state } = setup();
+    for (const extra of [{}, { seat_id: 1, text: "x" }, { seat_id: "s" }, { seat_id: "s", text: "" }, { seat_id: "s", text: 5 }, { seat_id: "s", text: "x", final: "yes" }]) {
+      expect(bridge.handle({ origin: "https://game.example", source: parent, data: { type: "human_utterance", ...extra } })).toBe(false);
+    }
+    expect(state.speech).toEqual([]);
   });
 
   it("ignores anything else a host sends, whatever its shape", () => {

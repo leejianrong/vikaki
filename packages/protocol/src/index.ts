@@ -164,6 +164,21 @@ export const Thought = z.object({
   text: z.string().min(1).max(1000),
 });
 
+/**
+ * What a human said, as text, for a seat (ADR-0024, VIK-69). The speech-to-text is not here: whoever has the microphone (the page that frames
+ * the avatar, or a game with its own recogniser) turns the speech into text and sends this. A viewer sends it (a driver may not: the
+ * driver sets and the viewer sets stay apart) and the hub gives it to the driver of that seat; the whole table's driver gets every seat's.
+ * It goes to that driver only, not to the other viewers. It is never spoken. `final: false` marks a partial transcript still being recognised; leave it out (or send
+ * `true`) for the finished line.
+ */
+export const HumanUtterance = z.object({
+  ...common,
+  type: z.literal("human_utterance"),
+  seat_id: id,
+  text: z.string().min(1).max(2000),
+  final: z.boolean().optional(),
+});
+
 // ---- back to the driver, reported by whoever plays the audio ----
 
 export const SpeechStarted = z.object({ ...common, type: z.literal("speech_started"), utterance_id: id, seat_id: id.optional() });
@@ -230,6 +245,7 @@ export const Message = z.discriminatedUnion("type", [
   TableState,
   React,
   Thought,
+  HumanUtterance,
   SpeechStarted,
   SpeechFinished,
   SpeechInterrupted,
@@ -244,7 +260,7 @@ export type MessageOf<T extends MessageType> = Extract<Message, { type: T }>;
 export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state", "react", "thought"];
 /** A controller is not a driver: it never holds the driver slot and may only stop speech (`vikaki cancel`). */
 export const CONTROLLER_MAY_SEND: readonly MessageType[] = ["cancel"];
-export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error"];
+export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance"];
 
 export type ParseResult = { ok: true; message: Message } | { ok: false; code: ErrorCode; message: string };
 

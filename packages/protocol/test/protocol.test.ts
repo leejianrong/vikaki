@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { decodePcm16, DRIVER_MAY_SEND, EMOTIONS, encodePcm16, jsonSchema, make, MAX_SENTENCE_TEXT, normaliseEmotion, parseMessage, PROTOCOL_VERSION, VIEWER_MAY_SEND } from "../src/index.ts";
+import { CONTROLLER_MAY_SEND, decodePcm16, DRIVER_MAY_SEND, EMOTIONS, encodePcm16, jsonSchema, make, MAX_SENTENCE_TEXT, normaliseEmotion, parseMessage, PROTOCOL_VERSION, VIEWER_MAY_SEND } from "../src/index.ts";
 
 const v = PROTOCOL_VERSION;
 
@@ -248,5 +248,26 @@ describe("thought", () => {
     expect(parseMessage({ protocol_version: 1, type: "thought", seat_id: "s" }).ok).toBe(false);
     expect(parseMessage({ protocol_version: 1, type: "thought", seat_id: "s", text: "" }).ok).toBe(false);
     expect(parseMessage({ protocol_version: 1, type: "thought", seat_id: "s", text: "x".repeat(1001) }).ok).toBe(false);
+  });
+});
+
+describe("human_utterance", () => {
+  it("carries what a human said for a seat, as text, and is sent by a viewer (the page), not a driver", () => {
+    expect(VIEWER_MAY_SEND).toContain("human_utterance");
+    expect(DRIVER_MAY_SEND).not.toContain("human_utterance");
+    expect(CONTROLLER_MAY_SEND).not.toContain("human_utterance");
+    expect(parseMessage({ protocol_version: 1, type: "human_utterance", seat_id: "seat-1", text: "Ocean" })).toMatchObject({
+      ok: true,
+      message: { type: "human_utterance", seat_id: "seat-1", text: "Ocean" },
+    });
+    expect(parseMessage({ protocol_version: 1, type: "human_utterance", seat_id: "seat-1", text: "Oce", final: false }).ok).toBe(true);
+  });
+
+  it("needs a seat and some text, and the text is bounded", () => {
+    expect(parseMessage({ protocol_version: 1, type: "human_utterance", text: "hi" }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "human_utterance", seat_id: "s" }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "human_utterance", seat_id: "s", text: "" }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "human_utterance", seat_id: "s", text: "x".repeat(2001) }).ok).toBe(false);
+    expect(parseMessage({ protocol_version: 1, type: "human_utterance", seat_id: "s", text: "hi", final: "yes" }).ok).toBe(false);
   });
 });

@@ -55,6 +55,10 @@ def test_other_messages_are_checked_too():
     make("thought", seat_id="s1", text="Hm.")
     with pytest.raises(InvalidMessage):
         make("thought", seat_id="s1", text="")
+    make("human_utterance", seat_id="s1", text="Ocean", final=False)
+    for bad in ({"text": "Ocean"}, {"seat_id": "s1"}, {"seat_id": "s1", "text": ""}, {"seat_id": "s1", "text": "x" * 2001}, {"seat_id": "s1", "text": "x", "final": "yes"}):
+        with pytest.raises(InvalidMessage):
+            make("human_utterance", **bad)
     with pytest.raises(InvalidMessage, match="listed twice"):
         make("table_state", seats=[{"seat_id": "a", "stack": 1}, {"seat_id": "a", "stack": 2}])
     with pytest.raises(InvalidMessage):
