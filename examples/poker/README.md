@@ -53,6 +53,7 @@ A seat's model is briefed each turn by the engine, not left to guess ([ADR-0022]
   ```
 
   `table.example.yaml` has three: ada the narrating showman, ben the careful rock who apologises and sets traps, cy the fearless gambler. They are archetypes of how real players are known to play, not impersonations. Seats with no `traits` play a middling game.
+- `--stack N` and `--blinds 5/10` override the table file, so a `--no-rebuy` game with short stacks and big blinds is a short tournament (`--stack 100 --blinds 2/4 --no-rebuy --hands 120` plays until one player has every chip).
 - At the end of a session the command prints how each seat actually played (hands, VPIP, PFR, aggression, folds, lines and words per move), so you can see whether the characters show. A player who goes broke buys back in (`--no-rebuy` for a tournament).
 - `vikaki_poker.advisor` has the rule of thumb as a model-free player, a calling station and a random bot, and `simulate`: a free table for tests and for checking the advice (over 400 hands the advisor beats the other two by a wide margin).
 
