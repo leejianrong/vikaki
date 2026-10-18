@@ -23,7 +23,7 @@ cd .vikaki/voice && npm install kokoro-js --onnxruntime-node-install-cuda=skip
 ```
 
 - The flag avoids an install error on machines where CUDA 11 is detected (this happens under WSL).
-- About 410 MB installed. The first run downloads a model of about 90 MB.
+- About 410 MB installed. The first run downloads a model of about 330 MB (full-precision weights: three times faster to first audio than the 90 MB 8-bit ones on the machine measured, VIK-116; `VIKAKI_KOKORO_DTYPE=q8` or `fp16` picks another).
 - Measured on a laptop CPU: roughly 0.75x real time, so a short first sentence takes about 1.6 s.
 - To run the real-engine test: `VIKAKI_KOKORO_PATH=$PWD/.vikaki/voice/node_modules/kokoro-js/dist/kokoro.js pnpm --filter @vikaki/tts test`.
 

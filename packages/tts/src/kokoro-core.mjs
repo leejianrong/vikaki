@@ -1,19 +1,22 @@
 // Loading Kokoro and making speech with it, as plain JavaScript so a worker thread can run it (see WorkerTts and
 // KokoroTts). `create` returns an engine: { name, voices, synthesize(request) }.
 
+import { chosenDtype } from "./kokoro-defaults.mjs";
 import { gapAfter, splitLong, trimSilence } from "./split-text.mjs";
 
 /** The longest stretch of text made in one call. A call cannot be interrupted, so this is the most a cancel can wait for (about 2 seconds). */
 const MAX_PIECE_CHARS = 70;
+/** The first piece of a line is shorter: sound starts when it is made, and the rest is made while it plays (VIK-116). */
+const FIRST_PIECE_CHARS = 40;
 
 const INSTALL_HINT =
   "Local speech needs the optional kokoro-js package (Apache-2.0, about 400 MB with its runtime). " +
   "Install it next to Vikaki with: npm install kokoro-js --onnxruntime-node-install-cuda=skip " +
-  "(the flag avoids an install error on machines with CUDA 11). The first run also downloads a model of about 90 MB.";
+  "(the flag avoids an install error on machines with CUDA 11). The first run also downloads a model of about 330 MB (90 MB with VIKAKI_KOKORO_DTYPE=q8, which is slower on some CPUs).";
 
 const failure = (message, cause) => Object.assign(new Error(message, { cause }), { code: "tts_failed" });
 
-export async function create({ importFrom = "kokoro-js", model = "onnx-community/Kokoro-82M-v1.0-ONNX", dtype = "q8", voice = "af_heart" } = {}) {
+export async function create({ importFrom = "kokoro-js", model = "onnx-community/Kokoro-82M-v1.0-ONNX", dtype = chosenDtype(), voice = "af_heart" } = {}) {
   let mod;
   try {
     mod = await import(importFrom);
@@ -26,6 +29,12 @@ export async function create({ importFrom = "kokoro-js", model = "onnx-community
   } catch (err) {
     throw failure(`could not load the Kokoro model: ${err.message}`, err);
   }
+  // The first call after loading pays for the runtime's own set-up (about a second); make it now, not on the first line a player speaks.
+  try {
+    await engine.generate("Ready.", { voice });
+  } catch {
+    /* a failed warm-up is not a failed load: the first real line will say what is wrong */
+  }
   const voices = Object.keys(engine.voices);
   return {
     name: "kokoro",
@@ -33,7 +42,7 @@ export async function create({ importFrom = "kokoro-js", model = "onnx-community
     async *synthesize({ text, voice: wanted, signal }) {
       // A whole sentence in one call cannot be stopped, and the next line waits behind it (VIK-40). In smaller pieces, an abort
       // lands between them; each piece's audio is delivered as soon as it is made.
-      const pieces = splitLong(text, MAX_PIECE_CHARS);
+      const pieces = splitLong(text, MAX_PIECE_CHARS, undefined, FIRST_PIECE_CHARS);
       for (const [i, piece] of pieces.entries()) {
         // Let the thread's event loop turn: a message (an abort) is only handled then, and Kokoro's work holds the thread and
         // is awaited by microtasks, so without this a cancel is not seen until every piece has been made.
