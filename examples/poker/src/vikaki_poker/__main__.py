@@ -35,6 +35,7 @@ def _parser() -> argparse.ArgumentParser:
     play.add_argument("--no-reactions", action="store_true", help="the seats that are listening stay still (no silent reactions)")
     play.add_argument("--show-cards", action="store_true", help="show every live hand face up on the page (default: face down until a showdown)")
     play.add_argument("--model", help="play every seat with this model instead of the table file's")
+    play.add_argument("--reasoning", action="store_true", help="let a thinking model think before it answers (default: off; slower, and it needs a larger max_tokens in the table file)")
     play.add_argument("--base-url", help="another OpenAI-compatible endpoint (default: OpenRouter)")
     return p
 
@@ -60,7 +61,7 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
             for seat in table.seats:
                 seat.model = args.model
         if llm is None:
-            llm = FakeLlm(DEMO_REPLIES) if args.fake_llm else OpenRouterLlm.from_env(**({"base_url": args.base_url} if args.base_url else {}))
+            llm = FakeLlm(DEMO_REPLIES) if args.fake_llm else OpenRouterLlm.from_env(reasoning=args.reasoning, **({"base_url": args.base_url} if args.base_url else {}))
     except (TableError, LlmError) as err:
         print(f"vikaki_poker: {err}", file=sys.stderr)
         return 2

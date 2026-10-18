@@ -8,15 +8,15 @@ stack: 200                                         # chips each seat starts with
 small_blind: 1
 big_blind: 2
 max_tokens: 200                                    # cap on a model's reply per move
-# reaction_model: deepseek/deepseek-chat           # optional, a cheap model for how listeners react silently to a line; without it they follow a fixed table
+# reaction_model: deepseek/deepseek-v4.1-flash           # optional, a cheap model for how listeners react silently to a line; without it they follow a fixed table
 
 seats:
   seat-1:
     persona: ada
-    model: deepseek/deepseek-chat     # an OpenRouter model id (checked against the public model list, 2026-10-18)
+    model: deepseek/deepseek-v4.1-flash   # an OpenRouter model id (checked against the public model list, 2026-10-18). A thinking model: reasoning is off unless you pass --reasoning
   seat-2:
     persona: ben
-    model: deepseek/deepseek-chat
+    model: deepseek/deepseek-v4.1-flash
   seat-3:
     persona: cy
-    model: deepseek/deepseek-chat
+    model: deepseek/deepseek-v4.1-flash
