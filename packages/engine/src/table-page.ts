@@ -12,7 +12,7 @@ import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
 import { TablePanel } from "./table-panel.ts";
 import { TableProps } from "./table-props.ts";
-import { buildTable, circleSeats, medianHeight, seatLookYaw, type SeatSpot } from "./table3d.ts";
+import { buildTable, medianHeight, ovalSeats, seatLookYaw, type SeatSpot } from "./table3d.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
 import { makeTransparent, parseEmbed } from "./embed.ts";
@@ -62,7 +62,11 @@ try {
   if (duet && seats.length !== 2) throw new Error(`layout=duet needs exactly two seats, got ${seats.length}`);
   // `?view=table` sits the avatars round a table (VIK-62, ADR-0019). An avatar that cannot sit keeps the whole page on the row.
   const wantTable = !duet && params.get("view") === "table";
-  const spots: SeatSpot[] | undefined = wantTable && avatars.every((a) => a.canSeat) ? circleSeats(avatars.length) : undefined;
+  const spots: SeatSpot[] | undefined = wantTable && avatars.every((a) => a.canSeat) ? ovalSeats(avatars.length) : undefined;
+  if (spots) {
+    camera.fov = 38; // a long table needs a wider view than one avatar does
+    camera.updateProjectionMatrix();
+  }
   const rowNote = wantTable && !spots ? " · row view (an avatar cannot sit)" : "";
   let xs: number[];
   let tableY = 0;
@@ -138,10 +142,11 @@ try {
       return;
     }
     if (spots) {
-      // A low three-quarter view over the near rim: faces stay readable, the cards and chips show (the spike's `low`).
-      const back = 3.3 * Math.max(1, 1.5 / Math.max(camera.aspect, 0.1));
+      // A three-quarter view over the near rail: faces stay readable, the cards and chips show. Far enough back that the seats at the two ends fit.
+      const reach = Math.max(...spots.map((s) => Math.abs(s.x))) + 0.38;
+      const back = Math.max(3.0, reach / (Math.tan((camera.fov * Math.PI) / 360) * Math.max(camera.aspect, 0.1)));
       camera.position.set(0, tableY + 1.3, back);
-      camera.lookAt(0, tableY + 0.12, -0.2);
+      camera.lookAt(0, tableY + 0.18, -0.3);
       camera.updateMatrixWorld();
       overlay.place(frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth));
       return;
@@ -202,7 +207,7 @@ try {
   }).observe(canvas);
 
   api.table = {
-    seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0, peak: freshPeak(), kneeReach: spots ? avatars[i]!.kneeReach(-spots[i]!.x / Math.hypot(spots[i]!.x, spots[i]!.z), -spots[i]!.z / Math.hypot(spots[i]!.x, spots[i]!.z)) : undefined })),
+    seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0, peak: freshPeak(), kneeReach: spots ? avatars[i]!.kneeReach(Math.sin(spots[i]!.facing), Math.cos(spots[i]!.facing)) : undefined })),
     spoke: [],
     view: spots ? "table" : "row",
     props: props?.drawn,
