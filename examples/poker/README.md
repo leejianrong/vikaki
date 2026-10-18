@@ -19,7 +19,7 @@ cd examples/poker
 uv run --with-editable ../../clients/python python -m vikaki_poker play --table table.example.yaml --fake-llm --hands 3
 ```
 
-Add `--no-hub` to print the lines instead of speaking them (no hub needed).
+Add `--no-hub` to print the lines instead of speaking them (no hub needed). Ctrl-C stops after dropping the hand in progress, prints the chips, the style table and the model use for the hands already played, and exits with status 130.
 
 The seats that are listening react silently to each line: a feeling and a nod, shake or tilt, sent as `react` events as soon as the line is heard. Without a model they follow a fixed table of how listeners tend to answer an emotion (free, and the same every time). Name a cheap model as `reaction_model` in the table file and each listener asks it instead, one short call per listener (counted in the summary). `--no-reactions` keeps the listeners still.
 

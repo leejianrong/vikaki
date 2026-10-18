@@ -101,12 +101,17 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
         session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=args.seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy)
     finally:
         if own_voice and hasattr(voice, "close"):
-            voice.close()  # type: ignore[union-attr]
+            try:
+                voice.close()  # type: ignore[union-attr]
+            except KeyboardInterrupt:  # a second Ctrl-C while leaving: the connections close with the process
+                pass
+    if session.interrupted:
+        print(f"interrupted after {session.hands_played} hands")
     print("chips: " + ", ".join(f"{s} {n}" for s, n in session.stacks.items()) + (f" (rebuys: {', '.join(f'{s} {n}' for s, n in session.rebuys.items())})" if session.rebuys else ""))
     for row in style_lines(style_stats(session.results, list(agents)), {s: a.persona for s, a in agents.items()}):
         print(row)
     _summary(agents, print, reactor)
-    return 0
+    return 130 if session.interrupted else 0
 
 
 if __name__ == "__main__":
