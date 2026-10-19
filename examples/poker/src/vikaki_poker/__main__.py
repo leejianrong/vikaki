@@ -9,6 +9,7 @@ import sys
 from typing import Sequence
 
 from .stats import style_lines, style_stats
+from .monologue import MODES, Monologue
 from .pace import PACES, Pace
 from .llm import KEY_ENV, FakeLlm, Llm, LlmError, OpenRouterLlm, Usage, load_dotenv
 from .runner import HubVoice, PrintVoice, Voice, play_session
@@ -38,6 +39,7 @@ def _parser() -> argparse.ArgumentParser:
     play.add_argument("--no-reactions", action="store_true", help="the seats that are listening stay still (no silent reactions)")
     play.add_argument("--show-cards", action="store_true", help="show every live hand face up on the page (the default: the table page is a spectator's view, with each seat's hand and chance to win)")
     play.add_argument("--pace", choices=sorted(PACES, key=PACES.get), help="how long each beat of a hand stays on screen: slow, normal (about 1.75 s an action, 2.5 s a street), fast, or off (default: normal; off with --no-hub)")
+    play.add_argument("--monologue", choices=MODES, default="critical", help="which private thoughts are spoken aloud, softly, as an inner monologue: critical (an all-in, a big bet or call, a strong hand folded, a showdown, a win, going broke), all, or off (default: critical)")
     play.add_argument("--stack", type=int, help="chips each seat starts with (default: the table file's)")
     play.add_argument("--blinds", help="the blinds as SMALL/BIG, such as 5/10 (default: the table file's); with a short --stack they end a --no-rebuy game sooner")
     play.add_argument("--no-rebuy", action="store_true", help="a player who goes broke is out, and the session ends when one player has every chip (default: they buy back in)")
@@ -105,7 +107,7 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
                 print(f"vikaki_poker: could not join the table at {args.url} ({code}). Is `pnpm serve --personas personas.table.example.yaml` running?", file=sys.stderr)
                 return 1
     try:
-        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy, pace=Pace(PACES[args.pace or ("off" if args.no_hub else "normal")]))
+        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy, pace=Pace(PACES[args.pace or ("off" if args.no_hub else "normal")]), monologue=Monologue(args.monologue))
     finally:
         if own_voice and hasattr(voice, "close"):
             try:

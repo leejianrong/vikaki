@@ -352,6 +352,21 @@ describe("the table page", () => {
     await page.getByLabel("ada has a thought").waitFor({ state: "hidden", timeout: 15_000 });
   });
 
+  it("shows a spoken monologue as a thought bubble labelled Thinking and in the Thoughts panel, never in the chat (VIK-121)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const thought = "All in with a pair of nines. Please hold.";
+    d1.say(thought, "m1", { thought: true });
+    const bubble = page.getByLabel("ada says");
+    await bubble.waitFor({ state: "visible", timeout: 15_000 });
+    expect(await bubble.innerText()).toContain("Thinking");
+    expect(await bubble.getAttribute("class")).toContain("thought");
+    await page.getByRole("log", { name: "Thoughts" }).getByText(thought).waitFor({ timeout: 15_000 });
+    expect(await page.getByRole("log", { name: "Chat" }).innerText()).not.toContain(thought);
+    d1.say("Hello everyone.", "m2");
+    await page.getByRole("log", { name: "Chat" }).getByText("Hello everyone.").waitFor({ timeout: 15_000 });
+    expect(await bubble.getAttribute("class")).not.toContain("thought"); // table talk gets the ordinary bubble back
+  });
+
   it("lets the panel be resized by dragging or by keys, keeps the table beside it, remembers the width, and goes two columns when wide (VIK-111)", { timeout: 120_000 }, async () => {
     const { page, drivers: [d1] } = await setup("seats=3&view=table");
     const handle = page.getByRole("separator", { name: "Resize panel" });

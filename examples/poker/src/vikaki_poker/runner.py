@@ -7,6 +7,7 @@ talks one at a time), and then the engine applies the action. `Voice` is where t
 
 from __future__ import annotations
 
+import inspect
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
@@ -17,6 +18,7 @@ from .governor import Governor
 from .hand import Hand, IllegalAction
 from .pace import Pace
 from .reactions import Reaction, Reactor
+from .monologue import AFTER, Monologue, clip, critical_moment
 from .seat import SeatAgent
 
 
@@ -48,8 +50,8 @@ class PrintVoice:
     def table_state(self, state: dict) -> None:
         pass
 
-    def think(self, seat_id: str, text: str) -> None:
-        self._out(f"    {seat_id} thinks: {text}")
+    def think(self, seat_id: str, text: str, aloud: bool = False) -> None:
+        self._out(f"    {seat_id} thinks{' aloud' if aloud else ''}: {text}")
 
     def react(self, seat_id: str, reaction: Reaction) -> None:
         self._out(f"    {seat_id} reacts: {reaction.emotion or '-'}" + (f", {reaction.gesture}" if reaction.gesture else ""))
@@ -100,11 +102,16 @@ class HubVoice:
         except HubError as err:
             self._on_problem(f"  (could not show the table: {err.code})")
 
-    def think(self, seat_id: str, text: str) -> None:
+    def think(self, seat_id: str, text: str, aloud: bool = False) -> None:
         from vikaki_client import HubError
 
         try:
-            self._clients[seat_id].thought(seat_id, text)
+            if aloud:  # an inner monologue (VIK-121): the hub speaks it softly and the page shows it as a thought, so no separate `thought` message
+                client = self._clients[seat_id]
+                client.wait_finished(client.say(text, seat_id=seat_id, thought=True), timeout=self._timeout)
+                self.lines_heard += 1
+            else:
+                self._clients[seat_id].thought(seat_id, text)
         except HubError as err:  # the audience misses a thought; the game does not
             self._on_problem(f"  (could not show a thought for {seat_id}: {err.code})")
 
@@ -149,10 +156,14 @@ def _show(voice: Voice, hand: Hand, show_cards: bool, **beat: Any) -> None:
         send(table_state(hand, show_cards=show_cards, **beat))
 
 
-def _think(voice: Voice, seat: str, text: str) -> None:
-    """Show the audience a seat's private thought. A voice with no `think` shows none."""
+def _think(voice: Voice, seat: str, text: str, aloud: bool = False) -> None:
+    """Show the audience a seat's private thought, spoken when `aloud` (VIK-121). A voice with no `think` shows none."""
     send = getattr(voice, "think", None)
-    if send is not None:
+    if send is None:
+        return
+    if aloud and "aloud" in inspect.signature(send).parameters:  # a voice written before VIK-121 shows the thought as text
+        send(seat, text, aloud=True)
+    else:
         send(seat, text)
 
 
@@ -165,7 +176,7 @@ def _react(voice: Voice, pending: list) -> None:
             send(listener, reaction)
 
 
-def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, ...]], out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, governor: Governor | None = None, hand_no: int = 0, pace: Pace | None = None) -> HandResult:
+def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, ...]], out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, governor: Governor | None = None, hand_no: int = 0, pace: Pace | None = None, monologue: Monologue | None = None) -> HandResult:
     """Play `hand` to the end. `talk` is the table's recent chat, shared by all seats; lines spoken here are added to it.
 
     With a `reactor`, every other seat reacts silently to each line: the reactions are decided while the line is spoken and sent as soon
@@ -176,7 +187,7 @@ def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list
     """
     pool = ThreadPoolExecutor(max_workers=max(1, len(agents)))
     try:
-        result = _play_hand(hand, agents, voice, talk, out, reactor, pool, show_cards, governor or Governor(), hand_no, pace or Pace())
+        result = _play_hand(hand, agents, voice, talk, out, reactor, pool, show_cards, governor or Governor(), hand_no, pace or Pace(), monologue or Monologue())
     except BaseException:  # Ctrl-C: do not wait for the model calls still out, and do not start the queued ones
         pool.shutdown(wait=False, cancel_futures=True)
         raise
@@ -184,7 +195,7 @@ def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list
     return result
 
 
-def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, ...]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool, governor: Governor, hand_no: int, pace: Pace) -> HandResult:
+def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, ...]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool, governor: Governor, hand_no: int, pace: Pace, monologue: Monologue) -> HandResult:
     result = HandResult(hand)
     names = {seat_id: a.persona for seat_id, a in agents.items()}  # the characters' names, so a seat reads "ben raised" and not "seat-2 raised"
 
@@ -215,7 +226,12 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         decision = agent.decide(hand.view(seat), talk, hand.events, names)
         if decision.think:
             result.thoughts.append((seat, decision.think))
-            _think(voice, seat, decision.think)
+            reason = critical_moment(hand.view(seat), seat, decision.action, decision.amount, decision.equity, hand.big_blind)
+            aloud = monologue.speaks(hand_no, seat, reason)
+            _think(voice, seat, clip(decision.think) if aloud else decision.think, aloud)
+            if aloud:
+                note(f"    ({seat} thinks aloud: {reason or 'every thought'})")
+                pace.wait("monologue")
         decision.say, dropped = governor.vet(seat, hand_no, hand.street, decision.say, agent.traits)
         if dropped:
             decision.note = f"{decision.note}; {dropped}".strip("; ")
@@ -244,7 +260,38 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
     for event in hand.events:
         if event["type"] == "win":
             note(f"{event['seat_id']} wins {event['amount']}" + (" at showdown" if event["showdown"] else ""))
+    _after_hand(hand, agents, voice, monologue, pace, names, hand_no, result, note)
     return result
+
+
+def _after_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, monologue: Monologue, pace: Pace, names: dict[str, str], hand_no: int, result: HandResult, note: Callable[[str], None]) -> None:
+    """The moments after a hand that deserve a spoken thought (VIK-121): the winner of a showdown or a big pot, a loser at the showdown, and a seat that is now broke.
+    The engine decides nothing here, so the model is asked what the character thinks; one thought a hand per seat, and none when monologues are off."""
+    if monologue.mode == "off":
+        return
+    bb = hand.big_blind
+    stacks = hand.final_stacks()
+    wins = {e["seat_id"]: e for e in hand.events if e["type"] == "win"}
+    contenders = [p for p in hand.view(None)["players"] if not p["folded"]]
+    for seat, agent in agents.items():
+        if seat in wins and (wins[seat]["showdown"] or wins[seat]["amount"] >= 15 * bb):
+            kind, what = "win", f"{agent.persona}, you won {wins[seat]['amount']} chips."
+        elif seat not in wins and stacks.get(seat, 1) <= 0:
+            kind, what = "bust", "You are out of chips."
+        elif seat not in wins and any(p["seat_id"] == seat for p in contenders) and len(contenders) > 1 and any(e["showdown"] for e in wins.values()):
+            kind, what = "showdown", "You lost at the showdown."
+        else:
+            continue
+        reflect = getattr(agent, "reflect", None)
+        if reflect is None or not monologue.speaks(hand_no, seat, kind):
+            continue
+        text = clip(reflect(f"The hand is over. {what} {AFTER[kind]}", names))
+        if not text:
+            continue
+        result.thoughts.append((seat, text))
+        _think(voice, seat, text, True)
+        note(f"    ({seat} thinks aloud: {kind})")
+        pace.wait("monologue")
 
 
 @dataclass
@@ -256,13 +303,14 @@ class Session:
     interrupted: bool = False  # the user pressed Ctrl-C: the hand under way is not in `results`
 
 
-def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stack: int = 200, small_blind: int = 1, big_blind: int = 2, seed: int = 0, out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, rebuy: bool = True, pace: Pace | None = None) -> Session:
+def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stack: int = 200, small_blind: int = 1, big_blind: int = 2, seed: int = 0, out: Callable[[str], None] = print, reactor: Reactor | None = None, show_cards: bool = False, rebuy: bool = True, pace: Pace | None = None, monologue: Monologue | None = None) -> Session:
     """Deal up to `hands` hands, moving the button each time. A player who runs out of chips buys back in for `stack` (a cash game: the table keeps going,
     and `session.rebuys` counts them); with `rebuy=False` they are out, and the session ends when one player has all the chips. The same `seed` deals the same cards."""
     order = list(agents)
     session = Session({s: stack for s in order})
     talk: list[tuple[str, ...]] = []
     governor = Governor()
+    monologue = monologue or Monologue()
     button = 0
     for n in range(hands):
         if rebuy:
@@ -277,7 +325,7 @@ def play_session(agents: dict[str, SeatAgent], voice: Voice, *, hands: int, stac
         out(f"--- hand {n + 1}: " + ", ".join(f"{s} {session.stacks[s]}" for s in alive))
         hand = Hand([(s, session.stacks[s]) for s in alive], button % len(alive), small_blind, big_blind, seed=seed + n, staged=True)
         try:
-            result = play_hand(hand, agents, voice, talk, out, reactor, show_cards, governor, n, pace)
+            result = play_hand(hand, agents, voice, talk, out, reactor, show_cards, governor, n, pace, monologue)
         except KeyboardInterrupt:
             session.interrupted = True
             out("--- interrupted: stopping after the hand in progress is dropped")

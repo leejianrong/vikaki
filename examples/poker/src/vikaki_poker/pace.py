@@ -19,6 +19,7 @@ SECONDS = {
     "street": 2.5,  # the bets swept in and the next cards turned over
     "showdown": 3.0,  # the hands turned over
     "win": 3.5,  # the pot slid to the winner
+    "monologue": 1.2,  # a thought spoken aloud: a longer pause after it, so it is heard as a thought and not run into the next line (VIK-121)
 }
 
 PACES = {"off": 0.0, "fast": 0.5, "normal": 1.0, "slow": 1.5}

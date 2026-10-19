@@ -41,6 +41,7 @@ class Decision:
     note: str = ""  # why the engine chose it, and anything that went wrong with the model
     think: str = ""  # the private thought: shown to the audience, never to another player (VIK-93)
     to: str | None = None  # the seat the line is for (VIK-120), or None for the whole table
+    equity: float = 0.0  # the engine's chance to win, for the runner to judge whether this is a moment worth a spoken thought (VIK-121)
 
 
 @dataclass
@@ -131,9 +132,21 @@ class SeatAgent:
         try:
             reply = self.llm.complete(messages, model=self.model, max_tokens=self.max_tokens)
         except LlmError as err:
-            return Decision(move.kind, move.amount, note=f"{move.reason}; the model failed: {err}")
+            return Decision(move.kind, move.amount, note=f"{move.reason}; the model failed: {err}", equity=move.equity)
         self.usage.add(reply.usage)
         say = parse_performance(reply.text)
         note = "; ".join(x for x in (move.reason, say.note) if x)
         to = resolve_addressee(say.to, names or {}, self.seat_id) if say.say else None
-        return Decision(move.kind, move.amount, say.say, say.emotion, note, say.think, to)
+        return Decision(move.kind, move.amount, say.say, say.emotion, note, say.think, to, move.equity)
+
+    def reflect(self, situation: str, names: dict[str, str] | None = None) -> str:
+        """What goes through this character's head after a hand (VIK-121): one short thought, for the audience. `situation` says what just happened.
+        Never raises; a failed or empty answer is an empty thought, and the seat just stays quiet."""
+        system = SYSTEM.format(persona=self.persona, personality=personality_text(self.persona, self.traits, self.style or "friendly"), emotions=", ".join(EMOTIONS))
+        user = f"{situation}\nReply with ONLY a JSON object: {{\"think\": \"<what you think, in character, at most 25 words>\", \"say\": \"\", \"emotion\": \"<one of: {', '.join(EMOTIONS)}>\"}}"
+        try:
+            reply = self.llm.complete([{"role": "system", "content": system}, {"role": "user", "content": user}], model=self.model, max_tokens=self.max_tokens)
+        except LlmError:
+            return ""
+        self.usage.add(reply.usage)
+        return parse_performance(reply.text).think

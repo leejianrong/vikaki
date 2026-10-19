@@ -130,13 +130,20 @@ export class TableOverlay {
     if (i >= 0) this.marks[i]!.hidden = !on;
   }
 
+  /** A seat thinks aloud (VIK-121): its bubble turns into a thought bubble, labelled "Thinking". It is not table talk, so the transcript is left alone. */
+  addSpokenThought(seat: string, text: string): void {
+    this.setThought(seat, true);
+    this.showBubble(seat, text, undefined, true);
+  }
+
   /** The speaker's bubble shows the line as far as it has arrived and fades some seconds after the last piece; no other seat keeps one. */
-  private showBubble(seat: string, text: string, to?: string): void {
+  private showBubble(seat: string, text: string, to?: string, thought = false): void {
     this.bubbles.forEach((b, i) => {
       const mine = this.seats[i]!.seat === seat;
       clearTimeout(this.bubbleTimers[i]);
       if (!mine) return void (b.hidden = true);
-      b.replaceChildren(...(to ? [el("span", { className: "to", textContent: `→ ${to}` }), text] : [text]));
+      b.classList.toggle("thought", thought);
+      b.replaceChildren(...(thought ? [el("span", { className: "to", textContent: "Thinking" }), text] : to ? [el("span", { className: "to", textContent: `→ ${to}` }), text] : [text]));
       b.hidden = text === "";
       this.bubbleTimers[i] = setTimeout(() => (b.hidden = true), BUBBLE_MS);
     });
