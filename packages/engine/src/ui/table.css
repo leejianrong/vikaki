@@ -105,6 +105,8 @@
   animation: bubble-in var(--dur-short3) var(--ease-standard);
 }
 .table-overlay.with-panel .bubble[hidden] { display: none; }
+/* A monologue spoken aloud (VIK-121): dashed, softer, italic, labelled "Thinking" (not table talk). */
+.table-overlay.with-panel .bubble.thought { border-style: dashed; font-style: italic; background: var(--md-sys-color-surface-container-low); color: var(--md-sys-color-on-surface-variant); }
 @keyframes bubble-in { from { opacity: 0; } }
 
 /* The beat just played (VIK-113): a banner for a move, a bigger card for a new hand, a street, the showdown and the win. */

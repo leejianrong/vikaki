@@ -42,8 +42,8 @@ export interface SpeechPlayerOptions {
   onThought?: (thought: { seat: string; persona?: string; text: string }) => void;
   /** The game sent the state of the table (pot, stacks, cards, whose turn): draw it. */
   onTableState?: (state: MessageOf<"table_state">) => void;
-  /** A piece of a line's text arrived: the whole `text`, or one `delta` of a line still being written. For a transcript. */
-  onText?: (line: { id: string; seat: string; text?: string; delta?: string; to?: string }) => void;
+  /** A piece of a line's text arrived: the whole `text`, or one `delta` of a line still being written. For a transcript. `thought` marks an inner monologue spoken aloud (VIK-121): not table talk. */
+  onText?: (line: { id: string; seat: string; text?: string; delta?: string; to?: string; thought?: boolean }) => void;
   /** Times lines for the `timing` of `speech_finished`. The page's render loop feeds it frames. */
   timer?: FirstFrameTimer;
   /** Called when all the audio of a spoken sentence has arrived, which is before it is heard. */
@@ -176,7 +176,7 @@ export class SpeechPlayer {
         this.owners.see(m.utterance_id, m.persona);
         if (!this.owners.mine(m.utterance_id)) break; // another persona's line: its own page plays it
         this.o.timer?.received(m.utterance_id, performance.now());
-        this.o.onText?.({ id: m.utterance_id, seat: m.seat_id, ...(m.text !== undefined ? { text: m.text } : {}), ...(m.delta !== undefined ? { delta: m.delta } : {}), ...(m.to !== undefined ? { to: m.to } : {}) });
+        this.o.onText?.({ id: m.utterance_id, seat: m.seat_id, ...(m.text !== undefined ? { text: m.text } : {}), ...(m.delta !== undefined ? { delta: m.delta } : {}), ...(m.to !== undefined ? { to: m.to } : {}), ...(m.thought ? { thought: true } : {}) });
         if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity, seat: m.seat_id, persona: m.persona }); // the first message of a streamed line carries it
         break;
       case "react":

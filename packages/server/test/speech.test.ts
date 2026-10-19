@@ -89,6 +89,18 @@ describe("speaking to avatar pages", () => {
     expect(seconds(audio)).toBeCloseTo(2, 1);
   });
 
+  it("speaks a thought softer than the same line said aloud, and tells the pages it is a thought (VIK-121)", async () => {
+    const { viewer, driver } = await setup();
+    const peak = (msgs: Msg[]) => audioOf(msgs).reduce((p, m) => decodePcm16(String(m.pcm)).reduce((q, v) => Math.max(q, Math.abs(v)), p), 0);
+    driver.send(utterance({ utterance_id: "said", text: x(20) }));
+    const said = await readUntil(viewer, isFinal);
+    driver.send(utterance({ utterance_id: "thought", text: x(20), thought: true }));
+    const thought = await readUntil(viewer, isFinal);
+    expect(thought[0]).toMatchObject({ type: "utterance", utterance_id: "thought", thought: true });
+    expect(peak(thought)).toBeGreaterThan(0);
+    expect(peak(thought)).toBeLessThan(peak(said) * 0.7);
+  });
+
   it("speaks each sentence as its own piece, in order", async () => {
     const { viewer, driver, fake } = await setup();
     driver.send(utterance({ text: "One. Two. Three." }));

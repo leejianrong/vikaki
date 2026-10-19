@@ -120,10 +120,12 @@ class VikakiClient:
         persona: str | None = None,
         kind: str | None = None,
         to: str | None = None,
+        thought: bool | None = None,
     ) -> str:
-        """Speak one whole line. Returns its `utterance_id` (made up if you gave none), to pass to `wait_finished` or `cancel`. `to` is the seat the line is for."""
+        """Speak one whole line. Returns its `utterance_id` (made up if you gave none), to pass to `wait_finished` or `cancel`. `to` is the seat the line is for.
+        `thought=True` is an inner monologue (VIK-121): spoken softly, shown as a thought, not table talk."""
         uid = utterance_id or _new_id()
-        message = make("utterance", seat_id=seat_id, utterance_id=uid, text=text, emotion=emotion, intensity=intensity, persona=persona, kind=kind, to=to)
+        message = make("utterance", seat_id=seat_id, utterance_id=uid, text=text, emotion=emotion, intensity=intensity, persona=persona, kind=kind, to=to, thought=thought)
         self._track(uid)
         await self._send(message)
         return uid

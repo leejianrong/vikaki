@@ -1,6 +1,7 @@
 import { encodePcm16, make, MAX_SENTENCE_TEXT, type Message } from "@vikaki/protocol";
 import { SentenceChunker, type AudioChunk, type ChunkerOptions, type Tts } from "@vikaki/tts";
 import type { Hub } from "./hub.ts";
+import { ThoughtFilter } from "./thought-filter.ts";
 
 export interface SpeechTiming {
   utterance_id: string;
@@ -40,6 +41,8 @@ interface Utterance {
   id: string;
   seatId: string;
   persona?: string;
+  /** Thinking aloud (VIK-121): its audio goes through a soft filter, so it sounds unlike a line said to the table. */
+  filter?: ThoughtFilter;
   chunker: SentenceChunker;
   controller: AbortController;
   textAt: number;
@@ -124,6 +127,7 @@ export class SpeechEngine {
         id: m.utterance_id,
         seatId: m.seat_id,
         persona: m.persona,
+        ...(m.thought ? { filter: new ThoughtFilter() } : {}),
         chunker: new SentenceChunker(this.o.chunker),
         controller: new AbortController(),
         textAt: Date.now(),
@@ -246,9 +250,10 @@ export class SpeechEngine {
     this.o.observer?.audio?.({ utterance_id: u.id, sentence: u.sentences - 1, samples: chunk.samples, sampleRate: chunk.sampleRate, at: Date.now() });
     u.virtualSeconds += chunk.samples.length / chunk.sampleRate;
     if (u.virtual) return; // nobody to send audio to
+    const samples = u.filter ? u.filter.process(chunk.samples, chunk.sampleRate) : chunk.samples;
     const step = Math.max(1, Math.round(this.maxSlice * chunk.sampleRate));
     const sentence_index = u.sentences - 1;
-    for (let at = 0; at < chunk.samples.length; at += step) {
+    for (let at = 0; at < samples.length; at += step) {
       const first = u.announced !== sentence_index;
       u.announced = sentence_index;
       this.hub?.toViewers(
@@ -259,7 +264,7 @@ export class SpeechEngine {
           seat_id: u.seatId,
           seq: u.seq++,
           sample_rate: chunk.sampleRate,
-          pcm: encodePcm16(chunk.samples.subarray(at, at + step)),
+          pcm: encodePcm16(samples.subarray(at, at + step)),
           final: false,
         }),
       );

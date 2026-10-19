@@ -296,6 +296,14 @@ try {
       props?.setState(state);
     },
     onText: (line) => {
+      if (line.thought) {
+        // A monologue spoken aloud (VIK-121): a thought bubble and the Thoughts list, never the chat.
+        if (line.text !== undefined) {
+          overlay.addSpokenThought(line.seat, line.text);
+          panel?.addThought(line.seat, line.text);
+        }
+        return;
+      }
       overlay.addText(line);
       panel?.addText(line);
     },

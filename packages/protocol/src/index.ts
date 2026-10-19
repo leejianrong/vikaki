@@ -83,6 +83,8 @@ export const Utterance = z
     kind: z.enum(UTTERANCE_KINDS).optional(),
     /** Who the line is for (VIK-120): another seat's id. A page shows "Ada → Ben" and the addressee reacts to it. Left out, the line is to the whole table. */
     to: id.optional(),
+    /** A spoken inner monologue (VIK-121): the seat is thinking aloud, not talking to the table. The hub speaks it in a soft, filtered voice and a page shows it as a thought, not as chat. */
+    thought: z.boolean().optional(),
   })
   .refine((m) => (m.text === undefined) !== (m.delta === undefined), { message: "send exactly one of `text` or `delta`" })
   .refine((m) => m.text === undefined || m.final === undefined, { message: "`final` only goes with `delta`" });
