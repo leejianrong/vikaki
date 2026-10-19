@@ -32,6 +32,11 @@ export class AudioSession {
     return this.ls;
   }
 
+  /** The audio context while the browser lets the page make sound, else undefined. For effects that play beside the speech (VIK-122). */
+  get context(): AudioContext | undefined {
+    return this.ctx?.state === "running" ? this.ctx : undefined;
+  }
+
   get state(): AudioContextState | "none" {
     return this.ctx?.state ?? "none";
   }

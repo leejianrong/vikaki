@@ -39,6 +39,15 @@ export class TablePanel {
     this.draw(state);
   }
 
+  /** A mute switch and a volume slider for the sound effects (VIK-122), at the foot of the left column. */
+  addSoundControls(sfx: { volume: number; muted: boolean; set(o: { volume?: number; muted?: boolean }): void }): void {
+    const mute = el("input", { type: "checkbox", role: "switch", ariaLabel: "Mute sound effects", checked: sfx.muted });
+    const volume = el("input", { type: "range", min: "0", max: "100", step: "5", value: String(Math.round(sfx.volume * 100)), ariaLabel: "Sound effects volume" });
+    mute.addEventListener("change", () => sfx.set({ muted: mute.checked }));
+    volume.addEventListener("input", () => sfx.set({ volume: Number(volume.value) / 100 }));
+    this.root.querySelector(".panel-left")!.append(el("section", { className: "sound-controls", role: "group", ariaLabel: "Sound effects" }, el("h2", { className: "title-medium", textContent: "Sound effects" }), el("label", {}, mute, " Mute"), el("label", {}, "Volume ", volume)));
+  }
+
   /** A whole line or a piece of one (the same `id` grows it): wrapped in full, the name in the seat's colour, newest last and scrolled into view unless the reader has scrolled up. */
   addText(line: { id: string; seat: string; text?: string; delta?: string; to?: string }): void {
     this.lines = addToTranscript(this.lines, line, CHAT_LINES);

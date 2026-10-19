@@ -11,6 +11,8 @@ import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
 import { TablePanel } from "./table-panel.ts";
+import { cuesFor } from "./sfx-cues.ts";
+import { Sfx } from "./sfx.ts";
 import { TableProps } from "./table-props.ts";
 import { buildTable, medianHeight, ovalSeats, seatLookYaw, type SeatSpot } from "./table3d.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
@@ -106,6 +108,10 @@ try {
   const wantPanel = params.has("panel") ? params.get("panel") === "1" : spots !== undefined && !embedOpts.embed;
   const panel = wantPanel ? new TablePanel(seats) : undefined;
   if (panel) overlay.withPanel = true;
+  // Sound effects (VIK-122) go with the panel's controls: a page with no panel (an embed) leaves the sound to its host.
+  const sfx = panel ? new Sfx(session) : undefined;
+  if (panel && sfx) panel.addSoundControls(sfx);
+  let lastState: Parameters<typeof cuesFor>[1] | undefined;
   const puppets = avatars.map((a, i) => new Puppet(a, seed + i * 101, params.get("still") !== "1"));
   const symbols = avatars.map((a) => {
     const { head, top } = a.framing();
@@ -214,6 +220,7 @@ try {
     spoke: [],
     view: spots ? "table" : "row",
     props: props?.drawn,
+    sfx,
     resetPeaks: () => {
       api.table!.seats.forEach((r) => (r.peak = freshPeak()));
       api.table!.spoke.length = 0;
@@ -294,6 +301,8 @@ try {
       overlay.setState(state);
       panel?.setState(state);
       props?.setState(state);
+      if (sfx && JSON.stringify(state) !== JSON.stringify(lastState)) sfx.play(cuesFor(lastState, state, seats.map((x) => x.seat)));
+      lastState = state;
     },
     onText: (line) => {
       if (line.thought) {
