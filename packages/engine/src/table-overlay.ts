@@ -3,7 +3,7 @@
 // plates say is what the game sent. Plain DOM with roles and names, so tests find things the way a person would.
 import type { MessageOf } from "@vikaki/protocol";
 import type { EmbedOptions } from "./embed.ts";
-import { addToTranscript, cardFace, lineLabel, seatColour, type Seat, type TranscriptLine } from "./table.ts";
+import { addToTranscript, cardFace, SUIT_PATHS, lineLabel, seatColour, type Seat, type TranscriptLine } from "./table.ts";
 import { el } from "./ui/dom.ts";
 import "./ui/material.ts";
 import "./ui/table.css";
@@ -22,9 +22,33 @@ const BEAT_DEFAULT_MS = 1900;
 /** The beats that are a title card for the table, not one seat's move. */
 const TITLES = new Set(["new_hand", "street", "showdown", "win"]);
 
+/** A suit as an inline SVG (VIK-141): a shape, not a font glyph, so the spade and the club cannot be mistaken for each other. */
+function pipSvg(path: string): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("class", "pip");
+  svg.setAttribute("aria-hidden", "true");
+  const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  p.setAttribute("d", path);
+  svg.append(p);
+  return svg;
+}
+
+/** A poker chip as an inline SVG, next to the pot's amount (VIK-141): a ring of dashes round a disc, in the text's colour. */
+export function chipIcon(): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "chip-icon");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = '<circle cx="12" cy="12" r="10.5" fill="currentColor"/><circle cx="12" cy="12" r="7.2" fill="none" stroke="var(--chip-ring, #fff)" stroke-width="1.6" stroke-dasharray="3.2 2.1"/><circle cx="12" cy="12" r="3.4" fill="none" stroke="var(--chip-ring, #fff)" stroke-width="1.2"/>';
+  return svg;
+}
+
 export function cardEl(card: string): HTMLElement {
   const f = cardFace(card);
-  return el("li", { className: `card${f.red ? " red" : ""}${f.down ? " down" : ""}`, textContent: f.text, ariaLabel: f.down ? "face-down card" : f.text });
+  const path = SUIT_PATHS[f.suit];
+  const pip = path ? [pipSvg(path)] : [];
+  return el("li", { className: `card${f.red ? " red" : ""}${f.down ? " down" : ""}`, ariaLabel: f.down ? "face-down card" : f.text }, ...(path ? [el("span", { className: "rank", textContent: f.rank }), ...pip] : [f.text]));
 }
 
 export class TableOverlay {
@@ -154,7 +178,7 @@ export class TableOverlay {
     this.info.hidden = !st || (st.pot === undefined && !st.street && !(st.board?.length));
     this.info.replaceChildren();
     if (st && !this.info.hidden) {
-      if (st.pot !== undefined) this.info.append(el("span", { className: "pot" }, `Pot ${money(st.pot)}`));
+      if (st.pot !== undefined) this.info.append(el("span", { className: "pot" }, `Pot: ${money(st.pot)}`, chipIcon()));
       if (st.street) this.info.append(el("span", { className: "street", textContent: st.street }));
       if (this.showCards && st.board?.length) this.info.append(el("ul", { className: "cards", ariaLabel: "Board" }, ...st.board.map(cardEl)));
     }

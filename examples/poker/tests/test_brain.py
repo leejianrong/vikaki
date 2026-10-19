@@ -47,7 +47,7 @@ def test_every_seat_gets_the_same_briefing_whatever_its_traits():
     tight = build_messages("ben", "", view, [], MOVE, traits=Traits(loose=0.1, aggressive=0.1, bluff=0.0, tricky=0.1))
     assert wild[1] == tight[1]  # the situation and the engine's move are the same for everyone
     assert "personality" not in wild[1]["content"]
-    assert "already decided: raise to 12" in wild[1]["content"] and "about 64% to win" in wild[1]["content"]
+    assert "settled your move this turn: raise to 12" in wild[1]["content"] and "about 64% to win" in wild[1]["content"]
 
 
 def test_the_model_is_told_the_move_and_never_asked_for_one():
@@ -55,7 +55,7 @@ def test_the_model_is_told_the_move_and_never_asked_for_one():
     system = build_messages("ada", "", view, [], MOVE)[0]["content"]
     assert '"think"' in system and '"say"' in system and '"emotion"' in system
     assert '"action"' not in system and '"amount"' not in system  # there is nowhere in the reply to change the move
-    assert "already chosen" in system and "do not change it" in build_messages("ada", "", view, [], MOVE)[1]["content"]
+    assert "already settled" in system and "do not change it" in build_messages("ada", "", view, [], MOVE)[1]["content"]
 
 
 def test_a_trait_changes_the_instructions_a_seat_is_given():
@@ -97,7 +97,7 @@ def test_the_briefing_has_the_situation_the_story_and_the_move_and_no_other_hand
     for other in h.seats:
         if other.seat_id != seat:
             assert not any(c in text for c in other.hole)
-    assert "ada raised to 8" in text and "Your move this turn is already decided: raise to 12" in text
+    assert "ada raised to 8" in text and "Your poker head has settled your move this turn: raise to 12" in text
     assert "ada: Big one." in text and "Opponents still in:" in text
     assert "Your legal actions" not in text and "recommended" not in text  # no menu to choose from
 

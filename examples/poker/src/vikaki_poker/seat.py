@@ -15,6 +15,7 @@ from typing import Callable
 
 from .brain import Traits, briefing, history_text, performer_facts, personality_text
 from .llm import Llm, LlmError, Message, Usage
+from .voice import VOICE, clean
 from .strategy import Move, big_blind_of, decide as engine_decide
 
 EMOTIONS = ("neutral", "happy", "smug", "worried", "surprised", "sad", "angry")
@@ -23,9 +24,11 @@ MAX_THINK = 400
 
 SYSTEM = """You are {persona}, a cartoon character at a small table playing no-limit Texas Hold'em with other cartoon characters.
 
-The table's engine plays your cards for you: each turn it has already chosen your move, and you are told what it is and why. You bring the character: what you say aloud, what you think, and how you feel.
+Your poker head plays your cards for you: each turn it has already settled your move, and you are told what it is and why. You bring the character: what you say aloud, what you think, and how you feel.
 
 {personality}
+
+{voice}
 
 Reply with ONLY one JSON object, nothing else:
 {{"think": "<your private thought, in character>", "say": "<table talk, in character, or empty>", "to": "<the name of the player you are talking to, or table>", "emotion": "<one of: {emotions}>"}}
@@ -59,7 +62,7 @@ def build_messages(persona: str, style: str, view: dict, talk: list[tuple[str, .
     """The two messages a seat's model gets: who it is (the same every turn), and this turn's situation with the move already decided."""
     names = names or {}
     facts = facts if facts is not None else performer_facts(view)
-    system = SYSTEM.format(persona=persona, personality=personality_text(persona, traits or Traits(), style or "friendly"), emotions=", ".join(EMOTIONS))
+    system = SYSTEM.format(persona=persona, personality=personality_text(persona, traits or Traits(), style or "friendly"), voice=VOICE, emotions=", ".join(EMOTIONS))
     return [{"role": "system", "content": system}, {"role": "user", "content": briefing(view, facts, history, talk, names, move, recent)}]
 
 
@@ -83,9 +86,9 @@ def parse_performance(text: str) -> Performance:
     say = obj.get("say") if isinstance(obj.get("say"), str) else ""
     think = obj.get("think") if isinstance(obj.get("think"), str) else ""
     return Performance(
-        say=" ".join(say.split())[:MAX_SAY],
+        say=clean(" ".join(say.split()))[:MAX_SAY],
         emotion=obj.get("emotion") if obj.get("emotion") in EMOTIONS else None,
-        think=" ".join(think.split())[:MAX_THINK],
+        think=clean(" ".join(think.split()))[:MAX_THINK],
         to=obj["to"].strip() if isinstance(obj.get("to"), str) else "",
     )
 
@@ -142,7 +145,7 @@ class SeatAgent:
     def reflect(self, situation: str, names: dict[str, str] | None = None) -> str:
         """What goes through this character's head after a hand (VIK-121): one short thought, for the audience. `situation` says what just happened.
         Never raises; a failed or empty answer is an empty thought, and the seat just stays quiet."""
-        system = SYSTEM.format(persona=self.persona, personality=personality_text(self.persona, self.traits, self.style or "friendly"), emotions=", ".join(EMOTIONS))
+        system = SYSTEM.format(persona=self.persona, personality=personality_text(self.persona, self.traits, self.style or "friendly"), voice=VOICE, emotions=", ".join(EMOTIONS))
         user = f"{situation}\nReply with ONLY a JSON object: {{\"think\": \"<what you think, in character, at most 25 words>\", \"say\": \"\", \"emotion\": \"<one of: {', '.join(EMOTIONS)}>\"}}"
         try:
             reply = self.llm.complete([{"role": "system", "content": system}, {"role": "user", "content": user}], model=self.model, max_tokens=self.max_tokens)

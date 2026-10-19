@@ -149,12 +149,12 @@ describe("the table page", () => {
       ),
     );
     const table = page.getByRole("region", { name: "Table" });
-    await table.getByText("Pot 1,200").waitFor({ timeout: 15_000 });
-    expect(await table.getByRole("list", { name: "Board" }).getByRole("listitem").allInnerTexts()).toEqual(["A♠", "10♦", "7♣"]);
+    await table.getByText("Pot: 1,200").waitFor({ timeout: 15_000 });
+    expect(await table.getByRole("list", { name: "Board" }).getByRole("listitem").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))).toEqual(["A♠", "10♦", "7♣"]);
     const ada = page.getByRole("group", { name: "ada", exact: true });
     expect(await ada.innerText()).toContain("Stack 880");
     expect(await ada.innerText()).toContain("Bet 40");
-    expect(await ada.getByRole("listitem").allInnerTexts()).toEqual(["K♥", "Q♥"]);
+    expect(await ada.getByRole("listitem").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))).toEqual(["K♥", "Q♥"]);
     await ada.getByLabel("Dealer").waitFor({ timeout: 15_000 });
     const ben = page.getByRole("group", { name: "ben", exact: true });
     expect(await ben.getAttribute("aria-current")).toBe("true"); // the turn marker
@@ -275,12 +275,12 @@ describe("the table page", () => {
       ),
     );
     const panel = page.getByRole("complementary", { name: "Table panel" });
-    await panel.getByText("Pot 48").waitFor();
+    await panel.getByText("Pot: 48").waitFor();
     expect(await panel.getByRole("list", { name: "Board" }).getByRole("listitem").count()).toBe(3);
     const ada = panel.getByRole("group", { name: "ada, hand" });
     expect(await ada.innerText()).toContain("Stack 180");
     expect(await ada.locator(".hand-name").textContent()).toBe("three of a kind, kings");
-    expect(await ada.getByRole("list", { name: "Cards" }).getByRole("listitem").allInnerTexts()).toEqual(["K♦", "K♣"]);
+    expect(await ada.getByRole("list", { name: "Cards" }).getByRole("listitem").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))).toEqual(["K♦", "K♣"]);
     expect(await ada.getByRole("meter", { name: "ada chance to win" }).getAttribute("aria-valuenow")).toBe("91");
     expect(await ada.innerText()).toContain("91%");
     expect(await ada.innerText()).toContain("raised to 12");
@@ -463,7 +463,7 @@ describe("the table page", () => {
     state({});
     await page.waitForFunction(() => window.__vikaki!.table!.props!.boardCards === 3, null, { timeout: 15_000 });
     const props = () => page.evaluate(() => ({ ...window.__vikaki!.table!.props! }));
-    expect(await props()).toMatchObject({ boardCards: 3, seatCards: [2, 2, 2], dealer: "seat-1", pot: "Pot 130", handsFaceUp: false }); // the pot has a label; hands stay face down
+    expect(await props()).toMatchObject({ boardCards: 3, seatCards: [2, 2, 2], dealer: "seat-1", pot: "Pot: 130", handsFaceUp: false }); // the pot has a label; hands stay face down
     expect((await props()).chips).toBeGreaterThan(20);
     state({ folded: true });
     await page.waitForFunction(() => window.__vikaki!.table!.props!.seatCards[2] === 0, null, { timeout: 15_000 });

@@ -82,12 +82,13 @@ describe("the layout of the table (VIK-84)", () => {
 
   it("draws a pot label with the amount, face-down hands until the showdown, and the hands face up at it", () => {
     // no browser here: a canvas that accepts every drawing call is enough, the test is about what is drawn, not how it looks
-    const noop: unknown = new Proxy(() => noop, { get: () => noop, set: () => true });
+    const noop: unknown = new Proxy(() => noop, { get: (_, key) => (key === "measureText" ? () => ({ width: 10 }) : noop), set: () => true });
+    vi.stubGlobal("Path2D", class {});
     vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => noop }) });
     const props = new TableProps(0.7, ovalSeats(3), ["a", "b", "c"]);
     const seats = [{ seat_id: "a", stack: 90, cards: ["As", "Kd"] }, { seat_id: "b", stack: 90, cards: ["2c", "7d"] }, { seat_id: "c", stack: 90, folded: true, cards: ["back", "back"] }];
     props.setState({ protocol_version: 1, type: "table_state", pot: 1234, street: "flop", board: ["Ks", "8d", "3c"], seats });
-    expect(props.drawn.pot).toBe("Pot 1,234");
+    expect(props.drawn.pot).toBe("Pot: 1,234");
     expect(props.drawn.handsFaceUp).toBe(false);
     props.setState({ protocol_version: 1, type: "table_state", pot: 0, street: "showdown", board: ["Ks", "8d", "3c", "2h", "9s"], seats });
     expect(props.drawn.handsFaceUp).toBe(true);
@@ -100,8 +101,9 @@ describe("the layout of the table (VIK-84)", () => {
 });
 
 describe("the table moves (VIK-113)", () => {
-  const noop: unknown = new Proxy(() => noop, { get: () => noop, set: () => true });
+  const noop: unknown = new Proxy(() => noop, { get: (_, key) => (key === "measureText" ? () => ({ width: 10 }) : noop), set: () => true });
   const make = () => {
+    vi.stubGlobal("Path2D", class {});
     vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => noop }) });
     vi.stubGlobal("matchMedia", () => ({ matches: false }));
     return new TableProps(0.7, ovalSeats(3), ["a", "b", "c"]);
