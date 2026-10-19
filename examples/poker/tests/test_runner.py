@@ -255,7 +255,7 @@ def test_a_reactor_that_breaks_does_not_stall_the_table():
     voice = ReactingVoice()
     hand = Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4)
     play_hand(hand, smug_calls(), voice, [], out=quiet, reactor=Broken())
-    assert hand.complete and not [c for c in voice.calls if c[0] == "react"]
+    assert hand.complete and not [c for c in voice.calls if c[0] == "react" and c[2:] == ("worried", "tilt")]  # none of the broken reactor's; the move reactions (VIK-134) are the game's own
 
 
 def test_parse_reaction_reads_a_reply_and_returns_none_for_anything_unusable_or_still():
@@ -502,7 +502,7 @@ def test_an_all_in_is_shown_beat_by_beat_with_a_pause_after_each():
     assert events == ["new_hand", "raise", "call", "street", "street", "street", "showdown", "win"]
     streets = [(s["street"], len(s["board"])) for s in voice.states if s.get("event", {}).get("kind") == "street"]
     assert streets == [("flop", 3), ("turn", 4), ("river", 5)]  # the turn and the river are seen, one at a time
-    assert slept == [2.5, 1.75, 1.75, 2.5, 2.5, 2.5, 3.0, 3.5]
+    assert slept == pytest.approx([3.0, 5.4, 2.8 + 2.0 * 48 / 52, 3.2, 3.2, 3.2, 3.5, 4.0])  # the shove and the call it draws sit longer (VIK-134)
     assert voice.states[0]["hand_no"] == 7  # shown to people as hand 7
     last = voice.states[-1]
     assert last["event"]["kind"] == "win" and last["winners"] and last["pot"] == 0
@@ -530,7 +530,7 @@ def test_a_session_plays_staged_hands_numbered_from_one_and_paced():
     voice = BeatVoice()
     play_session(agents, voice, hands=2, stack=50, seed=3, out=quiet, pace=_pace(slept))
     assert [s["hand_no"] for s in voice.states if s.get("event", {}).get("kind") == "new_hand"] == [1, 2]
-    assert slept and set(slept) <= {2.5, 1.75, 3.0, 3.5}
+    assert slept and all(t >= 2.2 for t in slept)  # a beat is never rushed
 
 
 def test_the_pace_option_defaults_to_normal_with_a_hub_and_off_without(monkeypatch):
@@ -583,3 +583,16 @@ def test_the_listening_model_is_told_when_the_line_was_for_it():
     llm = FakeLlm([json.dumps({"emotion": "worried", "gesture": "nod"})])
     LlmReactor(llm, "m", {"a": ("ada", ""), "b": ("ben", "")}).react("b", "a", "Nice try.", None, addressed=True)
     assert "to you" in llm.requests[0]["messages"][1]["content"]
+
+
+def test_the_others_take_a_shove_with_a_startled_reaction_and_the_shover_does_not_react_to_itself():
+    from vikaki_poker.reactions import MirrorReactor
+
+    shove = json.dumps({"action": "raise", "amount": 100})
+    agents = agents_that(("a", [shove]), ("b", [json.dumps({"action": "fold"})]), ("c", [json.dumps({"action": "call"})]))
+    voice = ReactingVoice()
+    play_hand(Hand([("a", 100), ("b", 100), ("c", 100)], 0, 1, 2, seed=4), agents, voice, [], out=quiet, reactor=MirrorReactor())
+    after = voice.calls[voice.calls.index(("end", "a")) + 1 :]
+    first = [c for c in after[: after.index(next(c for c in after if c[0] == "start"))] if c[0] == "react"]
+    assert {c[1] for c in first} == {"b", "c"}  # everyone still in, never the shover
+    assert all(c[2] == "surprised" for c in first)  # an all-in startles the table

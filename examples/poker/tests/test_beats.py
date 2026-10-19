@@ -1,3 +1,5 @@
+import pytest
+
 from vikaki_poker import Hand
 from vikaki_poker.beats import action_event, new_hand_detail, new_hand_event, showdown_event, street_event, win_event
 from vikaki_poker.pace import PACES, Pace
@@ -70,13 +72,13 @@ def test_the_pace_waits_for_each_kind_of_beat_scaled_and_not_at_all_when_off():
     normal = Pace(PACES["normal"], sleep=slept.append)
     for kind in ("fold", "street", "win", "new_hand", "showdown"):
         normal.wait(kind)
-    assert slept == [1.75, 2.5, 3.5, 2.5, 3.0]
+    assert slept == [2.2, 3.2, 4.0, 3.0, 3.5]
     slept.clear()
     Pace(PACES["fast"], sleep=slept.append).wait("street")
     Pace(PACES["slow"], sleep=slept.append).wait("street")
     Pace(PACES["off"], sleep=slept.append).wait("street")
     Pace(1.0, sleep=slept.append).wait("an unknown beat")
-    assert slept == [1.25, 3.75]
+    assert slept == pytest.approx([1.6, 4.8])
 
 
 def test_the_title_card_names_the_blinds_and_the_dealer():
@@ -89,3 +91,14 @@ def test_a_showdown_winner_comes_with_the_five_cards_that_make_the_hand():
 
     assert set(best_five(["As", "Ad", "Kc", "7h", "7d", "2c", "3s"])) == {"As", "Ad", "7h", "7d", "Kc"}
     assert set(best_five(["Ah", "Kh", "Qh", "Jh", "2h", "9c", "9d"])) == {"Ah", "Kh", "Qh", "Jh", "2h"}  # the flush, not the pair
+
+
+def test_a_big_raise_or_call_sits_longer_and_a_check_still_gets_its_time():
+    slept: list[float] = []
+    p = Pace(1.0, sleep=slept.append)
+    p.wait("check")
+    p.wait("raise", 0.0)
+    p.wait("raise", 1.0)
+    p.wait("call", 0.5)
+    p.wait("fold", 1.0)  # a fold weighs nothing, whatever it is told
+    assert slept == [2.5, 3.4, 5.4, 3.8, 2.2]

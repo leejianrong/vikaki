@@ -517,6 +517,15 @@ describe("the table page", () => {
     expect(await page.getByRole("switch", { name: "Mute sound effects" }).isChecked()).toBe(true);
   });
 
+  it("has the others look at the player who has just acted while the move sits on screen, then look away (VIK-134)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const looks = () => page.evaluate(() => window.__vikaki!.table!.seats.map((s) => Math.abs(s.look)));
+    d1.ws.send(JSON.stringify(make("table_state", { pot: 30, street: "flop", hand_no: 1, event: { kind: "raise", seat_id: "seat-1", amount: 24, text: "Ada raises to 24" }, seats: ["seat-1", "seat-2", "seat-3"].map((seat_id) => ({ seat_id, stack: 90 })) } as never)));
+    await page.waitForFunction(() => window.__vikaki!.table!.seats[1]!.look !== 0 && window.__vikaki!.table!.seats[2]!.look !== 0, null, { timeout: 15_000 });
+    expect((await looks())[0]).toBe(0); // the player who acted looks ahead
+    await page.waitForFunction(() => window.__vikaki!.table!.seats.every((s) => Math.abs(s.look) < 0.02), null, { timeout: 15_000 }); // and the gaze moves on
+  });
+
   it("stays on the row when the view is anything but table", { timeout: 90_000 }, async () => {
     const { page } = await setup("seats=3&view=nonsense");
     expect(await page.evaluate(() => window.__vikaki!.table!.view)).toBe("row");
