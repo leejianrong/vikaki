@@ -400,6 +400,11 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 120
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
             }
           },
           "required": [
@@ -427,6 +432,15 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 60
+              },
+              "best": {
+                "maxItems": 7,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8
+                }
               }
             },
             "required": [

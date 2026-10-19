@@ -53,6 +53,11 @@ def _straight_high(ranks: set[int]) -> int:
     return 0
 
 
+def best_five(cards: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    """The five cards that make the best hand out of five to seven (VIK-94), for the page to highlight. The first five found win a tie."""
+    return max(combinations(cards, 5), key=score_five)
+
+
 def best_score(cards: list[str] | tuple[str, ...]) -> Score:
     """The best five-card score among five to seven cards. Worked out directly from the counts of ranks and suits (about ten times quicker than
     trying every five of seven: the win-probability sampling calls it a million times); `score_five` over every five is the reference it must equal."""

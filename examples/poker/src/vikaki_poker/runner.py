@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
-from .beats import action_event, new_hand_event, showdown_event, street_event, win_event
+from .beats import action_event, new_hand_detail, new_hand_event, showdown_event, street_event, win_event
 from .display import table_state
 from .governor import Governor
 from .hand import Hand, IllegalAction
@@ -203,7 +203,7 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         result.log.append(line)
         out(line)
 
-    _show(voice, hand, show_cards, event=new_hand_event(hand_no + 1), hand_no=hand_no + 1)
+    _show(voice, hand, show_cards, event=new_hand_event(hand_no + 1, new_hand_detail(hand, names)), hand_no=hand_no + 1)
     pace.wait("new_hand")
     while not hand.complete:
         if hand.awaiting:  # a staged hand: the street, the showdown or the payout is a beat of its own

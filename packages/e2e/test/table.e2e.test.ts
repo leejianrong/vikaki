@@ -470,6 +470,29 @@ describe("the table page", () => {
     expect((await props()).seatCards).toEqual([2, 2, 0]);
   });
 
+  it("flips a new board card over before it counts as drawn, shows a title card with its detail, and lights the five cards of the winning hand (VIK-114, VIK-94)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const seats = (cards: string[]) => ["seat-1", "seat-2", "seat-3"].map((seat_id) => ({ seat_id, stack: 90, cards }));
+    const send = (o: Record<string, unknown>) => d1.ws.send(JSON.stringify(make("table_state", { dealer: "seat-1", hand_no: 1, ...o } as never)));
+    send({ pot: 6, street: "flop", board: ["As", "Td", "7c"], seats: seats(["back", "back"]) });
+    await page.waitForFunction(() => window.__vikaki!.table!.props!.boardCards === 3, null, { timeout: 15_000 });
+    await page.evaluate(() => {
+      const seen = new Set<number>();
+      (window as unknown as { __seen: Set<number> }).__seen = seen;
+      const tick = () => (seen.add(window.__vikaki!.table!.props!.boardCards), requestAnimationFrame(tick));
+      tick();
+    });
+    await page.evaluate(() => (window as unknown as { __seen: Set<number> }).__seen.clear());
+    send({ pot: 6, street: "turn", board: ["As", "Td", "7c", "2h"], seats: seats(["back", "back"]) });
+    await page.waitForFunction(() => window.__vikaki!.table!.props!.boardCards === 4, null, { timeout: 15_000 });
+    expect(await page.evaluate(() => [...(window as unknown as { __seen: Set<number> }).__seen].sort())).toEqual([3, 4]); // 3 while the new card turns, then 4: no jump
+    send({ pot: 0, street: "showdown", board: ["As", "Td", "7c", "2h", "9d"], seats: seats(["Ah", "Ad"]), winners: [{ seat_id: "seat-1", amount: 12, hand: "pair of aces", best: ["Ah", "Ad", "Td", "9d", "7c"] }], event: { kind: "win", text: "Seat-1 wins 12" } });
+    await page.waitForFunction(() => window.__vikaki!.table!.props!.highlighted === 5, null, { timeout: 15_000 }); // the new river card and the hands turn over first, then three board cards and the two in hand are lit
+    send({ pot: 3, street: "preflop", board: [], seats: seats(["back", "back"]), hand_no: 2, event: { kind: "new_hand", text: "Hand 2", detail: "Blinds 1/2 · Ada deals" } });
+    await page.getByRole("status").getByText("Blinds 1/2 · Ada deals").waitFor({ timeout: 15_000 });
+    expect(await page.getByRole("status").innerText()).toContain("Hand 2");
+  });
+
   it("stays on the row when the view is anything but table", { timeout: 90_000 }, async () => {
     const { page } = await setup("seats=3&view=nonsense");
     expect(await page.evaluate(() => window.__vikaki!.table!.view)).toBe("row");

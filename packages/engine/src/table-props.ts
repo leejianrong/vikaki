@@ -3,7 +3,7 @@
 import type { MessageOf } from "@vikaki/protocol";
 import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Sprite, SpriteMaterial, type Texture, Vector3 } from "three";
 import { cardFace } from "./table.ts";
-import { type Hold, middlePot, type Place, planMotion } from "./table-motion.ts";
+import { type Hold, middlePot, type Place, type Plan, planMotion } from "./table-motion.ts";
 import type { SeatSpot } from "./table3d.ts";
 
 type State = MessageOf<"table_state">;
@@ -90,6 +90,11 @@ const MUCK_AT = { x: 0, z: 0.02 };
 const FLIGHT_S = 0.6;
 const FLIGHT_GAP_S = 0.06;
 const FLIGHT_CHIPS = 6;
+/** Where the cards are dealt and flipped in from (the deck), and how long a deal and a flip take (VIK-114). */
+const DECK_AT = { x: 0.32, z: -0.34 };
+const DEAL_S = 0.4;
+const DEAL_GAP_S = 0.12;
+const FLIP_S = 0.55;
 
 /** One thing in the air: it moves from `a` to `b` along an arc after `delay` seconds, over `dur`, and may shrink and fade (a pushed-away card). */
 interface Live {
@@ -100,6 +105,10 @@ interface Live {
   dur: number;
   arc: number;
   fade: boolean;
+  /** A card turning over on its way (VIK-114): squashed to a line and back, its picture swapped at the middle. */
+  flip?: { back: Texture; face: Texture };
+  /** Stays where it landed until the whole flight ends (a dealt or flipped card, which has no static twin to show meanwhile). */
+  stay?: boolean;
 }
 
 const cardTextures = new Map<string, Texture>();
@@ -193,7 +202,7 @@ export class TableProps {
   /** In the air now, for tests. */
   readonly motion = { flights: 0 };
   /** What is drawn now, for tests. */
-  readonly drawn = { boardCards: 0, seatCards: [] as number[], chips: 0, dealer: undefined as string | undefined, /** The words on the pot's label, or undefined with no pot. */ pot: undefined as string | undefined, /** True when the hands on the table are shown face up (a showdown), false while they are face down. */ handsFaceUp: false };
+  readonly drawn = { boardCards: 0, seatCards: [] as number[], chips: 0, dealer: undefined as string | undefined, /** The words on the pot's label, or undefined with no pot. */ pot: undefined as string | undefined, /** True when the hands on the table are shown face up (a showdown), false while they are face down. */ handsFaceUp: false, /** Cards lit up as the five that make the winning hand. */ highlighted: 0 };
 
   constructor(
     private readonly tableY: number,
@@ -233,7 +242,7 @@ export class TableProps {
     this.shown = state;
     this.current = state;
     this.draw(state, plan?.hold);
-    if (plan) this.launch(plan.flights, plan.mucks);
+    if (plan) this.launch(plan.flights, plan.mucks, plan);
   }
 
   /** Move what is in the air. Call it every frame with the seconds since the last. When the last lands, the real piles are drawn. */
@@ -242,7 +251,11 @@ export class TableProps {
     this.clock += dt;
     for (const f of this.live) {
       const p = Math.min(1, Math.max(0, (this.clock - f.delay) / f.dur));
-      f.mesh.visible = p > 0 && p < 1;
+      f.mesh.visible = p > 0 && (p < 1 || !!f.stay);
+      if (f.flip) {
+        f.mesh.scale.y = Math.max(0.02, Math.abs(Math.cos(Math.PI * p)));
+        (f.mesh.material as MeshBasicMaterial).map = p < 0.5 ? f.flip.back : f.flip.face;
+      }
       const e = p * p * (3 - 2 * p);
       f.mesh.position.lerpVectors(f.a, f.b, e).y += Math.sin(Math.PI * p) * f.arc;
       if (f.fade) {
@@ -269,7 +282,7 @@ export class TableProps {
     return new Vector3(at.x, this.tableY + 0.03, at.z);
   }
 
-  private launch(flights: { from: Place; to: Place; amount: number; after?: boolean }[], mucks: number[]): void {
+  private launch(flights: { from: Place; to: Place; amount: number; after?: boolean }[], mucks: number[], plan?: Plan): void {
     this.clock = 0;
     let end = 0;
     let sweepEnd = 0;
@@ -300,26 +313,87 @@ export class TableProps {
         end = Math.max(end, k * FLIGHT_GAP_S + FLIGHT_S + 0.1);
       });
     }
+    if (plan) end = Math.max(end, this.launchCards(plan));
     this.flightEnd = end;
     this.motion.flights = this.live.length;
+  }
+
+  /** Deal, and turn over the new board cards and the hands at a showdown (VIK-114, VIK-94). Returns when the last lands. */
+  private launchCards(plan: Plan): number {
+    let end = 0;
+    const state = this.current;
+    const y = this.tableY;
+    const back = cardTexture("back");
+    const add = (name: string, geometry: PlaneGeometry, a: Vector3, b: Vector3, lean: number, yaw: number, delay: number, dur: number, turns: boolean, arc: number) => {
+      const mesh = new Mesh(geometry, new MeshBasicMaterial({ map: turns ? back : cardTexture(name) }));
+      mesh.rotation.order = "YXZ";
+      mesh.rotation.set(-Math.PI / 2 + lean, yaw, 0);
+      mesh.visible = false;
+      this.air.add(mesh);
+      this.live.push({ mesh, a, b, delay, dur, arc, fade: false, stay: true, ...(turns ? { flip: { back, face: cardTexture(name) } } : {}) });
+      end = Math.max(end, delay + dur);
+    };
+    const hand = (i: number, k: number) => {
+      const c = seatSlots(this.spots[i]!).cards;
+      const p = c[Math.min(k, c.length - 1)]!;
+      return { v: new Vector3(p.x, y + 0.006 + 0.001 * k, p.z), yaw: k === 0 ? 0.08 : -0.08 };
+    };
+    let n = 0;
+    for (let k = 0; k < 2; k++) {
+      for (const i of plan.deals) {
+        const h = hand(i, k);
+        add("back", this.holeGeometry, new Vector3(DECK_AT.x, y + 0.04, DECK_AT.z), h.v, 0.12, h.yaw, n++ * DEAL_GAP_S, DEAL_S, false, 0.1);
+      }
+    }
+    const faces = state?.board ?? [];
+    plan.boardFlips.forEach((k, j) => {
+      const slot = boardSlots()[k]!;
+      const at = new Vector3(slot.x, y + 0.004 + Math.sin(LEAN) * (BOARD_CARD.h / 2), BOARD_Z);
+      add(faces[k]!, this.boardGeometry, new Vector3(DECK_AT.x, y + 0.04, DECK_AT.z), at, LEAN, 0, j * 0.2, FLIP_S, true, 0.12);
+    });
+    for (const i of plan.holeFlips) {
+      state?.seats[i] && (state.seats.find((r) => r.seat_id === this.seatIds[i])?.cards ?? []).forEach((c, k) => {
+        const h = hand(i, k);
+        add(c, this.holeGeometry, h.v, h.v.clone().setY(h.v.y + 0.003), 0.12, h.yaw, k * 0.15, FLIP_S, true, 0.1);
+      });
+    }
+    return end;
   }
 
   private draw(state: State, hold?: Hold): void {
     const y = this.tableY;
     this.cards.clear();
     /** `lean` raises the card's far edge toward the camera (negative x rotation from flat); `yaw` turns it about its own middle. */
-    const card = (name: string, x: number, z: number, lift: number, lean: number, size: { h: number }, yaw = 0, geometry = this.holeGeometry) => {
-      const m = new Mesh(geometry, new MeshBasicMaterial({ map: cardTexture(name) }));
+    const card = (name: string, x: number, z: number, lift: number, lean: number, size: { h: number }, yaw = 0, geometry = this.holeGeometry, tone?: "lit" | "dim") => {
+      const m = new Mesh(geometry, new MeshBasicMaterial({ map: cardTexture(name), color: tone === "dim" ? 0x8c8c8c : 0xffffff }));
+      if (tone === "lit") {
+        const glow = new Mesh(new PlaneGeometry((geometry.parameters.width as number) + 0.018, (geometry.parameters.height as number) + 0.018), new MeshBasicMaterial({ color: 0xffc83d }));
+        glow.rotation.order = "YXZ";
+        glow.rotation.set(-Math.PI / 2 + lean, yaw, 0);
+        glow.position.set(x, y + 0.004 + lift + Math.sin(lean) * (size.h / 2) - 0.002, z);
+        this.cards.add(glow);
+      }
       m.rotation.order = "YXZ";
       m.rotation.set(-Math.PI / 2 + lean, yaw, 0);
       m.position.set(x, y + 0.004 + lift + Math.sin(lean) * (size.h / 2), z);
       this.cards.add(m);
     };
     const board = state.board ?? [];
-    board.forEach((c, i) => card(c, boardSlots()[i]!.x, BOARD_Z, 0, LEAN, BOARD_CARD, 0, this.boardGeometry));
+    // At the win the five cards that make a winning hand are lit and lifted, the rest dimmed (VIK-94).
+    const lit = new Set((state.winners ?? []).flatMap((w) => w.best ?? []));
+    const winning = new Set((state.winners ?? []).filter((w) => w.best?.length).map((w) => w.seat_id));
+    let highlighted = 0;
+    this.drawn.boardCards = 0;
+    board.forEach((c, i) => {
+      if (hold?.board.has(i)) return; // still in the air being turned over
+      this.drawn.boardCards++;
+      const on = lit.has(c);
+      if (on) highlighted++;
+      card(c, boardSlots()[i]!.x, BOARD_Z, on ? 0.03 : 0, LEAN, BOARD_CARD, 0, this.boardGeometry, lit.size > 0 ? (on ? "lit" : "dim") : undefined);
+    });
     // The hands on the table stay face down, like a real table, until the showdown turns them over; the panel beside the table shows them meanwhile.
     this.drawn.handsFaceUp = state.street === "showdown";
-    this.drawn.boardCards = board.length;
+
     this.drawn.seatCards = this.seatIds.map(() => 0);
 
     const piles: ChipSpot[][] = [[], [], [], []];
@@ -334,9 +408,12 @@ export class TableProps {
       const slots = seatSlots(this.spots[i]!);
       if (!row.folded) {
         (row.cards ?? []).forEach((c, k, all) => {
+          if (hold?.hole.has(i)) return; // being dealt or turned over
           const p = slots.cards[all.length === 1 ? 0 : Math.min(k, 1)]!;
           const shown = this.drawn.handsFaceUp ? c : "back";
-          card(shown, p.x, p.z, 0.001 * k, 0.12, HOLE_CARD, k === 0 ? 0.08 : -0.08);
+          const on = winning.has(row.seat_id) && lit.has(c);
+          if (on) highlighted++;
+          card(shown, p.x, p.z, 0.001 * k + (on ? 0.03 : 0), 0.12, HOLE_CARD, k === 0 ? 0.08 : -0.08, this.holeGeometry, lit.size > 0 && this.drawn.handsFaceUp ? (on ? "lit" : "dim") : undefined);
         });
         this.drawn.seatCards[i] = row.cards?.length ?? 0;
       }
@@ -352,6 +429,7 @@ export class TableProps {
         this.drawn.dealer = row.seat_id;
       }
     }
+    this.drawn.highlighted = highlighted;
     const middle = hold?.middle ?? middlePot(state); // the pot counts the bets still in front of the players: draw only what is in the middle
     if (middle) put(middle, POT_AT.x, POT_AT.z, { x: 1, z: 0 });
     this.drawn.pot = state.pot ? `Pot ${state.pot.toLocaleString("en-US")}` : undefined;

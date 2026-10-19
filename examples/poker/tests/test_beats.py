@@ -1,5 +1,5 @@
 from vikaki_poker import Hand
-from vikaki_poker.beats import action_event, new_hand_event, showdown_event, street_event, win_event
+from vikaki_poker.beats import action_event, new_hand_detail, new_hand_event, showdown_event, street_event, win_event
 from vikaki_poker.pace import PACES, Pace
 from test_hand import rig
 
@@ -36,7 +36,8 @@ def _finished(stacks, holes, board, _acts=None):
 def test_a_win_says_who_won_how_much_and_with_what():
     h = _finished([100, 100], {"a": "As Ah", "b": "7c 2d"}, "Ks 9d 4c 3h 8s", None)
     event, winners = win_event(h, NAMES)
-    assert winners == [{"seat_id": "a", "amount": 4, "hand": "pair of aces"}]
+    assert [{k: v for k, v in w.items() if k != "best"} for w in winners] == [{"seat_id": "a", "amount": 4, "hand": "pair of aces"}]
+    assert set(winners[0]["best"]) == {"As", "Ah", "Ks", "9d", "8s"}  # the five that play (VIK-94)
     assert event == {"kind": "win", "seat_id": "a", "amount": 4, "text": "Ada wins 4 with a pair of aces"}
 
 
@@ -76,3 +77,15 @@ def test_the_pace_waits_for_each_kind_of_beat_scaled_and_not_at_all_when_off():
     Pace(PACES["off"], sleep=slept.append).wait("street")
     Pace(1.0, sleep=slept.append).wait("an unknown beat")
     assert slept == [1.25, 3.75]
+
+
+def test_the_title_card_names_the_blinds_and_the_dealer():
+    h = Hand([("a", 100), ("b", 100)], 1, 5, 10)
+    assert new_hand_event(3, new_hand_detail(h, NAMES)) == {"kind": "new_hand", "text": "Hand 3", "detail": "Blinds 5/10 · Ben deals"}
+
+
+def test_a_showdown_winner_comes_with_the_five_cards_that_make_the_hand():
+    from vikaki_poker.evaluate import best_five
+
+    assert set(best_five(["As", "Ad", "Kc", "7h", "7d", "2c", "3s"])) == {"As", "Ad", "7h", "7d", "Kc"}
+    assert set(best_five(["Ah", "Kh", "Qh", "Jh", "2h", "9c", "9d"])) == {"Ah", "Kh", "Qh", "Jh", "2h"}  # the flush, not the pair

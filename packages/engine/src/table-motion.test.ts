@@ -61,9 +61,40 @@ describe("planMotion", () => {
   });
 
   it("does nothing for the first state, a new hand, or a state that changes nothing in front of the players", () => {
-    expect(planMotion(undefined, flop, IDS)).toEqual({ flights: [], mucks: [], hold: { bet: new Map(), stack: new Map() } });
+    expect(planMotion(undefined, flop, IDS)).toEqual({ flights: [], mucks: [], deals: [], boardFlips: [], holeFlips: [], hold: { bet: new Map(), stack: new Map(), board: new Set(), hole: new Set() } });
     const newHand = state({ hand_no: 2, street: "preflop", pot: 3, seats: [{ seat_id: "a", stack: 100 }, { seat_id: "b", stack: 99, bet: 1 }, { seat_id: "c", stack: 98, bet: 2 }] });
     expect(planMotion(flop, newHand, IDS).flights).toEqual([]);
     expect(planMotion(flop, { ...flop, event: { kind: "street", text: "Flop" } } as S, IDS).flights).toEqual([]);
+  });
+});
+
+describe("planMotion: cards (VIK-114, VIK-94)", () => {
+  const hole = (cards: string[]) => (id: string, stack = 94) => ({ seat_id: id, stack, cards });
+  const down = hole(["back", "back"]);
+  const turn = state({ hand_no: 1, street: "turn", pot: 6, board: ["As", "Kd", "2c", "9h"], seats: IDS.map((id) => down(id)) });
+
+  it("deals every live seat its cards when a new hand's title card arrives", () => {
+    const next = state({ hand_no: 2, street: "preflop", event: { kind: "new_hand", text: "Hand 2" }, board: [], seats: [down("a"), down("b"), { ...down("c"), folded: true }] });
+    const plan = planMotion(turn, next, IDS);
+    expect(plan.deals).toEqual([0, 1]);
+    expect([...plan.hold.hole]).toEqual([0, 1]);
+    expect(planMotion(undefined, state({ street: "flop", seats: [down("a")] }), IDS).deals).toEqual([]); // joining mid-hand deals nothing
+  });
+
+  it("turns over only the board cards that are new, and holds them back until the flip lands", () => {
+    const plan = planMotion(flop, turn, IDS);
+    expect(plan.boardFlips).toEqual([3]);
+    expect([...plan.hold.board]).toEqual([3]);
+    const river = planMotion(turn, { ...turn, street: "river", board: [...turn.board!, "4s"] } as S, IDS);
+    expect(river.boardFlips).toEqual([4]);
+    expect(planMotion(flop, { ...flop, pot: 9 } as S, IDS).boardFlips).toEqual([]);
+  });
+
+  it("flips the hole cards of the seats still in when the showdown turns them face up", () => {
+    const shown = state({ hand_no: 1, street: "showdown", pot: 6, board: turn.board, seats: [hole(["As", "Ah"])("a"), down("b"), { ...hole(["7c", "2d"])("c") }] });
+    const before = state({ ...turn, seats: [down("a"), { ...down("b"), folded: true }, down("c")] } as S);
+    const plan = planMotion(before, { ...shown, seats: [shown.seats[0]!, { ...down("b"), folded: true }, shown.seats[2]!] } as S, IDS);
+    expect(plan.holeFlips).toEqual([0, 2]);
+    expect([...plan.hold.hole]).toEqual([0, 2]);
   });
 });
