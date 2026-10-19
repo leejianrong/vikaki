@@ -85,20 +85,36 @@ export function frameRow(o: { eyeY: number; headY: number; topY: number; fov: nu
 /** A card as the page draws it. `back` is a card face down; a name it cannot read is shown as sent, so a game with its own deck still works. */
 export interface CardFace {
   text: string;
+  /** The rank as shown ("A", "10") and the suit letter ("s", "h", "d", "c"), for drawing the pip as a shape (VIK-141); both empty for a card face down. */
+  rank: string;
+  suit: string;
   red: boolean;
   down: boolean;
 }
 
 const SUITS: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
 
+/**
+ * The four suits drawn as shapes in a 100 by 100 box (VIK-141), because the font's black spade and club are about the same size and weight and were
+ * mixed up at a glance: the spade is a pointed leaf on a narrow stem, the club three round lobes that do not touch. Used as an SVG path in the
+ * panel and as a `Path2D` on the cards on the table, so both show the same shapes.
+ */
+export const SUIT_PATHS: Record<string, string> = {
+  s: "M50 4C47 20 6 40 6 64c0 17 15 25 28 25 6 0 10-2 13-6-1 9-4 15-10 19h26c-6-4-9-10-10-19 3 4 7 6 13 6 13 0 28-8 28-25C94 40 53 20 50 4z",
+  c: "M27 27a23 23 0 1 0 46 0a23 23 0 1 0-46 0zM2 63a23 23 0 1 0 46 0a23 23 0 1 0-46 0zM52 63a23 23 0 1 0 46 0a23 23 0 1 0-46 0zM50 50c0 28-3 40-14 46h28c-11-6-14-18-14-46z",
+  h: "M50 94C20 70 4 52 4 33 4 17 16 6 30 6c9 0 16 5 20 13C54 11 61 6 70 6c14 0 26 11 26 27 0 19-16 37-46 61z",
+  d: "M50 3 88 50 50 97 12 50z",
+};
+
 /** `As` is A♠, `Td` is 10♦, `back` is face down. Only formatting: the page knows no rules. */
 export function cardFace(card: string): CardFace {
-  if (card === "back") return { text: "", red: false, down: true };
+  if (card === "back") return { text: "", rank: "", suit: "", red: false, down: true };
   const suit = SUITS[card.slice(-1).toLowerCase()];
   const rank = card.slice(0, -1);
-  if (!suit || rank === "") return { text: card, red: false, down: false };
+  if (!suit || rank === "") return { text: card, rank: card, suit: "", red: false, down: false };
   const s = card.slice(-1).toLowerCase();
-  return { text: `${rank.toUpperCase() === "T" ? "10" : rank.toUpperCase()}${suit}`, red: s === "h" || s === "d", down: false };
+  const shown = rank.toUpperCase() === "T" ? "10" : rank.toUpperCase();
+  return { text: `${shown}${suit}`, rank: shown, suit: s, red: s === "h" || s === "d", down: false };
 }
 
 /** One line of the transcript: who said it (a seat id), and what, as far as it has arrived. */

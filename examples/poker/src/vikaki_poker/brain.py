@@ -50,7 +50,7 @@ def personality_text(name: str, traits: Traits, style: str = "") -> str:
     bluffy or tricky a character is shows in how it talks and thinks about the game, never in what it does."""
     t = traits
     lines = [f"Your personality (you are {name}" + (f", {style}" if style else "") + "):"]
-    lines.append("- You do not choose your moves: the table's engine has chosen yours, and you are told what it is. Your personality shows only in how you talk and think about what you do, so it can never change what you do.")
+    lines.append("- You do not choose your moves: your poker head has settled yours, and you are told what it is. Your personality shows only in how you talk and think about what you do, so it can never change what you do.")
     lines.append(
         "- How you talk about the game: "
         + _level(
@@ -220,7 +220,7 @@ def briefing(view: dict, facts: dict, history: str, talk: list[tuple[str, ...]],
     if talk:
         lines.append("Recent table talk: " + " | ".join(_said(entry, who, view["to_act"]) for entry in talk[-recent:]))
     lines.append(
-        f"Your move this turn is already decided: {describe_move(move)}. Why: {move.reason}. "
-        "It is what you are doing; do not change it or argue with it. Speak and think about it as the character you are."
+        f"Your poker head has settled your move this turn: {describe_move(move)}. The read behind it: {move.reason}. "
+        "That is what you are doing; do not change it or argue with it. Talk and think about it in your own words, as the character you are, and never call it an engine."
     )
     return "\n".join(lines)

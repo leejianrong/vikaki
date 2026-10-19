@@ -28,10 +28,12 @@
 .cards { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .card {
   display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
   align-items: center;
   justify-content: center;
   min-width: 2.25em;
-  height: 2.75em;
+  height: 3.1em;
   padding: 0 4px;
   box-sizing: border-box;
   border-radius: var(--shape-s);
@@ -40,9 +42,13 @@
   border: 1px solid var(--md-sys-color-outline-variant);
   font: 600 1rem/1 var(--md-ref-typeface-brand);
 }
+.card .rank { font-size: 0.95em; line-height: 1; }
+.card .pip { width: 1.25em; height: 1.25em; fill: currentColor; }
 .card.red { color: var(--md-sys-color-error); }
+.table-info .pot, .panel-head .pot { display: inline-flex; align-items: center; gap: 6px; }
+.chip-icon { width: 1.1em; height: 1.1em; color: var(--md-sys-color-tertiary, #8a5a00); --chip-ring: var(--md-sys-color-surface-container-lowest, #fff); }
 .card.down { background: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
-.seat-plate .card { min-width: 1.9em; height: 2.3em; font-size: 0.875rem; }
+.seat-plate .card { min-width: 1.9em; height: 2.7em; font-size: 0.875rem; }
 
 .seat-plate {
   position: absolute;

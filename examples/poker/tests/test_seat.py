@@ -59,7 +59,7 @@ def test_the_prompt_shows_own_cards_the_move_and_the_talk_but_not_other_hands():
     for other in h.seats:
         if other.seat_id != seat:
             assert not any(card in text for card in other.hole)
-    assert "already decided: call" in text and "b: Nice weather. | c: Indeed." in text
+    assert "settled your move this turn: call" in text and "b: Nice weather. | c: Indeed." in text
 
 
 def test_only_the_most_recent_talk_is_included():

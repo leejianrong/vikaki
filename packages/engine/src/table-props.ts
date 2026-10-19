@@ -2,7 +2,7 @@
 // what the game sent and holds no game logic. The layout and the chip counting are pure (and tested); `TableProps` is the three.js part.
 import type { MessageOf } from "@vikaki/protocol";
 import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Sprite, SpriteMaterial, type Texture, Vector3 } from "three";
-import { cardFace } from "./table.ts";
+import { cardFace, SUIT_PATHS } from "./table.ts";
 import { type Hold, middlePot, type Place, type Plan, planMotion } from "./table-motion.ts";
 import type { SeatSpot } from "./table3d.ts";
 
@@ -127,11 +127,20 @@ function cardTexture(card: string): Texture {
   g.lineWidth = f.down ? 10 : 4;
   g.strokeRect(f.down ? 10 : 2, f.down ? 10 : 2, f.down ? 108 : 124, f.down ? 160 : 176);
   if (!f.down) {
+    // The rank on top and a big suit shape under it (VIK-141): the spade and the club are drawn as shapes, not font glyphs, so they differ at a glance.
     g.fillStyle = f.red ? "#c8352f" : "#1f2430";
-    g.font = "bold 56px sans-serif";
+    g.font = "bold 62px sans-serif";
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText(f.text, 64, 92);
+    g.fillText(f.rank, 64, 44);
+    const path = SUIT_PATHS[f.suit];
+    if (path) {
+      g.save();
+      g.translate(24, 76);
+      g.scale(0.8, 0.8);
+      g.fill(new Path2D(path));
+      g.restore();
+    } else g.fillText(f.text, 64, 110);
   }
   const t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
@@ -153,7 +162,21 @@ function labelTexture(text: string): CanvasTexture {
   g.font = "bold 52px sans-serif";
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.fillText(text, 128, 50);
+  g.textAlign = "left";
+  const w = g.measureText(text).width;
+  const x = Math.max(24, (256 - (w + 64)) / 2);
+  g.fillText(text, x, 50);
+  // a chip beside the amount
+  g.fillStyle = "#c8352f";
+  g.beginPath();
+  g.arc(x + w + 36, 48, 24, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = "#fdf8ee";
+  g.lineWidth = 5;
+  g.setLineDash([9, 7]);
+  g.beginPath();
+  g.arc(x + w + 36, 48, 16, 0, Math.PI * 2);
+  g.stroke();
   const t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
   return t;
@@ -432,7 +455,7 @@ export class TableProps {
     this.drawn.highlighted = highlighted;
     const middle = hold?.middle ?? middlePot(state); // the pot counts the bets still in front of the players: draw only what is in the middle
     if (middle) put(middle, POT_AT.x, POT_AT.z, { x: 1, z: 0 });
-    this.drawn.pot = state.pot ? `Pot ${state.pot.toLocaleString("en-US")}` : undefined;
+    this.drawn.pot = state.pot ? `Pot: ${state.pot.toLocaleString("en-US")}` : undefined;
     if (this.drawn.pot !== this.potText) {
       this.potText = this.drawn.pot ?? "";
       const old = this.potLabel.material.map;

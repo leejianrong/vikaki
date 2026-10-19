@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addToTranscript, cardFace, lineLabel, favourite, frameRow, layoutRow, lookYaw, MAX_LOOK, parseSeats, percent, seatFor } from "./table.ts";
+import { addToTranscript, cardFace, lineLabel, favourite, frameRow, layoutRow, lookYaw, MAX_LOOK, parseSeats, percent, seatFor, SUIT_PATHS } from "./table.ts";
 
 describe("parseSeats", () => {
   it("a number makes that many seats, named seat-1 to seat-N, with the hub's personas in order", () => {
@@ -98,17 +98,26 @@ describe("frameRow", () => {
   });
 });
 
+describe("suit shapes (VIK-141)", () => {
+  it("has a different drawn shape for each suit, and the club is three separate lobes where the spade is one point", () => {
+    expect(new Set(Object.values(SUIT_PATHS)).size).toBe(4);
+    expect(Object.keys(SUIT_PATHS).sort()).toEqual(["c", "d", "h", "s"]);
+    expect((SUIT_PATHS.c!.match(/M/g) ?? []).length).toBe(4); // three lobes and a stem
+    expect((SUIT_PATHS.s!.match(/M/g) ?? []).length).toBe(1); // one outline
+  });
+});
+
 describe("cardFace", () => {
   it("reads the game's short names: rank and suit, with ten as 10 and hearts and diamonds red", () => {
-    expect(cardFace("As")).toEqual({ text: "A♠", red: false, down: false });
-    expect(cardFace("Td")).toEqual({ text: "10♦", red: true, down: false });
-    expect(cardFace("7h")).toEqual({ text: "7♥", red: true, down: false });
-    expect(cardFace("kc")).toEqual({ text: "K♣", red: false, down: false });
+    expect(cardFace("As")).toEqual({ text: "A♠", rank: "A", suit: "s", red: false, down: false });
+    expect(cardFace("Td")).toEqual({ text: "10♦", rank: "10", suit: "d", red: true, down: false });
+    expect(cardFace("7h")).toEqual({ text: "7♥", rank: "7", suit: "h", red: true, down: false });
+    expect(cardFace("kc")).toEqual({ text: "K♣", rank: "K", suit: "c", red: false, down: false });
   });
 
   it("shows `back` face down, and a name it cannot read as it was sent", () => {
     expect(cardFace("back")).toMatchObject({ down: true });
-    expect(cardFace("joker")).toEqual({ text: "joker", red: false, down: false });
+    expect(cardFace("joker")).toMatchObject({ text: "joker", red: false, down: false });
   });
 });
 

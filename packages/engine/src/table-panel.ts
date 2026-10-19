@@ -3,7 +3,7 @@
 // knows no poker: the words and the odds are the game's, sent when the table may see the cards. Plain DOM with roles and names for tests.
 import type { MessageOf } from "@vikaki/protocol";
 import { makeResizable } from "./panel-resize.ts";
-import { cardEl } from "./table-overlay.ts";
+import { cardEl, chipIcon } from "./table-overlay.ts";
 import { addToTranscript, CHAT_LINES, favourite, lineLabel, percent, seatColour, type Seat, type TranscriptLine } from "./table.ts";
 import { el } from "./ui/dom.ts";
 import "./ui/material.ts";
@@ -80,7 +80,7 @@ export class TablePanel {
 
   private draw(st?: State): void {
     const head: (Node | string)[] = [];
-    head.push(el("span", { className: "pot", textContent: `Pot ${money(st?.pot ?? 0)}` }));
+    head.push(el("span", { className: "pot" }, `Pot: ${money(st?.pot ?? 0)}`, chipIcon()));
     if (st?.street) head.push(el("span", { className: "street", textContent: st.street }));
     this.head.replaceChildren(...head);
     if (st?.board?.length) this.head.append(el("ul", { className: "cards board", ariaLabel: "Board" }, ...st.board.map(cardEl)));
