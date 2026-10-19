@@ -493,6 +493,30 @@ describe("the table page", () => {
     expect(await page.getByRole("status").innerText()).toContain("Hand 2");
   });
 
+  it("makes the sound effects the table's motion calls for, with a mute switch and a volume slider that are remembered (VIK-122)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const send = (o: Record<string, unknown>) => d1.ws.send(JSON.stringify(make("table_state", { dealer: "seat-1", hand_no: 1, ...o } as never)));
+    const seats = (a: number, bet?: number) => ["seat-1", "seat-2", "seat-3"].map((seat_id, i) => ({ seat_id, stack: i === 0 ? a : 90, ...(i === 0 && bet ? { bet } : {}), cards: ["back", "back"] }));
+    const cues = () => page.evaluate(() => [...window.__vikaki!.table!.sfx!.cues]);
+    send({ pot: 6, street: "preflop", seats: seats(90) });
+    await page.waitForFunction(() => window.__vikaki!.table!.props!.seatCards[0] === 2, null, { timeout: 15_000 });
+    expect(await cues()).toEqual([]); // the first state this page sees makes no sound
+    send({ pot: 18, street: "preflop", seats: seats(78, 12) });
+    await page.waitForFunction(() => window.__vikaki!.table!.sfx!.cues.includes("chips"), null, { timeout: 15_000 });
+    const group = page.getByRole("group", { name: "Sound effects" });
+    const mute = group.getByRole("switch", { name: "Mute sound effects" });
+    await mute.check();
+    const before = (await cues()).length;
+    send({ pot: 30, street: "preflop", seats: seats(66, 24) });
+    await page.waitForTimeout(800);
+    expect((await cues()).length).toBe(before); // muted: nothing asked for
+    await group.getByRole("slider", { name: "Sound effects volume" }).fill("30");
+    await page.reload();
+    await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 30_000 });
+    expect(await page.evaluate(() => [window.__vikaki!.table!.sfx!.muted, window.__vikaki!.table!.sfx!.volume])).toEqual([true, 0.3]);
+    expect(await page.getByRole("switch", { name: "Mute sound effects" }).isChecked()).toBe(true);
+  });
+
   it("stays on the row when the view is anything but table", { timeout: 90_000 }, async () => {
     const { page } = await setup("seats=3&view=nonsense");
     expect(await page.evaluate(() => window.__vikaki!.table!.view)).toBe("row");
