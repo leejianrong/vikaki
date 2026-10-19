@@ -50,6 +50,9 @@ api.audio = { get state() { return session.state; }, get played() { return sessi
 const embedAudio = mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
 
 /** What a seat showed since the last reset: the head's swing, the widest mouth, every mark over the head, and whether it was asked to think. */
+/** The beats that are one seat's move, and how long the table keeps looking at the player who made it (ms). */
+const ACTIONS = new Set(["fold", "check", "call", "raise"]);
+const ACTOR_GAZE_MS = 2200;
 const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>(), thought: false });
 
 try {
@@ -236,8 +239,11 @@ try {
   let thinker: number | undefined;
   /** Every seat but the one in focus looks at it: the speaker, else whoever is thinking. The one in focus looks ahead. */
   let focused: number | undefined;
+  /** The seat that has just acted, looked at by the others while its move sits on screen (VIK-134); a line or the next turn takes the gaze over. */
+  let actor: number | undefined;
+  let actorTimer: ReturnType<typeof setTimeout> | undefined;
   const refocus = () => {
-    const focus = talker ?? thinker;
+    const focus = talker ?? thinker ?? actor;
     focused = focus;
     if (duet) {
       puppets.forEach((p, j) => p.reaction.look(focus === undefined || focus === j ? 0 : (j === 0 ? 1 : -1) * DUET_GLANCE));
@@ -287,6 +293,7 @@ try {
       puppets[i]!.emotion.think(thinking);
       if (thinking) overlay.setThought(seats[i]!.seat, false); // a new turn: the last thought is stale
       if (thinking) api.table!.seats[i]!.peak.thought = true; // a beat shorter than a frame gap is never drawn on a slow page (VIK-77)
+      if (thinking) (actor = undefined), clearTimeout(actorTimer);
       if (thinking) thinker = i;
       else if (thinker === i) thinker = undefined;
       refocus();
@@ -298,6 +305,13 @@ try {
       panel?.addThought(seats[i]!.seat, t.text);
     },
     onTableState: (state) => {
+      const moved = state.event && ACTIONS.has(state.event.kind) && state.event.seat_id !== undefined ? seats.findIndex((s) => s.seat === state.event!.seat_id) : -1;
+      if (moved >= 0) {
+        actor = moved;
+        clearTimeout(actorTimer);
+        actorTimer = setTimeout(() => ((actor = undefined), refocus()), ACTOR_GAZE_MS);
+        refocus();
+      }
       overlay.setState(state);
       panel?.setState(state);
       props?.setState(state);

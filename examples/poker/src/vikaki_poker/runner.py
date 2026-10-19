@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
+from .action_reactions import reaction_to, weight_of
 from .beats import action_event, new_hand_detail, new_hand_event, showdown_event, street_event, win_event
 from .display import table_state
 from .governor import Governor
@@ -167,6 +168,19 @@ def _think(voice: Voice, seat: str, text: str, aloud: bool = False) -> None:
         send(seat, text)
 
 
+def _react_to_move(voice: Voice, hand: Hand, actor: str, kind: str, weight: float, all_in: bool, hand_no: int) -> None:
+    """Everyone still in the hand takes the move with a silent reaction while it sits on screen (VIK-134). A voice with no `react` shows none."""
+    send = getattr(voice, "react", None)
+    if send is None:
+        return
+    for p in hand.seats:
+        if p.seat_id == actor or p.folded:
+            continue
+        reaction = reaction_to(kind, weight, all_in, p.seat_id, hand_no)
+        if reaction is not None:
+            send(p.seat_id, reaction)
+
+
 def _react(voice: Voice, pending: list) -> None:
     """Send what the listeners decided, in seat order. A voice with no `react` shows none."""
     send = getattr(voice, "react", None)
@@ -243,6 +257,7 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
             _react(voice, pending)
         voice.turn_ended(seat)
         street = hand.street  # the street the move was made on (acting can end it)
+        pot_before = hand.pot
         seen = len(hand.events)
         try:
             hand.act(seat, decision.action, decision.amount)
@@ -256,7 +271,10 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         beat = action_event(hand.events[seen], names)
         _show(voice, hand, show_cards, event=beat)
         note(f"[{street}] {moved}" + (f"  ({decision.note})" if decision.note else ""))
-        pace.wait(beat["kind"])
+        weight = weight_of(beat["kind"], beat.get("amount"), pot_before, bool(hand.events[seen].get("all_in")))
+        if reactor:  # `--no-reactions` keeps the listeners still
+            _react_to_move(voice, hand, seat, beat["kind"], weight, bool(hand.events[seen].get("all_in")), hand_no)
+        pace.wait(beat["kind"], weight)
     for event in hand.events:
         if event["type"] == "win":
             note(f"{event['seat_id']} wins {event['amount']}" + (" at showdown" if event["showdown"] else ""))
