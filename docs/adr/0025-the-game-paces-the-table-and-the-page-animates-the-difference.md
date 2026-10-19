@@ -21,3 +21,4 @@ The runner played at the speed of the models and sent a `table_state` after each
 - The all-in run-out is finally visible (VIK-94). A hand now takes about 15 to 25 s at normal pace, a 20-hand session about 6 to 8 minutes plus the models' own time.
 - Cards flipping on a new street, the dealing of a hand and the best five highlighted at a showdown build on the same plan (VIK-114).
 - A game other than poker can use the same fields: `event` and `winners` say nothing about cards.
+- Added with VIK-114 and VIK-94: `event.detail` (a second line on the title card: blinds and dealer) and `winners[].best` (the five cards that make the hand, for the page to light). `planMotion` also plans `deals` (a new hand's title card arrives), `boardFlips` (board cards new since the last state) and `holeFlips` (hands turning face up); the page holds those cards back while a squash-flip in the air plays, so a card is never drawn twice.

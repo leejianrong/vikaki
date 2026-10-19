@@ -92,6 +92,8 @@ describe("the layout of the table (VIK-84)", () => {
     props.setState({ protocol_version: 1, type: "table_state", pot: 0, street: "showdown", board: ["Ks", "8d", "3c", "2h", "9s"], seats });
     expect(props.drawn.handsFaceUp).toBe(true);
     expect(props.drawn.pot).toBeUndefined();
+    expect(props.drawn.boardCards).toBe(3); // the turn and river are still turning over (VIK-114)
+    props.update(10);
     expect(props.drawn.boardCards).toBe(5);
     vi.unstubAllGlobals();
   });

@@ -129,11 +129,19 @@ export const TableState = z
         seat_id: id.optional(),
         amount: z.number().min(0).optional(),
         text: z.string().min(1).max(120),
+        /** A second line under the banner's words (VIK-114): on a new hand's title card, the blinds and who deals. */
+        detail: z.string().min(1).max(120).optional(),
       })
       .optional(),
     /** Who took the pot, once it is paid (VIK-94): the seat, what it won, and the hand's name when its cards were shown. */
     winners: z
-      .array(z.object({ seat_id: id, amount: z.number().min(0), hand: z.string().min(1).max(60).optional() }))
+      .array(z.object({
+          seat_id: id,
+          amount: z.number().min(0),
+          hand: z.string().min(1).max(60).optional(),
+          /** The five cards that make the hand (VIK-94), from its hole cards and the board: the page lights them up. */
+          best: z.array(card).max(7).optional(),
+        }))
       .max(16)
       .optional(),
     seats: z

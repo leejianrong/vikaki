@@ -128,6 +128,8 @@
   animation: beat-in var(--dur-short3) var(--ease-standard);
 }
 .beat[hidden] { display: none; }
+.beat .detail { display: block; font: 500 0.875rem/1.25rem var(--md-ref-typeface-plain); opacity: 0.85; }
+.table-overlay.with-panel .bubble { z-index: 2; } /* a line being said stays readable over a banner */
 .beat.title { top: 64px; padding: 14px 32px; font-size: 1.75rem; line-height: 2.25rem; background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); border-color: var(--md-sys-color-primary); }
 .table-overlay.with-panel .beat { top: 14px; }
 .table-overlay.with-panel .beat.title { top: 64px; }

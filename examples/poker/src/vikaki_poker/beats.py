@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .evaluate import best_five
 from .facts import hand_name
 from .hand import Hand
 
@@ -38,8 +39,13 @@ def action_event(e: dict, names: dict[str, str]) -> dict[str, Any]:
     return event
 
 
-def new_hand_event(number: int) -> dict[str, Any]:
-    return {"kind": "new_hand", "text": f"Hand {number}"}
+def new_hand_event(number: int, detail: str | None = None) -> dict[str, Any]:
+    """The title card of a hand (VIK-114): "Hand 3", and under it `detail` (the blinds and who deals)."""
+    return {"kind": "new_hand", "text": f"Hand {number}", **({"detail": detail} if detail else {})}
+
+
+def new_hand_detail(hand: Hand, names: dict[str, str]) -> str:
+    return f"Blinds {hand.small_blind}/{hand.big_blind} · {_who(hand.seats[hand.button].seat_id, names)} deals"
 
 
 def street_event(street: str) -> dict[str, Any]:
@@ -62,6 +68,7 @@ def win_event(hand: Hand, names: dict[str, str]) -> tuple[dict[str, Any], list[d
         said = f"{_who(seat, names)} wins {e['amount']}"
         if e.get("showdown"):
             w["hand"] = hand_name(list(hand.player(seat).hole), list(hand.board))
+            w["best"] = list(best_five(list(hand.player(seat).hole) + list(hand.board)))  # the five cards to light up (VIK-94)
             said += f" with {_with(w['hand'])}"
         winners.append(w)
         parts.append(said)

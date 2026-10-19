@@ -101,7 +101,7 @@ export class TableOverlay {
     const i = this.seats.findIndex((s) => s.seat === event.seat_id);
     this.beat.className = `beat ${TITLES.has(event.kind) ? "title" : "move"} kind-${event.kind.replace(/[^a-z_-]/g, "")}`;
     this.beat.style.setProperty("--seat-colour", i >= 0 ? seatColour(i) : "var(--md-sys-color-primary)");
-    this.beat.textContent = event.text;
+    this.beat.replaceChildren(event.text, ...(event.detail ? [el("span", { className: "detail", textContent: event.detail })] : []));
     this.beat.hidden = false;
     const stays = event.kind in BEAT_MS && BEAT_MS[event.kind] === undefined;
     if (!stays) this.beatTimer = setTimeout(() => (this.beat.hidden = true), BEAT_MS[event.kind] ?? BEAT_DEFAULT_MS);

@@ -20,12 +20,21 @@ export interface Hold {
   bet: Map<number, number>;
   stack: Map<number, number>;
   middle?: number;
+  /** Board places and seats whose cards are not drawn still: they are in the air being dealt or flipped. */
+  board: Set<number>;
+  hole: Set<number>;
 }
 
 export interface Plan {
   flights: Flight[];
   /** Seats whose cards are pushed away. */
   mucks: number[];
+  /** Seats being dealt their cards (a new hand, VIK-114). */
+  deals: number[];
+  /** Places on the board whose cards are turned over now (a street, VIK-114 and VIK-94). */
+  boardFlips: number[];
+  /** Seats whose hole cards are turned face up now (the showdown). */
+  holeFlips: number[];
   hold: Hold;
 }
 
@@ -35,9 +44,27 @@ export function middlePot(state: State): number {
 }
 
 export function planMotion(prev: State | undefined, next: State, seatIds: string[]): Plan {
-  const plan: Plan = { flights: [], mucks: [], hold: { bet: new Map(), stack: new Map() } };
-  if (!prev || prev.hand_no !== next.hand_no || (next.street === "preflop" && prev.street !== "preflop")) return plan;
-  const before = (id: string) => prev.seats.find((s) => s.seat_id === id);
+  const plan: Plan = { flights: [], mucks: [], deals: [], boardFlips: [], holeFlips: [], hold: { bet: new Map(), stack: new Map(), board: new Set(), hole: new Set() } };
+  const before = (id: string) => prev?.seats.find((s) => s.seat_id === id);
+  const freshHand = !prev || prev.hand_no !== next.hand_no;
+  if (freshHand && next.event?.kind === "new_hand") {
+    seatIds.forEach((id, i) => {
+      const row = next.seats.find((s) => s.seat_id === id);
+      if (row && !row.folded && row.cards?.length) plan.deals.push(i);
+    });
+    plan.hold.hole = new Set(plan.deals);
+  }
+  if (!prev || freshHand || (next.street === "preflop" && prev.street !== "preflop")) return plan;
+  const had = prev.board?.length ?? 0;
+  for (let k = had; k < (next.board?.length ?? 0); k++) plan.boardFlips.push(k);
+  plan.hold.board = new Set(plan.boardFlips);
+  seatIds.forEach((id, i) => {
+    const a = before(id);
+    const b = next.seats.find((s) => s.seat_id === id);
+    const down = (c?: string[]) => !!c?.length && c.every((x) => x === "back");
+    if (a && b && !b.folded && down(a.cards) && b.cards?.length && !down(b.cards)) plan.holeFlips.push(i);
+  });
+  for (const i of plan.holeFlips) plan.hold.hole.add(i);
   const sweeps: Flight[] = [];
   seatIds.forEach((id, i) => {
     const a = before(id);
