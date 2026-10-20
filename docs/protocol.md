@@ -54,6 +54,7 @@ Only a driver lists seats. The hub still speaks one line at a time, so two seats
 | `speech_interrupted` | `utterance_id`, `reason` (`cancelled`, `superseded`, `human_spoke`, `driver_disconnected`) |
 | `error` | `code`, `message`, optional `utterance_id` |
 | `human_utterance` | `seat_id`, `text`, optional `final` | What a person said for this driver's seat, from the page ([below](#a-humans-speech)). |
+| `transport` / `transport_state` | `action` (`pause`, `play`, `step`) / `paused` | Pause, play and step a game (VIK-135, [ADR-0029](adr/0029-the-page-reviews-and-the-game-holds-still.md)). A viewer sends `transport`; the hub gives it to every driver, and only to drivers. A driver that can be paused sends `transport_state` at every beat and the page shows its playback bar once it has heard one. |
 
 `timing` is what the page measured on its own clock, in ms from receiving the line: `audio_ms` until the first sound was heard, and `frame_ms` until the first rendered frame with the mouth open (absent if the line ended first). It is reported, never gated. `vikaki say` also measures send-to-heard itself and prints `time to first audio` and, when a page reported it, `time to first video frame`. `vikaki serve` prints how long the engine took to make the first audio. The local target is under 1500 ms (Q16).
 

@@ -11,6 +11,8 @@ import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
 import { TablePanel } from "./table-panel.ts";
+import { StateHistory } from "./state-history.ts";
+import { TransportBar } from "./transport-bar.ts";
 import { cuesFor } from "./sfx-cues.ts";
 import { Sfx } from "./sfx.ts";
 import { TableProps } from "./table-props.ts";
@@ -259,6 +261,25 @@ try {
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   const who = ` · table of ${seats.length}${rowNote}`;
   const showHud = () => say(live.state !== "connected" ? `vikaki${who} · ${live.state}` : live.soundBlocked ? `vikaki${who} · click the page to hear the avatars` : `vikaki${who} · live`);
+  // Playback (VIK-135): every state is kept so a spectator can step back; stepping back snaps, with no motion and no sound.
+  const history = new StateHistory<Parameters<typeof cuesFor>[1]>();
+  const transport = { available: false, paused: false };
+  const show = (state: Parameters<typeof cuesFor>[1], o: { snap?: boolean; silent?: boolean } = {}) => {
+    const moved = !o.silent && state.event && ACTIONS.has(state.event.kind) && state.event.seat_id !== undefined ? seats.findIndex((s) => s.seat === state.event!.seat_id) : -1;
+    if (moved >= 0) {
+      actor = moved;
+      clearTimeout(actorTimer);
+      actorTimer = setTimeout(() => ((actor = undefined), refocus()), ACTOR_GAZE_MS);
+      refocus();
+    }
+    overlay.setState(state);
+    panel?.setState(state);
+    props?.setState(state, o.snap);
+    if (sfx && !o.silent && JSON.stringify(state) !== JSON.stringify(lastState)) sfx.play(cuesFor(lastState, state, seats.map((x) => x.seat)));
+    lastState = state;
+  };
+  let lastKey = "";
+  let refreshBar = () => {};
   const player = new SpeechPlayer({
     url: url.href,
     timer: firstFrame,
@@ -305,18 +326,17 @@ try {
       panel?.addThought(seats[i]!.seat, t.text);
     },
     onTableState: (state) => {
-      const moved = state.event && ACTIONS.has(state.event.kind) && state.event.seat_id !== undefined ? seats.findIndex((s) => s.seat === state.event!.seat_id) : -1;
-      if (moved >= 0) {
-        actor = moved;
-        clearTimeout(actorTimer);
-        actorTimer = setTimeout(() => ((actor = undefined), refocus()), ACTOR_GAZE_MS);
-        refocus();
-      }
-      overlay.setState(state);
-      panel?.setState(state);
-      props?.setState(state);
-      if (sfx && JSON.stringify(state) !== JSON.stringify(lastState)) sfx.play(cuesFor(lastState, state, seats.map((x) => x.seat)));
-      lastState = state;
+      const key = JSON.stringify(state);
+      if (key === lastKey) return; // the same state again changes nothing, and is not a step
+      lastKey = key;
+      const shown = history.push(state);
+      if (shown) show(shown);
+      refreshBar();
+    },
+    onTransportState: (p) => {
+      transport.available = true;
+      transport.paused = p;
+      refreshBar();
     },
     onText: (line) => {
       if (line.thought) {
@@ -338,6 +358,40 @@ try {
       showHud();
     },
   });
+  const bar = panel
+    ? new TransportBar({
+        back: () => {
+          if (!transport.paused) (transport.paused = true), player.sendTransport("pause"); // looking back holds the game still
+          const s = history.back();
+          if (s) show(s, { snap: true, silent: true });
+          refreshBar();
+        },
+        toggle: () => {
+          if (transport.paused) {
+            const s = history.reviewing ? history.live() : undefined;
+            if (s) show(s, { snap: true, silent: true });
+            transport.paused = false;
+            player.sendTransport("play");
+          } else {
+            transport.paused = true;
+            player.sendTransport("pause");
+          }
+          refreshBar();
+        },
+        forward: () => {
+          if (history.reviewing) {
+            const s = history.forward();
+            if (s) show(s);
+          } else if (transport.paused) player.sendTransport("step");
+          refreshBar();
+        },
+      })
+    : undefined;
+  if (bar) overlay.mount(bar.root);
+  refreshBar = () => {
+    bar?.update({ available: transport.available, paused: transport.paused, reviewing: history.reviewing, position: history.position, length: history.length });
+    api.table!.transport = { available: transport.available, paused: transport.paused, reviewing: history.reviewing, position: history.position, length: history.length };
+  };
   const unblock = () =>
     void session.resume().then(() => {
       live.soundBlocked = !session.running;

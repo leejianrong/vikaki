@@ -660,6 +660,65 @@
         },
         "type": {
           "type": "string",
+          "const": "transport"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "pause",
+            "play",
+            "step"
+          ]
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "transport_state"
+        },
+        "paused": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "paused"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
           "const": "speech_started"
         },
         "utterance_id": {

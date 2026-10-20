@@ -40,6 +40,8 @@ export interface SpeechPlayerOptions {
   onReact?: (reaction: { seat: string; persona?: string; emotion?: string; intensity?: number; gesture?: Gesture; seconds: number }) => void;
   /** A seat has a private thought (`thought`): text for the audience, never spoken. `persona` is the seat's, when the hub knows it. */
   onThought?: (thought: { seat: string; persona?: string; text: string }) => void;
+  /** The game says it can be paused, and whether it is now (`transport_state`, VIK-135). */
+  onTransportState?: (paused: boolean) => void;
   /** The game sent the state of the table (pot, stacks, cards, whose turn): draw it. */
   onTableState?: (state: MessageOf<"table_state">) => void;
   /** A piece of a line's text arrived: the whole `text`, or one `delta` of a line still being written. For a transcript. `thought` marks an inner monologue spoken aloud (VIK-121): not table talk. */
@@ -139,6 +141,13 @@ export class SpeechPlayer {
     return true;
   }
 
+  /** Ask the game to pause, play or step (VIK-135). False if the hub is not connected. */
+  sendTransport(action: "pause" | "play" | "step"): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify(make("transport", { action })));
+    return true;
+  }
+
   private state(s: LiveState): void {
     this.current = s;
     this.lastBlocked = !this.o.session.running;
@@ -187,6 +196,9 @@ export class SpeechPlayer {
         break;
       case "table_state":
         this.o.onTableState?.(m);
+        break;
+      case "transport_state":
+        this.o.onTransportState?.(m.paused);
         break;
       case "turn_started":
         if (this.owners.turnIsMine(m.persona)) this.o.onTurn?.(true, m.seat_id, m.persona);

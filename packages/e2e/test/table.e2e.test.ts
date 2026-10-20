@@ -526,6 +526,34 @@ describe("the table page", () => {
     await page.waitForFunction(() => window.__vikaki!.table!.seats.every((s) => Math.abs(s.look) < 0.02), null, { timeout: 15_000 }); // and the gaze moves on
   });
 
+  it("shows playback controls when the game can be paused: pause and play go to the game, stepping back reviews an earlier state, and play returns to live (VIK-135)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const bar = page.getByRole("toolbar", { name: "Playback" });
+    expect(await bar.isVisible()).toBe(false); // a game that cannot be paused gets no bar
+    const state = (pot: number) => d1.ws.send(JSON.stringify(make("table_state", { pot, street: "flop", hand_no: 1, board: ["As", "Kd", "2c"], seats: ["seat-1", "seat-2", "seat-3"].map((seat_id) => ({ seat_id, stack: 90 })) } as never)));
+    d1.ws.send(JSON.stringify(make("transport_state", { paused: false } as never)));
+    await bar.waitFor({ state: "visible", timeout: 15_000 });
+    expect(await bar.getByRole("status").innerText()).toBe("Live");
+    await bar.getByRole("button", { name: "Pause" }).click();
+    await d1.waitFor((m) => m.type === "transport" && m.action === "pause");
+    await bar.getByRole("button", { name: "Play" }).waitFor();
+    for (const pot of [10, 20, 30]) state(pot);
+    await page.getByRole("region", { name: "Pot and board" }).getByText("Pot: 30").waitFor({ timeout: 15_000 });
+    await bar.getByRole("button", { name: "Step back" }).click();
+    await page.getByRole("region", { name: "Pot and board" }).getByText("Pot: 20").waitFor({ timeout: 15_000 });
+    expect(await bar.getByRole("status").innerText()).toBe("Reviewing 2 of 3");
+    state(40); // a new state while reviewing is held back
+    await page.waitForFunction(() => window.__vikaki!.table!.transport!.length === 4, null, { timeout: 15_000 });
+    expect(await page.getByRole("region", { name: "Pot and board" }).innerText()).toContain("Pot: 20");
+    await bar.getByRole("button", { name: "Play" }).click();
+    await d1.waitFor((m) => m.type === "transport" && m.action === "play");
+    await page.getByRole("region", { name: "Pot and board" }).getByText("Pot: 40").waitFor({ timeout: 15_000 });
+    expect(await bar.getByRole("status").innerText()).toBe("Live");
+    await bar.getByRole("button", { name: "Pause" }).click();
+    await bar.getByRole("button", { name: "Step forward" }).click();
+    await d1.waitFor((m) => m.type === "transport" && m.action === "step");
+  });
+
   it("stays on the row when the view is anything but table", { timeout: 90_000 }, async () => {
     const { page } = await setup("seats=3&view=nonsense");
     expect(await page.evaluate(() => window.__vikaki!.table!.view)).toBe("row");

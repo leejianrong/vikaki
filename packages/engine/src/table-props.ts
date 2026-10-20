@@ -256,12 +256,13 @@ export class TableProps {
     this.group.add(this.cards, this.button, this.potLabel, ...this.chips, this.air);
   }
 
-  setState(state: State): void {
+  /** `snap` draws the state with no motion: a step back, where chips must not fly the wrong way (VIK-135). */
+  setState(state: State, snap = false): void {
     const key = JSON.stringify(state);
     if (key === this.last) return;
     this.last = key;
     this.land(); // a new state while chips are in the air: they land at once
-    const plan = this.reduced ? undefined : planMotion(this.shown, state, this.seatIds);
+    const plan = this.reduced || snap ? undefined : planMotion(this.shown, state, this.seatIds);
     this.shown = state;
     this.current = state;
     this.draw(state, plan?.hold);

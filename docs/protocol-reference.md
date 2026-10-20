@@ -118,6 +118,20 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `text` | string | yes | 1 to 2000 characters |
 | `final` | boolean | no |  |
 
+## `transport`
+
+| field | type | required | bounds |
+| --- | --- | --- | --- |
+| `session_id` | string | no | 1 to 128 characters |
+| `action` | one of `pause`, `play`, `step` | yes |  |
+
+## `transport_state`
+
+| field | type | required | bounds |
+| --- | --- | --- | --- |
+| `session_id` | string | no | 1 to 128 characters |
+| `paused` | boolean | yes |  |
+
 ## `speech_started`
 
 | field | type | required | bounds |

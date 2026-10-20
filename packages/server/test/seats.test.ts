@@ -164,6 +164,24 @@ describe("what a seat driver may send", () => {
     expect(page.inbox.some((m) => m.type === "error")).toBe(false);
   });
 
+  it("hands a viewer's pause, play or step to every driver, and a driver's transport state to the viewers (VIK-135)", async () => {
+    server = await startServer({ staticDir: dir });
+    const page = track(await Client.join(server.wsUrl, "viewer"));
+    await page.next();
+    const other = track(await Client.join(server.wsUrl, "viewer"));
+    await other.next();
+    const a = await seatDriver(server.wsUrl, { seat_id: "A", persona: "ada" });
+    const b = await seatDriver(server.wsUrl, { seat_id: "B", persona: "ben" });
+    page.send(make("transport", { action: "pause" }));
+    await until(() => a.d.inbox.some((m) => m.type === "transport") && b.d.inbox.some((m) => m.type === "transport"));
+    expect(a.d.inbox.find((m) => m.type === "transport")).toMatchObject({ action: "pause" });
+    expect(other.inbox.some((m) => m.type === "transport")).toBe(false); // for the game, not for the other pages
+    a.d.send(make("transport_state", { paused: true }));
+    await until(() => other.inbox.some((m) => m.type === "transport_state"));
+    expect(other.inbox.find((m) => m.type === "transport_state")).toMatchObject({ paused: true });
+    expect(page.inbox.some((m) => m.type === "error")).toBe(false);
+  });
+
   it("gives a whole-table driver the human's speech for any seat", async () => {
     server = await startServer({ staticDir: dir });
     const page = track(await Client.join(server.wsUrl, "viewer"));
