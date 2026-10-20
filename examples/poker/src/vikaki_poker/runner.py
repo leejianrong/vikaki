@@ -61,7 +61,7 @@ class PrintVoice:
 class HubVoice:
     """One `vikaki-client` driver per seat, each bound to its seat and persona. Needs `pip install vikaki-client` (see the README)."""
 
-    def __init__(self, url: str, seats: dict[str, str], *, token: str | None = None, line_timeout: float = 90.0, on_problem: Callable[[str], None] = print) -> None:
+    def __init__(self, url: str, seats: dict[str, str], *, token: str | None = None, line_timeout: float = 90.0, on_problem: Callable[[str], None] = print, transport: Any = None) -> None:
         from vikaki_client import Vikaki  # imported here so the engine and the tests do not need the client
 
         self._persona = seats
@@ -75,6 +75,10 @@ class HubVoice:
         except BaseException:
             self.close()
             raise
+        if transport is not None:  # the page's pause, play and step (VIK-135): every seat's connection hears it, so one listens
+            first = next(iter(self._clients.values()))
+            first.on_event(lambda e: transport.handle(str(e.get("action"))) if e.get("type") == "transport" else None)
+            transport.announce = self.transport_state
 
     def turn_started(self, seat_id: str) -> None:
         self._clients[seat_id].turn_started(seat_id)
@@ -92,6 +96,14 @@ class HubVoice:
 
     def turn_ended(self, seat_id: str) -> None:
         self._clients[seat_id].turn_ended(seat_id)
+
+    def transport_state(self, paused: bool) -> None:
+        from vikaki_client import HubError
+
+        try:
+            next(iter(self._clients.values())).transport_state(paused)
+        except HubError:  # the pages miss a state; the game does not
+            pass
 
     def table_state(self, state: dict) -> None:
         from vikaki_client import HubError

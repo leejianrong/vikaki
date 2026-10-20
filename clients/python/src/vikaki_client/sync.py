@@ -85,6 +85,10 @@ class Vikaki:
         """See `VikakiClient.thought`."""
         self._run(self._client.thought(seat_id, text, **kw))
 
+    def transport_state(self, paused: bool) -> None:
+        """See `VikakiClient.transport_state`."""
+        self._run(self._client.transport_state(paused))
+
     def table_state(self, seats: list[dict[str, Any]], **kw: Any) -> None:
         """See `VikakiClient.table_state`."""
         self._run(self._client.table_state(seats, **kw))

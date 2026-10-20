@@ -218,3 +218,14 @@ body.resizing-panel { user-select: none; cursor: col-resize; }
 .table-panel .sound-controls { display: flex; flex-direction: column; gap: 6px; padding-bottom: 12px; }
 .table-panel .sound-controls label { display: flex; align-items: center; gap: 8px; color: var(--md-sys-color-on-surface-variant); }
 .table-panel .sound-controls input[type="range"] { flex: 1; accent-color: var(--md-sys-color-primary); }
+
+/* The playback bar (VIK-135): under the table, over the stage. */
+.transport-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: var(--shape-full, 999px); background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); box-shadow: 0 1px 4px rgb(0 0 0 / 0.25); z-index: 3; pointer-events: auto; }
+.transport-bar[hidden] { display: none; }
+.transport-bar button { min-width: 40px; height: 40px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 1.1rem; cursor: pointer; }
+.transport-bar button.primary { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+.transport-bar button:hover:not(:disabled) { background: var(--md-sys-color-surface-container-highest); }
+.transport-bar button.primary:hover:not(:disabled) { background: var(--md-sys-color-primary); filter: brightness(1.1); }
+.transport-bar button:disabled { opacity: 0.38; cursor: default; }
+.transport-bar button:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; }
+.transport-bar .where { min-width: 7.5em; text-align: center; font: 500 0.875rem/1.25rem var(--md-ref-typeface-plain); color: var(--md-sys-color-on-surface-variant); }

@@ -200,6 +200,12 @@ export class Hub {
         this.relayFromDriver(role, ws, message);
       }
     } else {
+      if (message.type === "transport") {
+        // A control bar's request is for the game, whichever driver is running it (a table of seat drivers has no single one): every driver gets it.
+        for (const d of this.drivers.keys()) this.send(d, message);
+        this.opts.onEvent?.({ at: Date.now(), from: "viewer", to: "driver", message });
+        return;
+      }
       // Several viewers may report the same thing. The driver should hear it once.
       const key = "utterance_id" in message ? `${message.type}:${message.utterance_id}` : undefined;
       if (key) {

@@ -68,6 +68,11 @@ export class TableOverlay {
 
   /** In embed mode (VIK-64) the pot strip is never drawn, and the plates and transcript only when asked for. */
   /** With the spectator panel beside the table (VIK-83) the pot, street and board are in the panel, so the strip at the top is not drawn twice. */
+  /** Put something over the stage (the playback bar, VIK-135). */
+  mount(node: HTMLElement): void {
+    this.root.append(node);
+  }
+
   set withPanel(on: boolean) {
     this.root.classList.toggle("with-panel", on);
   }

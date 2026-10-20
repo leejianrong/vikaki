@@ -208,6 +208,11 @@ class VikakiClient:
         """
         await self._send(make("thought", seat_id=seat_id, text=text, persona=persona))
 
+    async def transport_state(self, paused: bool) -> None:
+        """Tell the pages this game can be paused, and whether it is now (VIK-135): they show pause, play and step controls, and send `transport` events
+        (`action` is `pause`, `play` or `step`) which arrive like any other event. Send it at every beat so a page that joins late learns it."""
+        await self._send(make("transport_state", paused=paused))
+
     async def table_state(
         self,
         seats: list[dict[str, Any]],
@@ -311,7 +316,7 @@ class VikakiClient:
             fut = self._outcomes.get(uid)
             if fut is not None and not fut.done():
                 fut.set_result(message)
-        if kind in ("speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance"):
+        if kind in ("speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance", "transport"):
             self._events.append(message)
             self._events_ready.set()
             for listener in list(self._listeners):

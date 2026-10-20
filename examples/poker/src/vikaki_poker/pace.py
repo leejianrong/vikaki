@@ -33,9 +33,12 @@ PACES = {"off": 0.0, "fast": 0.5, "normal": 1.0, "slow": 1.5}
 class Pace:
     scale: float = 0.0
     sleep: Callable[[float], None] = time.sleep
+    gate: Callable[[], None] | None = None  # called after every beat's pause: where a paused game holds still (VIK-135)
 
     def wait(self, kind: str, weight: float = 0.0) -> None:
         """Pause after a beat. `weight` (0 to 1) is how big a call or raise was against the pot: the bigger, the longer."""
         seconds = (SECONDS.get(kind, 0.0) + (WEIGHT_SECONDS * min(1.0, max(0.0, weight)) if kind in WEIGHTED else 0.0)) * self.scale
         if seconds > 0:
             self.sleep(seconds)
+        if self.gate is not None:
+            self.gate()

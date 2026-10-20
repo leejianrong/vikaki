@@ -12,6 +12,7 @@ from .stats import style_lines, style_stats
 from .monologue import MODES, Monologue
 from .pace import PACES, Pace
 from .llm import KEY_ENV, FakeLlm, Llm, LlmError, OpenRouterLlm, Usage, load_dotenv
+from .transport import Transport
 from .runner import HubVoice, PrintVoice, Voice, play_session
 from .table import TableError, build_agents, build_reactor, load_table
 
@@ -95,19 +96,20 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
     print(f"seed {seed} (repeat this deal with --seed {seed})")
     for i, agent in enumerate(agents.values()):
         agent.reseed(seed * 101 + i)  # the engine's dice follow the seed too
+    transport = Transport()
     own_voice = voice is None
     if voice is None:
         if args.no_hub:
             voice = PrintVoice()
         else:
             try:
-                voice = HubVoice(args.url, table.personas(), token=args.token)
+                voice = HubVoice(args.url, table.personas(), token=args.token, transport=transport)
             except Exception as err:  # connect_failed, driver_busy, unknown_persona: say so plainly
                 code = getattr(err, "code", type(err).__name__)
                 print(f"vikaki_poker: could not join the table at {args.url} ({code}). Is `pnpm serve --personas personas.table.example.yaml` running?", file=sys.stderr)
                 return 1
     try:
-        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy, pace=Pace(PACES[args.pace or ("off" if args.no_hub else "normal")]), monologue=Monologue(args.monologue))
+        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy, pace=Pace(PACES[args.pace or ("off" if args.no_hub else "normal")], gate=transport.gate), monologue=Monologue(args.monologue))
     finally:
         if own_voice and hasattr(voice, "close"):
             try:

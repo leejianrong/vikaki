@@ -210,6 +210,16 @@ export const HumanUtterance = z.object({
   final: z.boolean().optional(),
 });
 
+/**
+ * Pause, play or step the game (VIK-135): a viewer's control bar asks, and the hub hands the request to every driver. A game that can be paused
+ * says so with `transport_state`; one that never does simply ignores this. `pause` stops at the next beat of the game (a line being said is
+ * finished first), `play` carries on, `step` lets exactly one more beat through and then pauses again.
+ */
+export const Transport = z.object({ ...common, type: z.literal("transport"), action: z.enum(["pause", "play", "step"]) });
+
+/** A game that can be paused tells the viewers where it stands (VIK-135): the page shows its controls once it has heard this. The game sends it at every beat, so a page that joins late learns it too. */
+export const TransportState = z.object({ ...common, type: z.literal("transport_state"), paused: z.boolean() });
+
 // ---- back to the driver, reported by whoever plays the audio ----
 
 export const SpeechStarted = z.object({ ...common, type: z.literal("speech_started"), utterance_id: id, seat_id: id.optional() });
@@ -277,6 +287,8 @@ export const Message = z.discriminatedUnion("type", [
   React,
   Thought,
   HumanUtterance,
+  Transport,
+  TransportState,
   SpeechStarted,
   SpeechFinished,
   SpeechInterrupted,
@@ -288,10 +300,10 @@ export type MessageType = Message["type"];
 export type MessageOf<T extends MessageType> = Extract<Message, { type: T }>;
 
 /** What each role may send after `hello`. The hub enforces this. `audio` is sent by the hub only. */
-export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state", "react", "thought"];
+export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state", "react", "thought", "transport_state"];
 /** A controller is not a driver: it never holds the driver slot and may only stop speech (`vikaki cancel`). */
 export const CONTROLLER_MAY_SEND: readonly MessageType[] = ["cancel"];
-export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance"];
+export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance", "transport"];
 
 export type ParseResult = { ok: true; message: Message } | { ok: false; code: ErrorCode; message: string };
 
