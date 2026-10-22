@@ -15,8 +15,8 @@ export interface Shot {
   fov: number;
 }
 
-/** A shot is named: `wide`, `overhead`, or `seat:<index>` for a close-up of that player. */
-export type ShotName = "wide" | "overhead" | `seat:${number}`;
+/** A shot is named: `wide`, `overhead`, `board` (the community cards, close), or `seat:<index>` for a close-up of that player. */
+export type ShotName = "wide" | "overhead" | "board" | `seat:${number}`;
 
 export interface ShotContext {
   /** Height of the table top. */
@@ -31,7 +31,7 @@ export interface ShotContext {
 }
 
 export function parseShot(value: string | null | undefined, seats: number): ShotName | undefined {
-  if (value === "wide" || value === "overhead") return value;
+  if (value === "wide" || value === "overhead" || value === "board") return value;
   const m = /^seat:(\d+)$/.exec(value ?? "");
   if (m && Number(m[1]) < seats) return value as ShotName;
   return undefined;
@@ -45,6 +45,10 @@ export function shotFor(name: ShotName, c: ShotContext): Shot {
     // Straight down at the middle of the table, far enough up for the whole length of it, with a hair of tilt so "up" is defined.
     const height = Math.max(2.2, reach / (tanHalf(c.fov) * Math.max(c.aspect, 0.1)), (TABLE_B + 0.7) / tanHalf(c.fov));
     return { position: { x: 0, y: c.tableY + height, z: 0.05 }, target: { x: 0, y: c.tableY, z: 0 }, fov: c.fov };
+  }
+  if (name === "board") {
+    // Low over the near rail, close on the middle of the felt: the five board cards, the pot and the chips fill the picture.
+    return { position: { x: 0, y: c.tableY + 0.75, z: 1.35 }, target: { x: 0, y: c.tableY, z: -0.05 }, fov: c.fov };
   }
   if (name === "wide") {
     // A three-quarter view over the near rail: faces stay readable, the cards and chips show, and the seats at the two ends fit.

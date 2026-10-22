@@ -27,6 +27,8 @@ export class TablePanel {
   private readonly cameraButtons = new Map<string, HTMLButtonElement>();
   private readonly cameras = el("div", { className: "cameras", role: "toolbar", ariaLabel: "Camera" });
   private onCamera: (shot: string) => void = () => {};
+  private readonly directorButton = el("button", { type: "button", className: "camera director", textContent: "Auto", ariaLabel: "Auto director (D)" });
+  private onDirector: (on: boolean) => void = () => {};
   /** Listening in (VIK-98): one button on each player's card, and a switch for every seat's thoughts. */
   private readonly listenButtons: HTMLButtonElement[];
   private readonly hearAll = el("input", { type: "checkbox", role: "switch", ariaLabel: "Hear every thought", checked: true });
@@ -46,7 +48,7 @@ export class TablePanel {
       b.addEventListener("click", () => this.chooseSeat(s.seat));
       return b;
     });
-    const shots: [string, string, string][] = [["wide", "Wide", "Wide shot (1)"], ["overhead", "Overhead", "Overhead shot (2)"], ...seats.map((s, i): [string, string, string] => [`seat:${i}`, label(s), `Close-up of ${label(s)}${i < 7 ? ` (${i + 3})` : ""}`])];
+    const shots: [string, string, string][] = [["wide", "Wide", "Wide shot (1)"], ["overhead", "Overhead", "Overhead shot (2)"], ...seats.map((s, i): [string, string, string] => [`seat:${i}`, label(s), `Close-up of ${label(s)}${i < 7 ? ` (${i + 3})` : ""}`]), ["board", "Board", "Board shot (B)"]];
     for (const [id, text, name] of shots) {
       const b = el("button", { type: "button", className: "camera", textContent: text, ariaLabel: name });
       b.setAttribute("aria-pressed", String(id === "wide"));
@@ -54,6 +56,9 @@ export class TablePanel {
       this.cameraButtons.set(id, b);
       this.cameras.append(b);
     }
+    this.directorButton.setAttribute("aria-pressed", "true");
+    this.directorButton.addEventListener("click", () => this.toggleDirector());
+    this.cameras.append(this.directorButton);
     this.hearAll.addEventListener("change", () => this.onListen(this.hearAll.checked ? "all" : "off"));
     // One column (VIK-138): the players in a compact strip, the activity log, then Chat and Thoughts as tabs.
     this.strip.append(...this.cards);
@@ -84,6 +89,19 @@ export class TablePanel {
   /** What to do when a camera button is pressed (VIK-95). */
   setCameraHandler(f: (shot: string) => void): void {
     this.onCamera = f;
+  }
+
+  setDirectorHandler(f: (on: boolean) => void): void {
+    this.onDirector = f;
+  }
+
+  /** Mark whether the auto-director is on. */
+  setDirector(on: boolean): void {
+    this.directorButton.setAttribute("aria-pressed", String(on));
+  }
+
+  toggleDirector(): void {
+    this.onDirector(this.directorButton.getAttribute("aria-pressed") !== "true");
   }
 
   /** Mark the shot that is on. */
