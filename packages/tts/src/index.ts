@@ -4,3 +4,7 @@ export { SentenceChunker, type ChunkerOptions } from "./chunker.ts";
 export { KokoroTts, type KokoroOptions } from "./kokoro.ts";
 export { WorkerTts, type WorkerTtsOptions } from "./worker-tts.ts";
 export { chosenDtype, DEFAULT_DTYPE, MODEL_FILES, type KokoroDtype } from "./kokoro-defaults.mjs";
+export { PROVIDERS, SpeechApiTts, type SpeechApiOptions } from "./speech-api-tts.ts";
+export { styleFor } from "./emotion-style.ts";
+export { CHARS_PER_SECOND, costOf, PRICES, speechStats, type Price, type SpeechStats } from "./cost.ts";
+export { report, runBench, toWav, type BenchLine, type BenchResult } from "./bench.ts";
