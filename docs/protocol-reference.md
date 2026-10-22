@@ -132,6 +132,22 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `session_id` | string | no | 1 to 128 characters |
 | `paused` | boolean | yes |  |
 
+## `listen`
+
+| field | type | required | bounds |
+| --- | --- | --- | --- |
+| `session_id` | string | no | 1 to 128 characters |
+| `mode` | one of `seat`, `all`, `off` | yes |  |
+| `seat_id` | string | no | 1 to 128 characters |
+
+## `listen_state`
+
+| field | type | required | bounds |
+| --- | --- | --- | --- |
+| `session_id` | string | no | 1 to 128 characters |
+| `mode` | one of `seat`, `all`, `off` | yes |  |
+| `seat_id` | string | no | 1 to 128 characters |
+
 ## `speech_started`
 
 | field | type | required | bounds |

@@ -220,6 +220,18 @@ export const Transport = z.object({ ...common, type: z.literal("transport"), act
 /** A game that can be paused tells the viewers where it stands (VIK-135): the page shows its controls once it has heard this. The game sends it at every beat, so a page that joins late learns it too. */
 export const TransportState = z.object({ ...common, type: z.literal("transport_state"), paused: z.boolean() });
 
+/**
+ * Which private thoughts are voiced (VIK-98): a viewer asks to listen in to one seat (`mode: "seat"` with `seat_id`), to every seat's thoughts (`"all"`, how a
+ * table starts), or to none (`"off"`). The choice is the table's, not the viewer's: the hub keeps one and tells every viewer with `listen_state`. A thought that
+ * is not being listened to is not synthesised at all (it still reaches the page as text); switching seat cancels the thought in progress.
+ */
+export const Listen = z
+  .object({ ...common, type: z.literal("listen"), mode: z.enum(["seat", "all", "off"]), seat_id: id.optional() })
+  .refine((m) => (m.mode === "seat") === (m.seat_id !== undefined), { message: "`seat_id` goes with `mode: seat`, and only with it" });
+
+/** The hub's current listen choice (VIK-98), sent to every viewer when it changes and to a viewer that joins. */
+export const ListenState = z.object({ ...common, type: z.literal("listen_state"), mode: z.enum(["seat", "all", "off"]), seat_id: id.optional() });
+
 // ---- back to the driver, reported by whoever plays the audio ----
 
 export const SpeechStarted = z.object({ ...common, type: z.literal("speech_started"), utterance_id: id, seat_id: id.optional() });
@@ -289,6 +301,8 @@ export const Message = z.discriminatedUnion("type", [
   HumanUtterance,
   Transport,
   TransportState,
+  Listen,
+  ListenState,
   SpeechStarted,
   SpeechFinished,
   SpeechInterrupted,
@@ -303,7 +317,7 @@ export type MessageOf<T extends MessageType> = Extract<Message, { type: T }>;
 export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state", "react", "thought", "transport_state"];
 /** A controller is not a driver: it never holds the driver slot and may only stop speech (`vikaki cancel`). */
 export const CONTROLLER_MAY_SEND: readonly MessageType[] = ["cancel"];
-export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance", "transport"];
+export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance", "transport", "listen"];
 
 export type ParseResult = { ok: true; message: Message } | { ok: false; code: ErrorCode; message: string };
 

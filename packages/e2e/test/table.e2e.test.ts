@@ -453,6 +453,43 @@ describe("the table page", () => {
     expect(await page.getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("false");
   });
 
+  it("lets the audience listen in to one seat's thoughts: its plate is spotlit, the others dim, only its thoughts are voiced, and a thought never moves the mouth (VIK-98)", { timeout: 120_000 }, async () => {
+    const { page, drivers: [d1, d2] } = await setup("seats=3&view=table");
+    const played = () => page.evaluate(() => window.__vikaki!.audio!.played);
+    // by default every seat's thoughts are voiced, and the mouth stays still for them
+    await page.evaluate(() => window.__vikaki!.table!.resetPeaks());
+    const before = await played();
+    d1.say("Please hold. Please hold.", "t1", { thought: true });
+    await page.getByLabel("ada says").waitFor({ state: "visible", timeout: 15_000 });
+    await page.waitForFunction((n) => window.__vikaki!.audio!.played > n, before, { timeout: 15_000 });
+    await page.waitForFunction(() => window.__vikaki!.live!.events.some((e) => e.startsWith("finished:t1")), null, { timeout: 15_000 });
+    expect(await page.evaluate(() => window.__vikaki!.table!.seats[0]!.peak.mouth)).toBeLessThan(0.05); // a thought does not move the mouth
+    // listening in to ben: his button is pressed, his plate is spotlit and ada's dims
+    await page.getByRole("button", { name: "Listen in to ben" }).click();
+    await page.waitForFunction(() => window.__vikaki!.table!.listen.mode === "seat", null, { timeout: 15_000 });
+    expect(await page.evaluate(() => window.__vikaki!.table!.listen.seat)).toBe("seat-2");
+    expect(await page.getByRole("button", { name: "Listen in to ben" }).getAttribute("aria-pressed")).toBe("true");
+    expect(await page.getByRole("group", { name: "ben", exact: true }).evaluate((e) => e.classList.contains("spotlit"))).toBe(true);
+    expect(await page.getByRole("group", { name: "ada", exact: true }).evaluate((e) => e.classList.contains("dim"))).toBe(true);
+    // ada's thought is no longer voiced (it still shows as text), ben's is
+    const quiet = await played();
+    d1.say("Ada thinks quietly.", "t2", { thought: true });
+    await page.getByRole("tab", { name: "Thoughts" }).click();
+    await page.getByRole("log", { name: "Thoughts" }).getByText("Ada thinks quietly.").waitFor({ timeout: 15_000 });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(await played()).toBe(quiet);
+    d2.say("Ben thinks aloud.", "t3", { thought: true });
+    await page.waitForFunction((n) => window.__vikaki!.audio!.played > n, quiet, { timeout: 15_000 });
+    // a second click stops listening; the switch brings every seat back
+    await page.getByRole("button", { name: "Listen in to ben" }).click();
+    await page.waitForFunction(() => window.__vikaki!.table!.listen.mode === "off", null, { timeout: 15_000 });
+    await page.getByRole("switch", { name: "Hear every thought" }).click();
+    await page.waitForFunction(() => window.__vikaki!.table!.listen.mode === "all", null, { timeout: 15_000 });
+    // clicking a plate listens in too
+    await page.getByRole("group", { name: "cy", exact: true }).click();
+    await page.waitForFunction(() => window.__vikaki!.table!.listen.seat === "seat-3", null, { timeout: 15_000 });
+  });
+
   it("announces each beat of a hand in a banner: a move fades, a win stays until the next beat, and the actor's plate pulses (VIK-113)", { timeout: 90_000 }, async () => {
     const { page, drivers: [d1] } = await setup("seats=3&view=table");
     const send = (event: { kind: string; text: string; seat_id?: string; amount?: number }, extra: object = {}) =>
