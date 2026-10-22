@@ -2,7 +2,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { Box3, Vector3, type Mesh, type Object3D, type SkinnedMesh } from "three";
 import { VISEMES, type AvatarFraming, type HeadPose, type SceneAvatar, type SeatPose, type VisemeWeights } from "./renderer.ts";
-import { applySeat, handHeight, kneeReach, type BoneOf } from "./seat-pose.ts";
+import type { ArmOffsets } from "./arm-act.ts";
+import { applySeat, DEFAULT_SEAT_POSE, handHeight, kneeReach, poseArm, type BoneOf } from "./seat-pose.ts";
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
@@ -94,9 +95,31 @@ export class VrmAvatar implements SceneAvatar {
     return this.bone("hips") != null;
   }
 
+  /** The arms' seated numbers, kept so an act can move them and bring them back (VIK-137); undefined until seated, or when the arms just hang. */
+  private armBase: { forward: number; down: number; elbow: number } | undefined;
+  private armsMoved = false;
+
+  canAct(): boolean {
+    return this.armBase !== undefined && (["leftUpperArm", "rightUpperArm", "leftLowerArm", "rightLowerArm"] as const).every((n) => this.bone(n) != null);
+  }
+
+  setArmOffsets(o: ArmOffsets): void {
+    const base = this.armBase;
+    if (!base) return;
+    const moved = [o.left, o.right].some((a) => a.forward !== 0 || a.down !== 0 || a.elbow !== 0);
+    if (!moved && !this.armsMoved) return;
+    this.armsMoved = moved;
+    for (const side of ["left", "right"] as const) {
+      const d = o[side];
+      poseArm(this.bone, side, { forward: base.forward + d.forward, down: base.down + d.down, elbow: base.elbow + d.elbow });
+    }
+  }
+
   seat(pose?: SeatPose): boolean {
     if (!this.canSeat) return false;
     applySeat(this.bone, pose);
+    const arms = pose?.arms ?? DEFAULT_SEAT_POSE.arms;
+    this.armBase = arms === "hang" ? undefined : { ...arms };
     this.vrm.update(0); // the normalized bones reach the skeleton on update
     return true;
   }

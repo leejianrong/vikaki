@@ -1,4 +1,5 @@
 import { AmbientLight, DirectionalLight, PerspectiveCamera, Scene, WebGLRenderer } from "three";
+import { ArmActs, type Act } from "./arm-act.ts";
 import { Blinker, idlePose, mulberry32 } from "./behaviour.ts";
 import { EmotionState } from "./emotion.ts";
 import { Gestures } from "./gestures.ts";
@@ -58,6 +59,8 @@ export class Puppet {
   readonly gestures = new Gestures();
   /** A silent seat's nods, shakes and tilts (`react`), and its turn toward the speaker. */
   readonly reaction = new ReactionMotion();
+  /** A seated seat's hands acting a decision (VIK-137): a knock, a push, a toss. */
+  readonly arms = new ArmActs();
   /** The head pose applied on the last update, in radians, and how much of it came from voice gestures. */
   head: HeadPose = { pitch: 0, yaw: 0, roll: 0 };
   gesture = { pitch: 0, roll: 0 };
@@ -78,6 +81,13 @@ export class Puppet {
 
   get blinks(): number {
     return this.blinker.blinks;
+  }
+
+  /** Act a decision with the hands, or nod when this avatar's arms cannot (a stick-armed one, or one not seated). */
+  act(act: Act): "arms" | "nod" {
+    if (this.avatar.canAct?.()) return this.arms.play(act), "arms";
+    this.reaction.play("nod");
+    return "nod";
   }
 
   triggerBlink(): void {
@@ -102,6 +112,7 @@ export class Puppet {
       roll: idle.roll + pose.roll + gesture.roll + react.roll,
     };
     this.avatar.setHeadPose(this.head);
+    this.avatar.setArmOffsets?.(this.arms.update(dt));
     this.avatar.update(dt);
     this.applied = this.avatar.appliedVisemes?.() ?? mouth;
   }

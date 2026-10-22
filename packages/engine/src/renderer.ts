@@ -1,4 +1,5 @@
 import type { Object3D } from "three";
+import type { ArmOffsets } from "./arm-act.ts";
 
 /** The five mouth shapes every avatar type must support (VRM names; doodle avatars draw one sprite each). */
 export const VISEMES = ["aa", "ih", "ou", "ee", "oh"] as const;
@@ -29,6 +30,10 @@ export interface AvatarRenderer {
    * from what was set when blends or overrides intervene. Optional: a renderer that cannot tell leaves it out.
    */
   appliedVisemes?(): VisemeWeights;
+  /** True when the arms can act a decision (VIK-137): seated with arms that bend. Else the seat nods instead. */
+  canAct?(): boolean;
+  /** Move the arms from their seated pose by these changes to the seat-pose numbers (`forward`, `down`, `elbow`); all zero is the seated pose. */
+  setArmOffsets?(offsets: ArmOffsets): void;
 }
 
 /** Where things are on an avatar, in world units, for placing the camera and the manga symbols. */
