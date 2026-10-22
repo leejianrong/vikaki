@@ -1,7 +1,7 @@
 // Dev helper: drive the poker table page with `table_state` messages and screenshot it (the machine is software-rendered, so drive states directly).
 // Start a table first: `pnpm serve --port 8787 --personas personas.table.example.yaml` (after `pnpm build`).
-// usage: node scripts/screenshot-table.mjs <steps.json> <outPrefix> [query]   (PORT, VIEWPORT=WxH)
-// steps.json: [{ "state": {...table_state fields}, "msg": {type, ...fields}, "wait": 800, "shot": "name" }, ...]; `shot` writes <outPrefix>-<name>.png.
+// usage: node scripts/screenshot-table.mjs <steps.json> <outPrefix> [query]   (PORT, VIEWPORT=WxH, SEATS=ada,ben,cy: the personas, pass the same in the query)
+// steps.json: [{ "state": {...table_state fields}, "msg": {type, ...fields}, "eval": "js run in the page", "wait": 800, "shot": "name" }, ...]; `shot` writes <outPrefix>-<name>.png.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { chromium } from "playwright";
@@ -24,12 +24,14 @@ try {
   await page.goto(`http://127.0.0.1:${port}/avatar?${query}`);
   await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 60000 });
   if (ws.readyState !== WebSocket.OPEN) await new Promise((ok, fail) => (ws.once("open", ok), ws.once("error", fail)));
-  const seats = [["seat-1", "ada"], ["seat-2", "ben"], ["seat-3", "cy"]].map(([seat_id, persona]) => ({ seat_id, persona }));
+  const names = (process.env.SEATS ?? "ada,ben,cy").split(",");
+  const seats = names.map((persona, i) => ({ seat_id: `seat-${i + 1}`, persona }));
   ws.send(JSON.stringify({ protocol_version: 1, type: "hello", role: "driver", seats }));
   await new Promise((r) => setTimeout(r, 500));
   for (const step of steps) {
     if (step.state) ws.send(JSON.stringify({ protocol_version: 1, type: "table_state", ...step.state }));
     if (step.msg) ws.send(JSON.stringify({ protocol_version: 1, ...step.msg }));
+    if (step.eval) await page.evaluate(step.eval);
     await new Promise((r) => setTimeout(r, step.wait ?? 600));
     if (step.shot) await page.screenshot({ path: `${prefix}-${step.shot}.png` });
   }
