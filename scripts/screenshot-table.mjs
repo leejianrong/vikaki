@@ -23,7 +23,7 @@ try {
   page.on("console", (m) => m.type() === "error" && console.error("page error:", m.text()));
   await page.goto(`http://127.0.0.1:${port}/avatar?${query}`);
   await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 60000 });
-  await new Promise((ok, fail) => (ws.once("open", ok), ws.once("error", fail)));
+  if (ws.readyState !== WebSocket.OPEN) await new Promise((ok, fail) => (ws.once("open", ok), ws.once("error", fail)));
   const seats = [["seat-1", "ada"], ["seat-2", "ben"], ["seat-3", "cy"]].map(([seat_id, persona]) => ({ seat_id, persona }));
   ws.send(JSON.stringify({ protocol_version: 1, type: "hello", role: "driver", seats }));
   await new Promise((r) => setTimeout(r, 500));

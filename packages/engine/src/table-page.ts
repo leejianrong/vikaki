@@ -11,6 +11,7 @@ import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
 import { TablePanel } from "./table-panel.ts";
+import { TopBar } from "./table-topbar.ts";
 import { StateHistory } from "./state-history.ts";
 import { TransportBar } from "./transport-bar.ts";
 import { cuesFor } from "./sfx-cues.ts";
@@ -113,6 +114,8 @@ try {
   const wantPanel = params.has("panel") ? params.get("panel") === "1" : spots !== undefined && !embedOpts.embed;
   const panel = wantPanel ? new TablePanel(seats) : undefined;
   if (panel) overlay.withPanel = true;
+  const topBar = panel ? new TopBar() : undefined;
+  if (topBar) document.body.append(topBar.root);
   // Sound effects (VIK-122) go with the panel's controls: a page with no panel (an embed) leaves the sound to its host.
   const sfx = panel ? new Sfx(session) : undefined;
   if (panel && sfx) panel.addSoundControls(sfx);
@@ -274,6 +277,7 @@ try {
     }
     overlay.setState(state);
     panel?.setState(state);
+    topBar?.setState(state);
     props?.setState(state, o.snap);
     if (sfx && !o.silent && JSON.stringify(state) !== JSON.stringify(lastState)) sfx.play(cuesFor(lastState, state, seats.map((x) => x.seat)));
     lastState = state;
@@ -329,6 +333,7 @@ try {
       const key = JSON.stringify(state);
       if (key === lastKey) return; // the same state again changes nothing, and is not a step
       lastKey = key;
+      panel?.addActivity(state);
       const shown = history.push(state);
       if (shown) show(shown);
       refreshBar();
