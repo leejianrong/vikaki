@@ -10,6 +10,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
+import { CameraRig, parseShot, shotFor, type Shot, type ShotName } from "./cameras.ts";
 import { parseDeck, setDeck } from "./card-art.ts";
 import { actFor, type Act } from "./arm-act.ts";
 import { TablePanel } from "./table-panel.ts";
@@ -148,6 +149,34 @@ try {
   /** A duet keeps each avatar's head and this many head heights below it in view, and measures how wide the avatars are over what it sees. */
   const BUST = 1.2;
   const profiles = duet ? avatars.map((a) => a.widthProfile()) : [];
+  /** The table's cameras (VIK-95): the shot asked for (`?camera=wide|overhead|seat:N`), and the rig that glides between shots. */
+  let shotName: ShotName = (spots ? parseShot(params.get("camera"), seats.length) : undefined) ?? "wide";
+  const shotNow = (name: ShotName): Shot => shotFor(name, { tableY, spots: spots!, heads: frames.map((f) => f.head), tops: frames.map((f) => f.top), aspect: Math.max(camera.aspect, 0.1), fov: 38 });
+  const rig = spots ? new CameraRig(shotNow(shotName)) : undefined;
+  overlay.setCloseUp(shotName.startsWith("seat:"));
+  const placeOverlay = () =>
+    overlay.place(
+      frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth),
+      frames.map((f) => ((1 - new Vector3(f.head.x, f.top, f.head.z).project(camera).y) / 2) * canvas.clientHeight),
+    );
+  const applyShot = (s: Shot) => {
+    camera.position.set(s.position.x, s.position.y, s.position.z);
+    camera.lookAt(s.target.x, s.target.y, s.target.z);
+    if (camera.fov !== s.fov) {
+      camera.fov = s.fov;
+      camera.updateProjectionMatrix();
+    }
+    camera.updateMatrixWorld();
+    placeOverlay();
+  };
+  /** Cut to another shot with a glide. */
+  const cutTo = (name: ShotName) => {
+    if (!rig || name === shotName) return;
+    shotName = name;
+    rig.moveTo(shotNow(name));
+    overlay.setCloseUp(name.startsWith("seat:"));
+    panel?.setCameraShot(name);
+  };
   // `?cam=x,y,z,tx,ty,tz` puts the camera there, looking at the target (a dev aid for judging a pose or a prop from the side or above).
   const cam = (params.get("cam") ?? "").split(",").map(Number);
   const debugCamera = cam.length === 6 && cam.every(Number.isFinite) ? cam : undefined;
@@ -159,16 +188,9 @@ try {
       return;
     }
     if (spots) {
-      // A three-quarter view over the near rail: faces stay readable, the cards and chips show. Far enough back that the seats at the two ends fit.
-      const reach = Math.max(...spots.map((s) => Math.abs(s.x))) + 0.38;
-      const back = Math.max(3.0, reach / (Math.tan((camera.fov * Math.PI) / 360) * Math.max(camera.aspect, 0.1)));
-      camera.position.set(0, tableY + 1.3, back);
-      camera.lookAt(0, tableY + 0.18, -0.3);
-      camera.updateMatrixWorld();
-      overlay.place(
-        frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth),
-        frames.map((f) => ((1 - new Vector3(f.head.x, f.top, f.head.z).project(camera).y) / 2) * canvas.clientHeight),
-      );
+      // The table's cameras (VIK-95): the shot being shown, glided to, and re-framed for the canvas's new shape.
+      rig!.retarget(shotNow(shotName));
+      applyShot(rig!.shot);
       return;
     }
     if (duet) {
@@ -394,6 +416,16 @@ try {
       showHud();
     },
   });
+  panel?.setCameraHandler((shot) => cutTo(shot as ShotName));
+  panel?.setCameraShot(shotName);
+  // Keys: 1 wide, 2 overhead, 3 and on a close-up of each player (VIK-95); not while typing.
+  window.addEventListener("keydown", (e) => {
+    const t = e.target as HTMLElement | null;
+    if (e.ctrlKey || e.metaKey || e.altKey || t?.matches?.("input, textarea, select, [contenteditable]")) return;
+    const n = Number(e.key);
+    if (!Number.isInteger(n) || n < 1 || n > 2 + seats.length) return;
+    cutTo(n === 1 ? "wide" : n === 2 ? "overhead" : (`seat:${n - 3}` as ShotName));
+  });
   panel?.setListenHandler((mode, seat) => void player.sendListen(mode, seat));
   overlay.onSelect = (seat) => panel?.chooseSeat(seat); // a click on a player's plate listens in, as its button does
   const bar = panel
@@ -479,6 +511,8 @@ try {
     api.blink = lead.blink;
     api.blinks = lead.blinks;
     firstFrame.frame(performance.now(), speaking === undefined ? 0 : Object.values(voice).reduce((a, w) => a + (w ?? 0), 0));
+    if (rig?.moving) applyShot(rig.update(dt)); // glide between shots (VIK-95)
+    if (api.table) api.table.camera = { shot: shotName, moving: rig?.moving ?? false, position: [camera.position.x, camera.position.y, camera.position.z] };
     renderer.render(scene, camera);
   });
 } catch (err) {
