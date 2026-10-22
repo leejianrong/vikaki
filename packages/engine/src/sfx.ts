@@ -86,6 +86,14 @@ export const RECIPES: Record<SoundName, Recipe> = {
     tone(c, t + 1.0, { type: "sine", freq: 90, to: 45, dur: 0.6, gain: 0.5 });
   },
   tick: (c, t) => tone(c, t, { type: "square", freq: 1500, dur: 0.025, gain: 0.06, lowpass: 3000 }),
+  knock: (c, t) => {
+    tone(c, t, { type: "sine", freq: 220, to: 110, dur: 0.1, gain: 0.55 });
+    burst(c, t, { type: "lowpass", freq: 1200, dur: 0.04, gain: 0.35 });
+  },
+  push: (c, t) => {
+    burst(c, t, { type: "bandpass", freq: 900, to: 1800, q: 1, dur: 0.22, gain: 0.35 });
+    [0.1, 0.16, 0.21].forEach((d, i) => clink(c, t + d, 0.85 + i * 0.1, 0.3));
+  },
   bust: (c, t) => {
     tone(c, t, { type: "sawtooth", freq: 392, dur: 0.45, gain: 0.2, lowpass: 1400 });
     tone(c, t + 0.28, { type: "sawtooth", freq: 293.66, to: 261.63, dur: 0.9, gain: 0.2, lowpass: 1200 });

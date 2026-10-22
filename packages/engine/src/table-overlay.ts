@@ -44,6 +44,26 @@ export function chipIcon(): SVGSVGElement {
   return svg;
 }
 
+/** The little picture beside a move's words in the banner (VIK-136): a knuckle for a check, chips pushed for a call, bet or raise, a card slid away for a fold. */
+const MOVE_ICONS: Record<string, string> = {
+  check: '<rect x="5" y="9" width="14" height="9" rx="3" fill="currentColor"/><path d="M8 9V6m4 3V5m4 4V6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+  call: '<circle cx="9" cy="14" r="5" fill="currentColor"/><path d="M16 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+  bet: '<circle cx="8" cy="14" r="5" fill="currentColor"/><circle cx="11" cy="9" r="5" fill="currentColor" opacity=".6"/><path d="M16 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+  fold: '<rect x="5" y="6" width="10" height="13" rx="2" fill="currentColor"/><path d="M17 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+MOVE_ICONS.raise = MOVE_ICONS.bet!;
+
+export function moveIcon(kind: string): SVGSVGElement | undefined {
+  const body = MOVE_ICONS[kind];
+  if (!body) return undefined;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", `move-icon icon-${kind}`);
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = body;
+  return svg;
+}
+
 export function cardEl(card: string): HTMLElement {
   const f = cardFace(card);
   const path = SUIT_PATHS[f.suit];
@@ -130,7 +150,8 @@ export class TableOverlay {
     const i = this.seats.findIndex((s) => s.seat === event.seat_id);
     this.beat.className = `beat ${TITLES.has(event.kind) ? "title" : "move"} kind-${event.kind.replace(/[^a-z_-]/g, "")}`;
     this.beat.style.setProperty("--seat-colour", i >= 0 ? seatColour(i) : "var(--md-sys-color-primary)");
-    this.beat.replaceChildren(event.text, ...(event.detail ? [el("span", { className: "detail", textContent: event.detail })] : []));
+    const icon = moveIcon(event.kind);
+    this.beat.replaceChildren(...(icon ? [icon] : []), event.text, ...(event.detail ? [el("span", { className: "detail", textContent: event.detail })] : []));
     this.beat.hidden = false;
     const stays = event.kind in BEAT_MS && BEAT_MS[event.kind] === undefined;
     if (!stays) this.beatTimer = setTimeout(() => (this.beat.hidden = true), BEAT_MS[event.kind] ?? BEAT_DEFAULT_MS);
