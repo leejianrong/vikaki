@@ -107,6 +107,8 @@ export class TablePanel {
     } catch {
       /* not remembered */
     }
+  }
+
   /** What to do when a camera button is pressed (VIK-95). */
   setCameraHandler(f: (shot: string) => void): void {
     this.onCamera = f;
