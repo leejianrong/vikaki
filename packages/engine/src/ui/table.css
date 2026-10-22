@@ -138,8 +138,8 @@
 .beat .detail { display: block; font: 500 0.875rem/1.25rem var(--md-ref-typeface-plain); opacity: 0.85; }
 .table-overlay.with-panel .bubble { z-index: 2; } /* a line being said stays readable over a banner */
 .beat.title { top: 64px; padding: 14px 32px; font-size: 1.75rem; line-height: 2.25rem; background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); border-color: var(--md-sys-color-primary); }
-.table-overlay.with-panel .beat { top: 14px; }
-.table-overlay.with-panel .beat.title { top: 64px; }
+.table-overlay.with-panel .beat { top: 60px; }
+.table-overlay.with-panel .beat.title { top: 108px; }
 @keyframes beat-in { from { opacity: 0; transform: translateX(-50%) scale(0.85); } }
 .seat-plate.acted { animation: acted 1.4s var(--ease-standard); }
 @keyframes acted { 0%, 60% { box-shadow: 0 0 0 5px var(--md-sys-color-tertiary); } 100% { box-shadow: 0 1px 3px color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent); } }
@@ -170,12 +170,13 @@
 .table-overlay.embed:not(.captions) .transcript { display: none; }
 
 /* The spectator panel (VIK-83): a side sheet beside the 3D table. */
-body.has-table-panel { --panel-width: 340px; }
+body.has-table-panel { --panel-width: 45vw; }
 body.has-table-panel .table-overlay { right: var(--panel-width); }
 .table-overlay.with-panel .table-info { display: none; }
 @media (max-width: 800px) { body.has-table-panel .table-overlay { right: 0; bottom: auto; height: 42vh; } }
 .table-panel { gap: 10px; }
 .table-panel .panel-head { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.table-panel .panel-head:has(.hint) { display: none; }
 .table-panel .pot { font: 500 1.25rem/1.75rem var(--md-ref-typeface-brand); }
 .table-panel .street { padding: 2px 10px; border-radius: var(--shape-s); background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); font: 500 0.75rem/1rem var(--md-ref-typeface-plain); text-transform: capitalize; }
 .table-panel .cards.board { flex-basis: 100%; }
@@ -197,13 +198,7 @@ body.has-table-panel .table-overlay { right: var(--panel-width); }
 .table-panel .pct { min-width: 3.2em; text-align: end; font: 600 0.875rem/1.25rem var(--md-ref-typeface-plain); }
 .table-panel .note { margin: 0; font: 400 0.75rem/1rem var(--md-ref-typeface-plain); }
 
-.table-panel .panel-left, .table-panel .panel-right { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
 .table-panel > * { flex-shrink: 0; }
-/* Dragged wide (VIK-111): the hands left, the chat and thoughts right, each log filling its half. */
-.table-panel.wide { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; overflow: hidden; }
-.table-panel.wide .panel-left { overflow-y: auto; min-height: 0; }
-.table-panel.wide .panel-right { min-height: 0; }
-.table-panel.wide .chat { flex: 1 1 0; max-height: none; min-height: 0; }
 .panel-handle { position: fixed; top: 0; bottom: 0; right: calc(var(--panel-width) - 4px); width: 8px; cursor: col-resize; z-index: 5; touch-action: none; }
 .panel-handle:hover, .panel-handle:focus-visible, body.resizing-panel .panel-handle { background: color-mix(in srgb, var(--md-sys-color-primary) 40%, transparent); outline: none; }
 body.resizing-panel { user-select: none; cursor: col-resize; }
@@ -230,3 +225,35 @@ body.resizing-panel { user-select: none; cursor: col-resize; }
 .transport-bar button:disabled { opacity: 0.38; cursor: default; }
 .transport-bar button:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; }
 .transport-bar .where { min-width: 7.5em; text-align: center; font: 500 0.875rem/1.25rem var(--md-ref-typeface-plain); color: var(--md-sys-color-on-surface-variant); }
+
+/* The layout (VIK-138): a bar across the top of the stage, the players in a compact strip, an activity log, Chat and Thoughts as tabs. */
+.top-bar { position: fixed; top: 0; left: 0; right: var(--panel-width); z-index: 3; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; padding: 8px 16px; background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface); }
+.top-bar[hidden] { display: none; }
+.top-bar .hand-no { font: 600 1.125rem/1.5rem var(--md-ref-typeface-brand); }
+.top-bar .blinds { font: 400 0.875rem/1.25rem var(--md-ref-typeface-plain); color: var(--md-sys-color-on-surface-variant); }
+.top-bar .street { padding: 2px 10px; border-radius: var(--shape-s); background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); font: 500 0.75rem/1rem var(--md-ref-typeface-plain); text-transform: capitalize; }
+.top-bar .pot { margin-inline-start: auto; display: inline-flex; align-items: center; gap: 6px; font: 600 1.25rem/1.75rem var(--md-ref-typeface-brand); }
+@media (max-width: 800px) { .top-bar { right: 0; } }
+.table-panel .players-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+.players-strip .seat-card { padding: 6px 8px; gap: 3px; border-radius: var(--shape-m); }
+.players-strip .seat-title .name { font: 500 0.9375rem/1.25rem var(--md-ref-typeface-brand); }
+.players-strip .win-row .meter { height: 6px; }
+.players-strip .pct { min-width: 2.8em; font-size: 0.75rem; line-height: 1rem; }
+.players-strip .hand-name { font-size: 0.75rem; line-height: 1rem; }
+.players-strip .cards { gap: 2px; }
+.players-strip .card { font-size: 0.7rem; }
+.table-panel > h2 { margin: 2px 0 0; }
+.table-panel .activity { flex: 1 1 140px; min-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: var(--shape-l); background: var(--md-sys-color-surface-container-low); }
+.table-panel .activity:empty::before { content: "Nothing has happened yet"; color: var(--md-sys-color-on-surface-variant); }
+.table-panel .activity p { margin: 0; padding-inline-start: 8px; border-inline-start: 3px solid transparent; overflow-wrap: anywhere; }
+.table-panel .activity p.hand-sep { margin-top: 8px; padding: 2px 0; border-inline-start: 0; border-bottom: 1px solid var(--md-sys-color-outline-variant); color: var(--md-sys-color-primary); display: flex; gap: 10px; align-items: baseline; }
+.table-panel .activity p.hand-sep:first-child { margin-top: 0; }
+.table-panel .activity p.hand-sep span { font-size: 0.75rem; color: var(--md-sys-color-on-surface-variant); }
+.table-panel .tabs { display: flex; gap: 4px; }
+.table-panel .tab { position: relative; padding: 6px 16px; border: 0; border-radius: var(--shape-full, 999px); background: transparent; color: var(--md-sys-color-on-surface-variant); font: 500 0.875rem/1.25rem var(--md-ref-typeface-plain); cursor: pointer; }
+.table-panel .tab[aria-selected="true"] { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.table-panel .tab:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; }
+.table-panel .tab .new-dot { position: absolute; top: 4px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--md-sys-color-tertiary); }
+.table-panel .tab .new-dot[hidden] { display: none; }
+.table-panel .chat[hidden] { display: none; }
+.table-panel .cards.board .card { font-size: 0.8rem; }

@@ -275,7 +275,7 @@ describe("the table page", () => {
       ),
     );
     const panel = page.getByRole("complementary", { name: "Table panel" });
-    await panel.getByText("Pot: 48").waitFor();
+    await page.getByRole("region", { name: "Hand" }).getByText("Pot: 48").waitFor();
     expect(await panel.getByRole("list", { name: "Board" }).getByRole("listitem").count()).toBe(3);
     const ada = panel.getByRole("group", { name: "ada, hand" });
     expect(await ada.innerText()).toContain("Stack 180");
@@ -342,8 +342,10 @@ describe("the table page", () => {
     const thought = "Ace-king, and nobody has bet. Time to raise.";
     d1.think(thought);
     const thoughts = page.getByRole("log", { name: "Thoughts" });
+    await page.getByRole("tab", { name: "Thoughts" }).click(); // Chat and Thoughts are tabs (VIK-138)
     await thoughts.getByText(thought).waitFor({ timeout: 15_000 });
     expect(await thoughts.innerText()).toContain("ada");
+    await page.getByRole("tab", { name: "Chat" }).click();
     expect(await page.getByRole("log", { name: "Chat" }).innerText()).not.toContain(thought); // not table talk
     expect(await page.getByLabel("ben says").isVisible()).toBe(false);
     await page.getByLabel("ada has a thought").waitFor({ state: "visible" });
@@ -360,14 +362,16 @@ describe("the table page", () => {
     await bubble.waitFor({ state: "visible", timeout: 15_000 });
     expect(await bubble.innerText()).toContain("Thinking");
     expect(await bubble.getAttribute("class")).toContain("thought");
+    await page.getByRole("tab", { name: "Thoughts" }).click();
     await page.getByRole("log", { name: "Thoughts" }).getByText(thought).waitFor({ timeout: 15_000 });
+    await page.getByRole("tab", { name: "Chat" }).click();
     expect(await page.getByRole("log", { name: "Chat" }).innerText()).not.toContain(thought);
     d1.say("Hello everyone.", "m2");
     await page.getByRole("log", { name: "Chat" }).getByText("Hello everyone.").waitFor({ timeout: 15_000 });
     expect(await bubble.getAttribute("class")).not.toContain("thought"); // table talk gets the ordinary bubble back
   });
 
-  it("lets the panel be resized by dragging or by keys, keeps the table beside it, remembers the width, and goes two columns when wide (VIK-111)", { timeout: 120_000 }, async () => {
+  it("lets the panel be resized by dragging or by keys, keeps the table beside it, and remembers the width; it opens at 45% of the window (VIK-111, VIK-138)", { timeout: 120_000 }, async () => {
     const { page, drivers: [d1] } = await setup("seats=3&view=table");
     const handle = page.getByRole("separator", { name: "Resize panel" });
     const panel = page.getByRole("complementary", { name: "Table panel" });
@@ -378,38 +382,58 @@ describe("the table page", () => {
         return { panelWidth: Math.round(a.width), canvasRight: c.getBoundingClientRect().right, panelLeft: a.left, inline: c.getAttribute("style") ?? "" };
       });
     const before = await geometry();
-    expect(before.panelWidth).toBe(340);
+    expect(before.panelWidth).toBe(432); // 45% of 960
     await handle.focus();
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("Shift+ArrowLeft");
     const keyed = await geometry();
-    expect(keyed.panelWidth).toBe(440); // +20 and +80
-    expect(await handle.getAttribute("aria-valuenow")).toBe("440");
+    expect(keyed.panelWidth).toBe(532); // +20 and +80
+    expect(await handle.getAttribute("aria-valuenow")).toBe("532");
     const box = (await handle.boundingBox())!;
     await page.mouse.move(box.x + 4, box.y + 200);
     await page.mouse.down();
     await page.mouse.move(box.x - 280, box.y + 200, { steps: 5 });
     await page.mouse.up();
     const dragged = await geometry();
-    expect(dragged.panelWidth).toBeGreaterThanOrEqual(640); // 440 + the 280 px dragged, less the grab offset
+    expect(dragged.panelWidth).toBeGreaterThanOrEqual(640); // 532 + the 280 px dragged, up to the widest it may be (70%)
     expect(dragged.canvasRight).toBeLessThanOrEqual(dragged.panelLeft + 1); // the table makes room: no overlap
     expect(dragged.inline).not.toMatch(/width|height/); // ADR-0012: the stylesheet sizes the canvas
     d1.say("A line for the squeezed table.", "r1");
     await page.getByLabel("ada says").waitFor({ state: "visible", timeout: 15_000 });
     const bubble = (await page.getByLabel("ada says").boundingBox())!;
     expect(bubble.x).toBeGreaterThanOrEqual(0); // the bubble is not cut off at the stage's edge
-    // wide: the chat sits to the right of the hands
-    const hands = (await panel.getByRole("group", { name: "ada, hand" }).boundingBox())!;
-    const chat = (await panel.getByRole("log", { name: "Chat" }).boundingBox())!;
-    expect(chat.x).toBeGreaterThan(hands.x + hands.width - 1);
     await page.reload();
     await page.getByRole("separator", { name: "Resize panel" }).waitFor();
     expect((await geometry()).panelWidth).toBe(dragged.panelWidth); // remembered
     await page.getByRole("separator", { name: "Resize panel" }).dblclick();
-    expect((await geometry()).panelWidth).toBe(340);
+    expect((await geometry()).panelWidth).toBe(432);
     await page.getByRole("separator", { name: "Resize panel" }).focus();
     await page.keyboard.press("Home");
     expect((await geometry()).panelWidth).toBe(280);
+  });
+
+  it("lays the table out as a top bar, a players strip, an activity log with hand separators, and Chat and Thoughts as tabs (VIK-138)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table", { width: 1280, height: 720 });
+    const seats = [{ seat_id: "seat-1", stack: 94 }, { seat_id: "seat-2", stack: 94 }, { seat_id: "seat-3", stack: 94 }];
+    const send = (extra: object) => d1.ws.send(JSON.stringify(make("table_state", { seats, ...extra })));
+    send({ hand_no: 3, street: "preflop", pot: 3, event: { kind: "new_hand", text: "Hand 3", detail: "Blinds 1/2 · Ada deals" } });
+    send({ hand_no: 3, street: "preflop", pot: 15, event: { kind: "raise", seat_id: "seat-1", amount: 12, text: "Ada raises to 12" } });
+    send({ hand_no: 3, street: "flop", pot: 18, board: ["As", "Kd", "2c"], event: { kind: "street", text: "Flop" } });
+    const bar = page.getByRole("region", { name: "Hand" });
+    await bar.getByText("Hand 3").waitFor({ timeout: 15_000 });
+    await bar.getByText("Blinds 1/2 · Ada deals").waitFor();
+    await bar.getByText("Pot: 18").waitFor();
+    const log = page.getByRole("log", { name: "Activity" });
+    await log.getByText("Flop: A♠ K♦ 2♣").waitFor({ timeout: 15_000 });
+    expect(await log.innerText()).toMatch(/Hand 3[\s\S]*Ada raises to 12[\s\S]*Flop/);
+    expect(await page.getByRole("complementary", { name: "Table panel" }).evaluate((e) => Math.round(e.getBoundingClientRect().width))).toBe(576); // 45% of 1280
+    // Chat is open, Thoughts is not; the tab opens it and the dot says something new arrived while it was shut
+    expect(await page.getByRole("log", { name: "Thoughts" }).isVisible()).toBe(false);
+    d1.think("Ace-king. Raise.");
+    await page.getByRole("tab", { name: "Thoughts" }).locator(".new-dot").waitFor({ state: "visible", timeout: 15_000 });
+    await page.getByRole("tab", { name: "Thoughts" }).click();
+    await page.getByRole("log", { name: "Thoughts" }).getByText("Ace-king. Raise.").waitFor();
+    expect(await page.getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("false");
   });
 
   it("announces each beat of a hand in a banner: a move fades, a win stays until the next beat, and the actor's plate pulses (VIK-113)", { timeout: 90_000 }, async () => {
@@ -538,16 +562,16 @@ describe("the table page", () => {
     await d1.waitFor((m) => m.type === "transport" && m.action === "pause");
     await bar.getByRole("button", { name: "Play" }).waitFor();
     for (const pot of [10, 20, 30]) state(pot);
-    await page.getByRole("region", { name: "Pot and board" }).getByText("Pot: 30").waitFor({ timeout: 15_000 });
+    await page.getByRole("region", { name: "Hand" }).getByText("Pot: 30").waitFor({ timeout: 15_000 });
     await bar.getByRole("button", { name: "Step back" }).click();
-    await page.getByRole("region", { name: "Pot and board" }).getByText("Pot: 20").waitFor({ timeout: 15_000 });
+    await page.getByRole("region", { name: "Hand" }).getByText("Pot: 20").waitFor({ timeout: 15_000 });
     expect(await bar.getByRole("status").innerText()).toBe("Reviewing 2 of 3");
     state(40); // a new state while reviewing is held back
     await page.waitForFunction(() => window.__vikaki!.table!.transport!.length === 4, null, { timeout: 15_000 });
-    expect(await page.getByRole("region", { name: "Pot and board" }).innerText()).toContain("Pot: 20");
+    expect(await page.getByRole("region", { name: "Hand" }).innerText()).toContain("Pot: 20");
     await bar.getByRole("button", { name: "Play" }).click();
     await d1.waitFor((m) => m.type === "transport" && m.action === "play");
-    await page.getByRole("region", { name: "Pot and board" }).getByText("Pot: 40").waitFor({ timeout: 15_000 });
+    await page.getByRole("region", { name: "Hand" }).getByText("Pot: 40").waitFor({ timeout: 15_000 });
     expect(await bar.getByRole("status").innerText()).toBe("Live");
     await bar.getByRole("button", { name: "Pause" }).click();
     await bar.getByRole("button", { name: "Step forward" }).click();

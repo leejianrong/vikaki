@@ -2,6 +2,7 @@
 // in words, its chance to win as a bar, its stack, its bet and what it did last. Like the overlay it draws only what `table_state` carries and
 // knows no poker: the words and the odds are the game's, sent when the table may see the cards. Plain DOM with roles and names for tests.
 import type { MessageOf } from "@vikaki/protocol";
+import { addActivity, type ActivityItem } from "./activity.ts";
 import { makeResizable } from "./panel-resize.ts";
 import { cardEl, chipIcon } from "./table-overlay.ts";
 import { addToTranscript, CHAT_LINES, favourite, lineLabel, percent, seatColour, type Seat, type TranscriptLine } from "./table.ts";
@@ -16,7 +17,12 @@ const money = (n: number) => n.toLocaleString("en-US");
 
 export class TablePanel {
   private readonly root = el("aside", { className: "side-sheet table-panel", ariaLabel: "Table panel" });
-  private readonly head = el("section", { className: "panel-head", ariaLabel: "Pot and board" });
+  private readonly head = el("section", { className: "panel-head", ariaLabel: "Board" });
+  private readonly strip = el("section", { className: "players-strip", ariaLabel: "Players" });
+  private readonly activity = el("div", { className: "activity", role: "log", ariaLabel: "Activity", tabIndex: 0 });
+  private items: ActivityItem[] = [];
+  private lastEventState: State | undefined;
+  private readonly tabs: { tab: HTMLElement; panel: HTMLElement }[] = [];
   private readonly cards: HTMLElement[];
   private readonly chat = el("div", { className: "chat", role: "log", ariaLabel: "Chat", tabIndex: 0 });
   private lines: TranscriptLine[] = [];
@@ -25,18 +31,78 @@ export class TablePanel {
 
   constructor(private readonly seats: Seat[], parent: HTMLElement = document.body) {
     this.cards = seats.map((s) => el("section", { className: "seat-card", role: "group", ariaLabel: `${label(s)}, hand` }));
-    // The pot, board and hands on the left, what is said and thought on the right: side by side when the panel is dragged wide (VIK-111).
-    const left = el("div", { className: "panel-left" }, el("h1", { className: "title-large", textContent: "Table" }), this.head, ...this.cards);
-    const right = el("div", { className: "panel-right" }, el("h2", { className: "title-medium", textContent: "Chat" }), this.chat, el("h2", { className: "title-medium", textContent: "Thoughts" }), this.thoughts);
-    this.root.append(left, right);
+    // One column (VIK-138): the players in a compact strip, the activity log, then Chat and Thoughts as tabs.
+    this.strip.append(...this.cards);
+    const chatTab = this.makeTab("Chat", this.chat, true);
+    const thoughtsTab = this.makeTab("Thoughts", this.thoughts, false);
+    this.tabs.push(chatTab, thoughtsTab);
+    const tablist = el("div", { className: "tabs", role: "tablist", ariaLabel: "Chat and thoughts" }, chatTab.tab, thoughtsTab.tab);
+    tablist.addEventListener("keydown", (e) => {
+      const at = this.tabs.findIndex((t) => t.tab === document.activeElement);
+      if (at < 0 || (e.key !== "ArrowRight" && e.key !== "ArrowLeft")) return;
+      e.preventDefault();
+      const to = this.tabs[(at + (e.key === "ArrowRight" ? 1 : this.tabs.length - 1)) % this.tabs.length]!;
+      this.select(to.tab);
+      to.tab.focus();
+    });
+    this.root.append(this.head, this.strip, el("h2", { className: "title-medium", textContent: "Activity" }), this.activity, tablist, chatTab.panel, thoughtsTab.panel);
     document.body.classList.add("has-panel", "has-table-panel");
     parent.append(this.root);
-    makeResizable((wide) => this.root.classList.toggle("wide", wide));
+    makeResizable();
     this.draw();
   }
 
   setState(state: State): void {
     this.draw(state);
+  }
+
+  /** A state arrived (live, not a review): its beat goes in the activity log. */
+  addActivity(state: State): void {
+    const atEnd = this.activity.scrollHeight - this.activity.scrollTop - this.activity.clientHeight < 24;
+    const next = addActivity(this.items, this.lastEventState, state);
+    this.lastEventState = state;
+    if (next === this.items) return;
+    this.items = next;
+    this.activity.replaceChildren(
+      ...next.map((it) => {
+        if (it.kind === "hand") return el("p", { className: "hand-sep" }, el("b", { textContent: it.text }), ...(it.detail ? [el("span", { textContent: it.detail })] : []));
+        const i = it.seat ? this.seats.findIndex((x) => x.seat === it.seat) : -1;
+        const p = el("p", { textContent: it.text });
+        if (i >= 0) p.style.borderInlineStartColor = seatColour(i);
+        return p;
+      }),
+    );
+    if (atEnd) this.activity.scrollTop = this.activity.scrollHeight;
+  }
+
+  private makeTab(name: string, panel: HTMLElement, selected: boolean): { tab: HTMLElement; panel: HTMLElement } {
+    const id = `tab-${name.toLowerCase()}`;
+    const tab = el("button", { type: "button", role: "tab", id, ariaLabel: name, className: "tab" }, name, el("span", { className: "new-dot", hidden: true }));
+    tab.setAttribute("aria-label", name);
+    tab.setAttribute("aria-controls", `${id}-panel`);
+    tab.addEventListener("click", () => this.select(tab));
+    panel.id = `${id}-panel`;
+    panel.setAttribute("aria-labelledby", id);
+    panel.hidden = !selected;
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    return { tab, panel };
+  }
+
+  private select(tab: HTMLElement): void {
+    for (const t of this.tabs) {
+      const on = t.tab === tab;
+      t.tab.setAttribute("aria-selected", String(on));
+      t.tab.tabIndex = on ? 0 : -1;
+      t.panel.hidden = !on;
+      if (on) (t.tab.querySelector(".new-dot") as HTMLElement).hidden = true;
+    }
+  }
+
+  /** A small dot on a tab that has something new while another tab is open. */
+  private flag(panel: HTMLElement): void {
+    const t = this.tabs.find((x) => x.panel === panel);
+    if (t && t.panel.hidden) (t.tab.querySelector(".new-dot") as HTMLElement).hidden = false;
   }
 
   /** A mute switch and a volume slider for the sound effects (VIK-122), at the foot of the left column. */
@@ -45,7 +111,7 @@ export class TablePanel {
     const volume = el("input", { type: "range", min: "0", max: "100", step: "5", value: String(Math.round(sfx.volume * 100)), ariaLabel: "Sound effects volume" });
     mute.addEventListener("change", () => sfx.set({ muted: mute.checked }));
     volume.addEventListener("input", () => sfx.set({ volume: Number(volume.value) / 100 }));
-    this.root.querySelector(".panel-left")!.append(el("section", { className: "sound-controls", role: "group", ariaLabel: "Sound effects" }, el("h2", { className: "title-medium", textContent: "Sound effects" }), el("label", {}, mute, " Mute"), el("label", {}, "Volume ", volume)));
+    this.root.append(el("section", { className: "sound-controls", role: "group", ariaLabel: "Sound effects" }, el("h2", { className: "title-medium", textContent: "Sound effects" }), el("label", {}, mute, " Mute"), el("label", {}, "Volume ", volume)));
   }
 
   /** A whole line or a piece of one (the same `id` grows it): wrapped in full, the name in the seat's colour, newest last and scrolled into view unless the reader has scrolled up. */
@@ -61,6 +127,7 @@ export class TablePanel {
       }),
     );
     if (atEnd) this.chat.scrollTop = this.chat.scrollHeight;
+    this.flag(this.chat);
   }
 
   /** A private thought (VIK-93): shown here for the audience, in the seat's colour, and kept apart from what was said aloud. */
@@ -76,13 +143,11 @@ export class TablePanel {
       }),
     );
     if (atEnd) this.thoughts.scrollTop = this.thoughts.scrollHeight;
+    this.flag(this.thoughts);
   }
 
   private draw(st?: State): void {
-    const head: (Node | string)[] = [];
-    head.push(el("span", { className: "pot" }, `Pot: ${money(st?.pot ?? 0)}`, chipIcon()));
-    if (st?.street) head.push(el("span", { className: "street", textContent: st.street }));
-    this.head.replaceChildren(...head);
+    this.head.replaceChildren();
     if (st?.board?.length) this.head.append(el("ul", { className: "cards board", ariaLabel: "Board" }, ...st.board.map(cardEl)));
     else this.head.append(el("p", { className: "hint", textContent: "No board yet" }));
 

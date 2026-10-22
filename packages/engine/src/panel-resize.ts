@@ -2,14 +2,18 @@
 // custom property on the body, `--panel-width`, which the grid and the overlay already follow: nothing here sizes the canvas (ADR-0012).
 
 export const PANEL_MIN = 280;
-export const PANEL_DEFAULT = 340;
-/** From this width the panel puts the pot and cards on the left and the chat and thoughts on the right. */
-export const PANEL_WIDE = 640;
+/** The panel opens at about this share of the window (VIK-138): wide enough for the players, the log and the chat to read without scrolling sideways. */
+export const PANEL_SHARE = 0.45;
 const STORAGE_KEY = "vikaki.panel-width";
 
 /** The widest the panel may be: most of the window, but the table keeps at least 30% of it. */
 export function panelMax(viewport: number): number {
   return Math.max(PANEL_MIN, Math.min(960, Math.round(viewport * 0.7)));
+}
+
+/** The width the panel opens with, and returns to on a double click. */
+export function defaultWidth(viewport: number): number {
+  return clampWidth(viewport * PANEL_SHARE, viewport);
 }
 
 export function clampWidth(width: number, viewport: number): number {
@@ -43,8 +47,8 @@ function remember(width: number): void {
   }
 }
 
-/** Put a resize handle on the panel and apply the remembered width. `onWide` is told whenever the panel crosses `PANEL_WIDE`. */
-export function makeResizable(onWide: (wide: boolean) => void): void {
+/** Put a resize handle on the panel and apply the remembered width.  */
+export function makeResizable(): void {
   const body = document.body;
   const handle = document.createElement("div");
   handle.className = "panel-handle";
@@ -52,14 +56,13 @@ export function makeResizable(onWide: (wide: boolean) => void): void {
   handle.setAttribute("aria-orientation", "vertical");
   handle.setAttribute("aria-label", "Resize panel");
   handle.tabIndex = 0;
-  let width = PANEL_DEFAULT;
+  let width = defaultWidth(window.innerWidth);
   const apply = (w: number, keep = true) => {
     width = clampWidth(w, window.innerWidth);
     body.style.setProperty("--panel-width", `${width}px`);
     handle.setAttribute("aria-valuemin", String(PANEL_MIN));
     handle.setAttribute("aria-valuemax", String(panelMax(window.innerWidth)));
     handle.setAttribute("aria-valuenow", String(width));
-    onWide(width >= PANEL_WIDE);
     if (keep) remember(width);
   };
   handle.addEventListener("pointerdown", (e) => {
@@ -82,8 +85,8 @@ export function makeResizable(onWide: (wide: boolean) => void): void {
     e.preventDefault();
     apply(w);
   });
-  handle.addEventListener("dblclick", () => apply(PANEL_DEFAULT));
+  handle.addEventListener("dblclick", () => apply(defaultWidth(window.innerWidth)));
   window.addEventListener("resize", () => apply(width, false)); // a smaller window may no longer fit the width
   body.append(handle);
-  apply(remembered() ?? PANEL_DEFAULT, false);
+  apply(remembered() ?? width, false);
 }
