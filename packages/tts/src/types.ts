@@ -8,6 +8,8 @@ export interface SynthesisRequest {
   text: string;
   /** Engine-specific voice id. Unknown ids fall back to the engine's default. */
   voice?: string;
+  /** How to say it, in plain words ("a warm, amused whisper"), for engines that take free-text direction (VIK-140). Engines that cannot use it ignore it. */
+  style?: string;
   /** Aborting stops synthesis promptly. The iterator then ends without an error. */
   signal?: AbortSignal;
 }

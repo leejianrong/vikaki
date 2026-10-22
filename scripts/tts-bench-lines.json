@@ -1,0 +1,14 @@
+[
+  { "label": "taunt", "text": "Nice try, Ben. I saw that bluff from across the room.", "emotion": "smug", "voice": "af_heart" },
+  { "label": "friendly raise", "text": "Raising to twelve. Come on, it's only chips.", "emotion": "happy", "voice": "am_adam" },
+  { "label": "worried thought", "text": "That's a big bet. Please don't have the ace.", "emotion": "worried", "thought": true, "voice": "bf_emma" },
+  { "label": "all-in rush", "text": "All in! Nobody breathe.", "emotion": "excited", "voice": "af_heart" },
+  { "label": "bad beat", "text": "A river queen. Of course it was a queen.", "emotion": "sad", "voice": "am_adam" },
+  { "label": "win", "text": "Thirty six chips, thank you very much! That felt good.", "emotion": "happy", "voice": "bf_emma" },
+  { "label": "bust-out", "text": "Well, that's all my chips gone. It was a fun game, though.", "emotion": "sad", "voice": "am_adam" },
+  { "label": "calm call", "text": "I call. Let's see what the turn brings.", "emotion": "neutral", "voice": "af_heart" },
+  { "label": "angry fold", "text": "Fold. And I'm not happy about it.", "emotion": "angry", "voice": "am_adam" },
+  { "label": "to a player", "text": "Cy, you always say that when you're bluffing.", "emotion": "confident", "voice": "bf_emma" },
+  { "label": "surprised", "text": "Wait, you had a flush the whole time?", "emotion": "surprised", "voice": "af_heart" },
+  { "label": "nervous thought", "text": "My hands are shaking. Act natural. Act natural.", "emotion": "nervous", "thought": true, "voice": "am_adam" }
+]
