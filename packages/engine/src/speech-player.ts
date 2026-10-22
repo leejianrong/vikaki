@@ -16,6 +16,8 @@ export interface LineInfo {
   id: string;
   seat?: string;
   persona?: string;
+  /** The line is a private thought spoken aloud (VIK-98): the page keeps the mouth still. */
+  thought?: boolean;
 }
 
 export interface SpeechPlayerOptions {
@@ -42,6 +44,8 @@ export interface SpeechPlayerOptions {
   onThought?: (thought: { seat: string; persona?: string; text: string }) => void;
   /** The game says it can be paused, and whether it is now (`transport_state`, VIK-135). */
   onTransportState?: (paused: boolean) => void;
+  /** Whose thoughts the table voices (`listen_state`, VIK-98). */
+  onListenState?: (mode: "seat" | "all" | "off", seat: string | undefined) => void;
   /** The game sent the state of the table (pot, stacks, cards, whose turn): draw it. */
   onTableState?: (state: MessageOf<"table_state">) => void;
   /** A piece of a line's text arrived: the whole `text`, or one `delta` of a line still being written. For a transcript. `thought` marks an inner monologue spoken aloud (VIK-121): not table talk. */
@@ -75,7 +79,7 @@ export class SpeechPlayer {
   private lastBlocked = true;
   private readonly owners: LineOwners;
   /** The emotion each line asked for, until it ends. */
-  private readonly feelings = new Map<string, { emotion?: string; intensity?: number; seat?: string; persona?: string }>();
+  private readonly feelings = new Map<string, { emotion?: string; intensity?: number; seat?: string; persona?: string; thought?: boolean }>();
 
   constructor(private readonly o: SpeechPlayerOptions) {
     this.owners = new LineOwners(o.persona);
@@ -86,7 +90,7 @@ export class SpeechPlayer {
           o.session.lipsync?.unmute();
           o.timer?.heard(id, performance.now());
           const f = this.feelings.get(id);
-          o.onEmotion?.(f?.emotion, f?.intensity, "start", f ? { id, seat: f.seat, persona: f.persona } : undefined);
+          o.onEmotion?.(f?.emotion, f?.intensity, "start", f ? { id, seat: f.seat, persona: f.persona, ...(f.thought ? { thought: true } : {}) } : undefined);
           this.report(make("speech_started", { utterance_id: id, ...(seat ? { seat_id: seat } : {}) }), `started:${id}`);
           this.lifecycle({ type: "speech_started", utterance_id: id }, seat ?? f?.seat);
         },
@@ -148,6 +152,13 @@ export class SpeechPlayer {
     return true;
   }
 
+  /** Ask the table to voice one seat's thoughts, every seat's, or none (VIK-98). False if the hub is not connected. */
+  sendListen(mode: "seat" | "all" | "off", seat?: string): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify(make("listen", { mode, ...(seat !== undefined ? { seat_id: seat } : {}) })));
+    return true;
+  }
+
   private state(s: LiveState): void {
     this.current = s;
     this.lastBlocked = !this.o.session.running;
@@ -186,7 +197,7 @@ export class SpeechPlayer {
         if (!this.owners.mine(m.utterance_id)) break; // another persona's line: its own page plays it
         this.o.timer?.received(m.utterance_id, performance.now());
         this.o.onText?.({ id: m.utterance_id, seat: m.seat_id, ...(m.text !== undefined ? { text: m.text } : {}), ...(m.delta !== undefined ? { delta: m.delta } : {}), ...(m.to !== undefined ? { to: m.to } : {}), ...(m.thought ? { thought: true } : {}) });
-        if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity, seat: m.seat_id, persona: m.persona }); // the first message of a streamed line carries it
+        if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity, seat: m.seat_id, persona: m.persona, ...(m.thought ? { thought: true } : {}) }); // the first message of a streamed line carries it
         break;
       case "react":
         if (this.owners.turnIsMine(m.persona)) this.o.onReact?.({ seat: m.seat_id, persona: m.persona, emotion: m.emotion, intensity: m.intensity, gesture: m.gesture, seconds: m.seconds ?? DEFAULT_REACT_SECONDS });
@@ -196,6 +207,9 @@ export class SpeechPlayer {
         break;
       case "table_state":
         this.o.onTableState?.(m);
+        break;
+      case "listen_state":
+        this.o.onListenState?.(m.mode, m.seat_id);
         break;
       case "transport_state":
         this.o.onTransportState?.(m.paused);

@@ -104,6 +104,36 @@ export class Hub {
     return n;
   }
 
+  private readonly quietIds = new Set<string>();
+
+  /** A line the speech engine made up (a replayed thought): what pages report about it is not for any driver. */
+  markQuiet(id: string): void {
+    this.quietIds.add(id);
+    if (this.quietIds.size > DEDUP_LIMIT) this.quietIds.delete(this.quietIds.values().next().value as string);
+  }
+
+  /** Which private thoughts are voiced (VIK-98). A table starts with every seat's thoughts voiced. */
+  private listen: { mode: "seat" | "all" | "off"; seat?: string } = { mode: "all" };
+  private readonly listenWatchers: (() => void)[] = [];
+
+  /** Whether a thought of this seat is to be voiced now. */
+  mayHear(seat: string): boolean {
+    return this.listen.mode === "all" || (this.listen.mode === "seat" && this.listen.seat === seat);
+  }
+
+  get listening(): { mode: "seat" | "all" | "off"; seat?: string } {
+    return { ...this.listen };
+  }
+
+  /** Be told when the choice changes (the speech engine stops a thought that is no longer wanted, and speaks the new seat's last one). */
+  onListenChange(f: () => void): void {
+    this.listenWatchers.push(f);
+  }
+
+  private listenMessage(): Message {
+    return make("listen_state", { mode: this.listen.mode, ...(this.listen.seat !== undefined ? { seat_id: this.listen.seat } : {}) });
+  }
+
   /** Send a hub-originated message to the driver it is about, such as a TTS failure. */
   toDriver(message: Message): void {
     const target = this.driverFor(message);
@@ -200,12 +230,20 @@ export class Hub {
         this.relayFromDriver(role, ws, message);
       }
     } else {
+      if (message.type === "listen") {
+        // The choice is the table's: one for every viewer, and the speech engine acts on it.
+        this.listen = { mode: message.mode, ...(message.seat_id !== undefined ? { seat: message.seat_id } : {}) };
+        this.toViewers(this.listenMessage());
+        for (const f of this.listenWatchers) f();
+        return;
+      }
       if (message.type === "transport") {
         // A control bar's request is for the game, whichever driver is running it (a table of seat drivers has no single one): every driver gets it.
         for (const d of this.drivers.keys()) this.send(d, message);
         this.opts.onEvent?.({ at: Date.now(), from: "viewer", to: "driver", message });
         return;
       }
+      if ("utterance_id" in message && message.utterance_id !== undefined && this.quietIds.has(message.utterance_id)) return;
       // Several viewers may report the same thing. The driver should hear it once.
       const key = "utterance_id" in message ? `${message.type}:${message.utterance_id}` : undefined;
       if (key) {
@@ -342,6 +380,7 @@ export class Hub {
         ...(this.opts.personas ? { personas: this.opts.personas.names } : {}),
       }),
     );
+    if (hello.role === "viewer" && this.listen.mode !== "all") this.send(ws, this.listenMessage()); // a page that joins late learns who is being listened to (it assumes everyone until told)
   }
 
   /** The seats a driver asked for, `undefined` for the whole table, or `null` after refusing it (a seat twice, or a persona the hub lacks). */
