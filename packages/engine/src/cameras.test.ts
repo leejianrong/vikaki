@@ -46,6 +46,17 @@ describe("shotFor", () => {
     });
   });
 
+  it("fills the picture with the board in the board shot: its cards fit, and it is much closer than the wide shot", () => {
+    for (const aspect of [1.0, 1.6, 2.2]) {
+      const shot = shotFor("board", ctx(aspect));
+      const cam = camera(shot, aspect);
+      for (const x of [-0.5, 0, 0.5]) expect(inView(cam, { x, y: 0.7, z: 0 }), `board card at ${x}, aspect ${aspect}`).toBe(true);
+      expect(Math.hypot(shot.position.x - shot.target.x, shot.position.y - shot.target.y, shot.position.z - shot.target.z)).toBeLessThan(
+        Math.hypot(shotFor("wide", ctx(aspect)).position.x - shotFor("wide", ctx(aspect)).target.x, shotFor("wide", ctx(aspect)).position.y - shotFor("wide", ctx(aspect)).target.y, shotFor("wide", ctx(aspect)).position.z - shotFor("wide", ctx(aspect)).target.z) * 0.7,
+      );
+    }
+  });
+
   it("looks straight down in the overhead shot", () => {
     const s = shotFor("overhead", ctx(1.6));
     expect(s.position.y).toBeGreaterThan(s.target.y + 2);
@@ -55,7 +66,7 @@ describe("shotFor", () => {
 
 describe("parseShot", () => {
   it("knows wide, overhead and a seat that exists", () => {
-    expect(["wide", "overhead", "seat:2", "seat:3", "seat:x", null, "crane"].map((v) => parseShot(v, 3))).toEqual(["wide", "overhead", "seat:2", undefined, undefined, undefined, undefined]);
+    expect(["wide", "overhead", "board", "seat:2", "seat:3", "seat:x", null, "crane"].map((v) => parseShot(v, 3))).toEqual(["wide", "overhead", "board", "seat:2", undefined, undefined, undefined, undefined]);
   });
 });
 

@@ -42,7 +42,7 @@ async function setup(query = "seats=3", viewport = { width: 960, height: 540 }, 
   server = await startServer({ staticDir, personas: await loadPersonas(join(dir, "personas.yaml")), speech: { tts: fake } });
   const page = await browser.newPage({ viewport });
   pages.push(page);
-  await page.goto(`${server.url}?${query}&seed=3`);
+  await page.goto(`${server.url}?${query}${query.includes("director=") ? "" : "&director=off"}&seed=3`); // the camera director is off unless a test asks for it: it would move the camera under every other test
   await page.waitForFunction(() => window.__vikaki?.ready === true && window.__vikaki.live?.state === "connected" && window.__vikaki.live.soundBlocked === false, null, { timeout: 40_000 });
   const ds = withDrivers ? await Promise.all(SEATS.map((s) => SeatDriver.connect(server!.wsUrl, s))) : [];
   drivers.push(...ds);
@@ -554,6 +554,28 @@ describe("the table page", () => {
     pages.splice(pages.indexOf(page), 1);
     const second = await setup("seats=3&view=table&camera=overhead");
     expect((await second.page.evaluate(() => window.__vikaki!.table!.camera!)).shot).toBe("overhead");
+  });
+
+  it("cuts the camera by itself: the board on a street, the winner at the end, and a person's own choice quiets it (VIK-96)", { timeout: 120_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table&director=on");
+    const seats = [{ seat_id: "seat-1", stack: 94 }, { seat_id: "seat-2", stack: 94 }, { seat_id: "seat-3", stack: 94 }];
+    const send = (extra: object) => d1.ws.send(JSON.stringify(make("table_state", { pot: 18, hand_no: 1, seats, ...extra })));
+    const shot = () => page.evaluate(() => window.__vikaki!.table!.camera!.shot);
+    const is = (name: string) => page.waitForFunction((n) => window.__vikaki!.table!.camera!.shot === n, name, { timeout: 30_000 });
+    expect(await page.getByRole("button", { name: "Auto director (D)" }).getAttribute("aria-pressed")).toBe("true");
+    send({ street: "flop", board: ["As", "Kd", "2c"], event: { kind: "street", text: "Flop" } });
+    await is("board");
+    await new Promise((r) => setTimeout(r, 1500)); // a more important moment may cut after a short minimum
+    send({ street: "complete", pot: 0, event: { kind: "win", seat_id: "seat-2", amount: 36, text: "Ben wins 36" }, winners: [{ seat_id: "seat-2", amount: 36 }] });
+    await is("seat:1");
+    await is("wide"); // held a few seconds, then back to the table
+    await page.getByRole("button", { name: "Overhead shot (2)" }).click(); // a person's choice
+    await is("overhead");
+    send({ street: "turn", board: ["As", "Kd", "2c", "9h"], event: { kind: "street", text: "Turn" } });
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(await shot()).toBe("overhead"); // the director kept out of the way
+    await page.getByRole("button", { name: "Auto director (D)" }).click();
+    expect(await page.getByRole("button", { name: "Auto director (D)" }).getAttribute("aria-pressed")).toBe("false");
   });
 
   it("announces each beat of a hand in a banner: a move fades, a win stays until the next beat, and the actor's plate pulses (VIK-113)", { timeout: 90_000 }, async () => {

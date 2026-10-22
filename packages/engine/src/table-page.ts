@@ -12,6 +12,7 @@ import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
 import { CameraRig, parseShot, shotFor, type Shot, type ShotName } from "./cameras.ts";
 import { parseDeck, setDeck } from "./card-art.ts";
+import { Director, type Cue } from "./director.ts";
 import { actFor, type Act } from "./arm-act.ts";
 import { TablePanel } from "./table-panel.ts";
 import { TopBar } from "./table-topbar.ts";
@@ -154,6 +155,10 @@ try {
   const shotNow = (name: ShotName): Shot => shotFor(name, { tableY, spots: spots!, heads: frames.map((f) => f.head), tops: frames.map((f) => f.top), aspect: Math.max(camera.aspect, 0.1), fov: 38 });
   const rig = spots ? new CameraRig(shotNow(shotName)) : undefined;
   overlay.setCloseUp(shotName.startsWith("seat:"));
+  const direct = (cue: Cue) => {
+    const shot = director.cue(cue, now());
+    if (shot) cutTo(shot);
+  };
   const placeOverlay = () =>
     overlay.place(
       frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth),
@@ -169,9 +174,15 @@ try {
     camera.updateMatrixWorld();
     placeOverlay();
   };
-  /** Cut to another shot with a glide. */
-  const cutTo = (name: ShotName) => {
-    if (!rig || name === shotName) return;
+  /** The auto-director (VIK-96): on unless `?director=off`; a person's own choice of shot quiets it for a while. */
+  const director = new Director();
+  director.enabled = params.get("director") !== "off";
+  const now = () => performance.now() / 1000;
+  /** Cut to another shot with a glide. `byHand` is a person's choice (a button or a key), which the director then leaves alone for a while. */
+  const cutTo = (name: ShotName, byHand = false) => {
+    if (!rig) return;
+    if (byHand) director.override(name, now());
+    if (name === shotName) return;
     shotName = name;
     rig.moveTo(shotNow(name));
     overlay.setCloseUp(name.startsWith("seat:"));
@@ -310,6 +321,15 @@ try {
       actorTimer = setTimeout(() => ((actor = undefined), refocus()), ACTOR_GAZE_MS);
       refocus();
     }
+    if (!o.silent && state.event) {
+      const ev = state.event;
+      const who = ev.seat_id !== undefined ? seats.findIndex((x) => x.seat === ev.seat_id) : -1;
+      if (ev.kind === "new_hand") direct({ kind: "new_hand" });
+      else if (ev.kind === "street") direct({ kind: "street" });
+      else if (ev.kind === "showdown") direct({ kind: "showdown" });
+      else if (ev.kind === "win" && who >= 0) direct({ kind: "win", seat: who });
+      else if (ACTIONS.has(ev.kind) && who >= 0) direct({ kind: "action", seat: who, big: /all in/i.test(ev.text) || (ev.amount ?? 0) >= 0.5 * (state.pot ?? 0) });
+    }
     overlay.setState(state);
     panel?.setState(state);
     topBar?.setState(state);
@@ -342,9 +362,11 @@ try {
       if (phase === "start") {
         speaking = talker = i;
         puppets[i]!.emotion.set(emotion, intensity);
+        direct({ kind: "speak", seat: i });
       } else {
         if (talker === i) talker = undefined;
         puppets[i]!.emotion.release(0.7);
+        direct({ kind: "line_end", seat: i });
       }
       refocus();
     },
@@ -416,15 +438,22 @@ try {
       showHud();
     },
   });
-  panel?.setCameraHandler((shot) => cutTo(shot as ShotName));
+  panel?.setCameraHandler((shot) => cutTo(shot as ShotName, true));
+  panel?.setDirectorHandler((on) => {
+    director.enabled = on;
+    panel?.setDirector(on);
+  });
+  panel?.setDirector(director.enabled);
   panel?.setCameraShot(shotName);
   // Keys: 1 wide, 2 overhead, 3 and on a close-up of each player (VIK-95); not while typing.
   window.addEventListener("keydown", (e) => {
     const t = e.target as HTMLElement | null;
     if (e.ctrlKey || e.metaKey || e.altKey || t?.matches?.("input, textarea, select, [contenteditable]")) return;
     const n = Number(e.key);
+    if (e.key.toLowerCase() === "d") return void panel?.toggleDirector(); // the auto-director on or off
+    if (e.key.toLowerCase() === "b") return cutTo("board", true);
     if (!Number.isInteger(n) || n < 1 || n > 2 + seats.length) return;
-    cutTo(n === 1 ? "wide" : n === 2 ? "overhead" : (`seat:${n - 3}` as ShotName));
+    cutTo(n === 1 ? "wide" : n === 2 ? "overhead" : (`seat:${n - 3}` as ShotName), true);
   });
   panel?.setListenHandler((mode, seat) => void player.sendListen(mode, seat));
   overlay.onSelect = (seat) => panel?.chooseSeat(seat); // a click on a player's plate listens in, as its button does
@@ -511,8 +540,10 @@ try {
     api.blink = lead.blink;
     api.blinks = lead.blinks;
     firstFrame.frame(performance.now(), speaking === undefined ? 0 : Object.values(voice).reduce((a, w) => a + (w ?? 0), 0));
+    const next = director.tick(now());
+    if (next) cutTo(next);
     if (rig?.moving) applyShot(rig.update(dt)); // glide between shots (VIK-95)
-    if (api.table) api.table.camera = { shot: shotName, moving: rig?.moving ?? false, position: [camera.position.x, camera.position.y, camera.position.z] };
+    if (api.table) api.table.camera = { shot: shotName, director: director.enabled, moving: rig?.moving ?? false, position: [camera.position.x, camera.position.y, camera.position.z] };
     renderer.render(scene, camera);
   });
 } catch (err) {
