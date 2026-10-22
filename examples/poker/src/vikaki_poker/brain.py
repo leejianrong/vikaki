@@ -25,7 +25,7 @@ class Traits:
     talkative: float = 0.5  # how often and how much it says at the table
     loose: float = 0.5  # how many hands it plays: 0 plays only the best, 1 plays nearly anything
     aggressive: float = 0.5  # raises and bets rather than checks and calls
-    bluff: float = 0.5  # how often it bets with nothing
+    bluff: float = 0.5  # how often it takes the bluff route when one is on offer (ADR-0030): the only trait that reaches the move
     tricky: float = 0.5  # slow-plays, traps and varies its bets, against playing straight
     emotional: float = 0.5  # how much wins, losses and others' remarks move it (and show in what it says)
     quirk: str = ""  # something in character it does or says now and then
@@ -46,11 +46,12 @@ class Traits:
 
 
 def personality_text(name: str, traits: Traits, style: str = "") -> str:
-    """The personality section of a seat's instructions. It is only about talk: everyone plays the same sound game (VIK-112), so how loose, aggressive,
-    bluffy or tricky a character is shows in how it talks and thinks about the game, never in what it does."""
+    """The personality section of a seat's instructions. It is only about talk: everyone plays the same sound game (VIK-112), so how loose, aggressive
+    or tricky a character is shows in how it talks and thinks about the game, never in what it does; how bluffy it is decides only how often its engine
+    takes the bluff route (ADR-0030)."""
     t = traits
     lines = [f"Your personality (you are {name}" + (f", {style}" if style else "") + "):"]
-    lines.append("- You do not choose your moves: your poker head has settled yours, and you are told what it is. Your personality shows only in how you talk and think about what you do, so it can never change what you do.")
+    lines.append("- You do not choose your moves: your poker head has settled yours, and you are told what it is. Your personality shows only in how you talk and think about what you do, so it cannot change what you do.")
     lines.append(
         "- How you talk about the game: "
         + _level(
@@ -219,6 +220,11 @@ def briefing(view: dict, facts: dict, history: str, talk: list[tuple[str, ...]],
         lines.append(f"{facts['improving']} unseen cards would improve your hand.")
     if talk:
         lines.append("Recent table talk: " + " | ".join(_said(entry, who, view["to_act"]) for entry in talk[-recent:]))
+    if getattr(move, "bluffing", False):
+        lines.append(
+            "You are bluffing here: your hand is weak, and you are betting as if it were strong. Let your words and thoughts fit a bluff: confident, a little cheeky, never giving it away to the table "
+            "(do not say you are bluffing or name your cards), while your private thought may enjoy the nerve of it."
+        )
     lines.append(
         f"Your poker head has settled your move this turn: {describe_move(move)}. The read behind it: {move.reason}. "
         "That is what you are doing; do not change it or argue with it. Talk and think about it in your own words, as the character you are, and never call it an engine."

@@ -35,6 +35,14 @@ PREFLOP_OPEN_SIZES = (2.2, 2.5, 3.0)  # in big blinds
 PREFLOP_RAISE_SIZES = (2.5, 3.0, 3.5)  # times the bet to match
 POSTFLOP_SIZES = (0.5, 0.75, 1.0)  # of the pot (a smaller bet would only ever be a token one)
 
+# The bluff route (VIK-139, ADR-0030): when the proper move is a check or a fold, the best aggressive line is kept beside it. A bluff is sized
+# BLUFF_SIZE of the pot (the pot plus what is owed), or up to BLUFF_SIZE_SCARY on a board that looks scary; it may cost no more than BLUFF_MAX_COST of the pot
+# against the proper move. A seat takes the route BLUFF_RATE times its `bluff` trait of the time it is on offer (a seeded roll, so a seeded game replays).
+BLUFF_SIZE = (0.5, 0.75)
+BLUFF_SIZE_SCARY = (0.66, 1.0)
+BLUFF_MAX_COST = 0.25
+BLUFF_RATE = 0.6
+
 
 @dataclass
 class Move:
@@ -43,6 +51,8 @@ class Move:
     reason: str = ""
     equity: float = 0.0  # the hero's chance to win against everyone who could be holding what they might
     ev: dict[str, float] = field(default_factory=dict)  # chips won or lost from now on, by the move's name
+    bluff_route: "Move | None" = None  # the best bluff or semi-bluff when this move is a check or a fold (the proper route); a seat may take it instead
+    bluffing: bool = False  # this move is that bluff route: the performer is told, so its words and thoughts fit
 
 
 def big_blind_of(events: list[dict]) -> int:
@@ -159,7 +169,51 @@ def decide(view: dict, events: list[dict], *, big_blind: int, rng: random.Random
     best = ranked[0]
     near = [k for k in ranked[1:] if ev[k] >= max(0.0, ev[best] - NEAR_BEST * max(pot, big_blind))]  # never a move that loses chips against folding
     pick = rng.choice(near) if near and rng.random() < MIX else best
-    return _move(pick, ev, equity, to_call, pot)
+    move = _move(pick, ev, equity, to_call, pot)
+    if move.kind in ("check", "fold"):
+        move.bluff_route = _bluff_route(move, ev, equity, to_call, pot, view["current_bet"], board, big_blind)
+    return move
+
+
+def scary_board(board: list[str]) -> bool:
+    """A board that makes a bet believable: a pair on it, three of a suit, or three cards close together in rank."""
+    if len(board) < 3:
+        return False
+    ranks = sorted({"23456789TJQKA".index(c[0]) for c in board})
+    suits = [c[1] for c in board]
+    paired = len(ranks) < len(board)
+    flushy = any(suits.count(x) >= 3 for x in set(suits))
+    connected = any(ranks[i + 2] - ranks[i] <= 4 for i in range(len(ranks) - 2))
+    return paired or flushy or connected
+
+
+def _bluff_route(proper: Move, ev: dict[str, float], equity: float, to_call: int, pot: int, current: int, board: list[str], big_blind: int) -> Move | None:
+    """The best raise sized like a bluff, if one costs not too much against the proper move."""
+    low, high = BLUFF_SIZE_SCARY if scary_board(board) else BLUFF_SIZE
+    base = pot + to_call
+    best: str | None = None
+    for name, value in ev.items():
+        if not name.startswith("raise "):
+            continue
+        share = (int(name.split()[1]) - current) / base if base else 1.0
+        if board and not low - 0.01 <= share <= high + 0.01:
+            continue
+        if not board and share > 4:  # a preflop shove is not a bluff
+            continue
+        if best is None or value > ev[best]:
+            best = name
+    if best is None or ev[proper.kind] - ev[best] > BLUFF_MAX_COST * max(pot, big_blind):
+        return None
+    route = _move(best, ev, equity, to_call, pot)
+    route.bluffing = True
+    return route
+
+
+def take_route(move: Move, bluff: float, rng: random.Random) -> Move:
+    """Whether a seat with this `bluff` trait (0 to 1) takes the bluff route on offer: a seeded roll, made only when there is a route."""
+    if move.bluff_route is None:
+        return move
+    return move.bluff_route if rng.random() < BLUFF_RATE * bluff else move
 
 
 def _move(name: str, ev: dict[str, float], equity: float, to_call: int, pot: int) -> Move:

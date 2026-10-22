@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from .brain import turn_facts
 from .hand import Hand
 from .seat import Decision
-from .strategy import big_blind_of, decide as engine_decide
+from .strategy import big_blind_of, decide as engine_decide, take_route
 
 
 @dataclass
@@ -40,6 +40,7 @@ class EngineBot:
     persona: str = "engine"
     samples: int = 150
     seed: int = 0
+    bluff: float = 0.0  # the seat's bluff trait; 0 plays the proper route only
     _rng: random.Random = field(init=False)
 
     def __post_init__(self) -> None:
@@ -48,6 +49,7 @@ class EngineBot:
     def decide(self, view: dict, talk: list | None = None, events: list | None = None, names: dict | None = None) -> Decision:
         events = events or []
         move = engine_decide(view, events, big_blind=big_blind_of(events), rng=self._rng, samples=self.samples)
+        move = take_route(move, self.bluff, self._rng)
         return Decision(move.kind, move.amount)
 
 
