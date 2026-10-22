@@ -73,6 +73,10 @@ describe("shotFor", () => {
     });
   }
 
+  it("rests the camera on the wide shot for the grid, which the page draws tile by tile", () => {
+    expect(shotFor("grid", ctx(1.6))).toEqual(shotFor("wide", ctx(1.6)));
+  });
+
   it("looks straight down in the overhead shot", () => {
     const s = shotFor("overhead", ctx(1.6));
     expect(s.position.y).toBeGreaterThan(s.target.y + 2);
@@ -82,7 +86,7 @@ describe("shotFor", () => {
 
 describe("parseShot", () => {
   it("knows wide, overhead and a seat that exists", () => {
-    expect(["wide", "overhead", "board", "seat:2", "pov:1", "seat:3", "pov:3", "seat:x", null, "crane"].map((v) => parseShot(v, 3))).toEqual(["wide", "overhead", "board", "seat:2", "pov:1", undefined, undefined, undefined, undefined, undefined]);
+    expect(["wide", "overhead", "board", "grid", "seat:2", "pov:1", "seat:3", "pov:3", "seat:x", null, "crane"].map((v) => parseShot(v, 3))).toEqual(["wide", "overhead", "board", "grid", "seat:2", "pov:1", undefined, undefined, undefined, undefined, undefined]);
   });
 });
 

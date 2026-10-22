@@ -284,3 +284,10 @@ body.resizing-panel { user-select: none; cursor: col-resize; }
 .pov-caption { position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); max-width: min(80%, 36em); margin: 0; padding: 8px 16px; border-radius: var(--shape-l); background: color-mix(in srgb, var(--md-sys-color-scrim) 70%, transparent); color: var(--md-sys-color-inverse-on-surface); font: italic 500 1rem/1.5rem var(--md-ref-typeface-plain); text-align: center; z-index: 2; pointer-events: none; }
 .pov-caption[hidden] { display: none; }
 .table-overlay:not(.pov) .pov-caption { display: none; }
+
+/* The POV grid (VIK-100): a labelled frame over each tile the canvas draws, and the rest of the stage put away. */
+.pov-tile { position: absolute; box-sizing: border-box; border: 2px solid color-mix(in srgb, var(--md-sys-color-outline) 60%, transparent); border-radius: var(--shape-s); pointer-events: none; z-index: 1; }
+.pov-tile[hidden] { display: none; }
+.pov-tile.spotlit { border-color: var(--md-sys-color-tertiary); box-shadow: 0 0 0 2px var(--md-sys-color-tertiary); }
+.pov-label { position: absolute; left: 8px; top: 6px; padding: 1px 10px; border-radius: var(--shape-full, 999px); background: color-mix(in srgb, var(--md-sys-color-scrim) 65%, transparent); color: var(--md-sys-color-inverse-on-surface); font: 600 0.8125rem/1.25rem var(--md-ref-typeface-plain); text-transform: uppercase; letter-spacing: 0.04em; }
+.table-overlay.grid .seat-plate, .table-overlay.grid .bubble, .table-overlay.grid .thought-mark { display: none; }

@@ -151,6 +151,34 @@ export class TableOverlay {
     this.showBeat(state.event);
   }
 
+  private readonly gridTiles: HTMLElement[] = [];
+  private gridSpot: string | undefined;
+
+  /** The POV grid (VIK-100): a labelled frame over each tile the canvas draws, the listened-to seat's highlighted. `undefined` takes the grid away. */
+  setGrid(tiles: { x: number; y: number; width: number; height: number }[] | undefined): void {
+    this.root.classList.toggle("grid", tiles !== undefined);
+    this.gridTiles.forEach((t) => (t.hidden = true));
+    if (!tiles) return;
+    tiles.forEach((r, i) => {
+      let t = this.gridTiles[i];
+      if (!t) {
+        const seat = this.seats[i]!;
+        t = el("div", { className: "pov-tile", role: "group", ariaLabel: `Point of view of ${label(seat)}` }, el("span", { className: "pov-label", textContent: label(seat) }));
+        this.gridTiles[i] = t;
+        this.root.append(t);
+      }
+      t.hidden = false;
+      Object.assign(t.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.width}px`, height: `${r.height}px` });
+      t.classList.toggle("spotlit", this.seats[i]!.seat === this.gridSpot);
+    });
+  }
+
+  /** Highlight the seat's tile (the one being listened to). */
+  setGridSpot(seat: string | undefined): void {
+    this.gridSpot = seat;
+    this.gridTiles.forEach((t, i) => t.classList.toggle("spotlit", this.seats[i]?.seat === seat));
+  }
+
   private povSeat: string | undefined;
   private readonly povCaption = el("p", { className: "pov-caption", role: "status", ariaLabel: "Thought", hidden: true });
   private readonly lastThought = new Map<string, string>();

@@ -48,7 +48,7 @@ export class TablePanel {
       b.addEventListener("click", () => this.chooseSeat(s.seat));
       return b;
     });
-    const shots: [string, string, string][] = [["wide", "Wide", "Wide shot (1)"], ["overhead", "Overhead", "Overhead shot (2)"], ...seats.map((s, i): [string, string, string] => [`seat:${i}`, label(s), `Close-up of ${label(s)}${i < 7 ? ` (${i + 3})` : ""}`]), ["board", "Board", "Board shot (B)"], ...seats.map((s, i): [string, string, string] => [`pov:${i}`, `POV ${label(s)}`, `Point of view of ${label(s)}`])];
+    const shots: [string, string, string][] = [["wide", "Wide", "Wide shot (1)"], ["overhead", "Overhead", "Overhead shot (2)"], ...seats.map((s, i): [string, string, string] => [`seat:${i}`, label(s), `Close-up of ${label(s)}${i < 7 ? ` (${i + 3})` : ""}`]), ["board", "Board", "Board shot (B)"], ["grid", "Grid", "POV grid shot (G)"], ...seats.map((s, i): [string, string, string] => [`pov:${i}`, `POV ${label(s)}`, `Point of view of ${label(s)}`])];
     for (const [id, text, name] of shots) {
       const b = el("button", { type: "button", className: "camera", textContent: text, ariaLabel: name });
       b.setAttribute("aria-pressed", String(id === "wide"));
