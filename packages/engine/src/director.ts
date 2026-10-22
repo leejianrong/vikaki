@@ -44,7 +44,11 @@ export class Director {
   private speaking = new Set<number>();
   private lastSpoke = -Infinity;
 
-  constructor(private readonly times: DirectorTimes = TIMES) {}
+  /** `showdownShot` is where the camera goes at the showdown: the whole table by default, or the POV grid (VIK-100). */
+  constructor(
+    private readonly times: DirectorTimes = TIMES,
+    private readonly showdownShot: ShotName = "wide",
+  ) {}
 
   /** The shot the director is on. */
   get shot(): ShotName {
@@ -100,7 +104,7 @@ export class Director {
       case "street":
         return { shot: "board", priority: 3, hold: 3, at: now };
       case "showdown":
-        return { shot: "wide", priority: 3, hold: 3.5, at: now };
+        return { shot: this.showdownShot, priority: 3, hold: 3.5, at: now };
       case "win":
         return { shot: `seat:${c.seat}`, priority: 4, hold: 4, at: now };
       case "new_hand":

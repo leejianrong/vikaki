@@ -103,6 +103,11 @@ export class VrmAvatar implements SceneAvatar {
     return this.armBase !== undefined && (["leftUpperArm", "rightUpperArm", "leftLowerArm", "rightLowerArm"] as const).every((n) => this.bone(n) != null);
   }
 
+  /** Shrink the raw head bone (the normalized rig carries no scale), so the camera at the eyes sees the room and not the inside of the head. */
+  setHeadHidden(hidden: boolean): void {
+    this.vrm.humanoid.getRawBoneNode("head")?.scale.setScalar(hidden ? 0.001 : 1);
+  }
+
   setArmOffsets(o: ArmOffsets): void {
     const base = this.armBase;
     if (!base) return;

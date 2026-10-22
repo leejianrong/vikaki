@@ -15,8 +15,8 @@ export interface Shot {
   fov: number;
 }
 
-/** A shot is named: `wide`, `overhead`, `board` (the community cards, close), or `seat:<index>` for a close-up of that player. */
-export type ShotName = "wide" | "overhead" | "board" | `seat:${number}`;
+/** A shot is named: `wide`, `overhead`, `board` (the community cards, close), `grid` (every player's POV in a tile each, VIK-100; the page draws it, and the camera itself rests on the wide shot), `seat:<index>` for a close-up of that player, or `pov:<index>` for what that player sees (VIK-99). */
+export type ShotName = "wide" | "overhead" | "board" | "grid" | `seat:${number}` | `pov:${number}`;
 
 export interface ShotContext {
   /** Height of the table top. */
@@ -25,14 +25,16 @@ export interface ShotContext {
   /** Where each player's head is (world), and the height of the top of each avatar (a hat counts), for the close-ups. */
   heads: Vec3[];
   tops: number[];
+  /** Where each player's eyes are (world), for the POV shots. */
+  eyes: Vec3[];
   aspect: number;
   /** The field of view the table view uses, in degrees. */
   fov: number;
 }
 
 export function parseShot(value: string | null | undefined, seats: number): ShotName | undefined {
-  if (value === "wide" || value === "overhead" || value === "board") return value;
-  const m = /^seat:(\d+)$/.exec(value ?? "");
+  if (value === "wide" || value === "overhead" || value === "board" || value === "grid") return value;
+  const m = /^(?:seat|pov):(\d+)$/.exec(value ?? "");
   if (m && Number(m[1]) < seats) return value as ShotName;
   return undefined;
 }
@@ -50,11 +52,12 @@ export function shotFor(name: ShotName, c: ShotContext): Shot {
     // Low over the near rail, close on the middle of the felt: the five board cards, the pot and the chips fill the picture.
     return { position: { x: 0, y: c.tableY + 0.75, z: 1.35 }, target: { x: 0, y: c.tableY, z: -0.05 }, fov: c.fov };
   }
-  if (name === "wide") {
+  if (name === "wide" || name === "grid") {
     // A three-quarter view over the near rail: faces stay readable, the cards and chips show, and the seats at the two ends fit.
     const back = Math.max(3.0, reach / (tanHalf(c.fov) * Math.max(c.aspect, 0.1)));
     return { position: { x: 0, y: c.tableY + 1.3, z: back }, target: { x: 0, y: c.tableY + 0.18, z: -0.3 }, fov: c.fov };
   }
+  if (name.startsWith("pov:")) return povShot(Number(name.slice(4)), c);
   const i = Number(name.slice("seat:".length));
   const head = c.heads[i]!;
   const facing = c.spots[i]!.facing;
@@ -70,6 +73,35 @@ export function shotFor(name: ShotName, c: ShotContext): Shot {
     fov: c.fov,
   };
 }
+
+/**
+ * What player `i` sees (VIK-99): from their eyes, looking between the middle of the table and the next player round it, with a field of view wide enough to hold
+ * both (from the middle seat of three the other players are almost beside it, so a POV cannot hold everyone). A still frame like the others: the
+ * camera does not sway with the head.
+ */
+function povShot(i: number, c: ShotContext): Shot {
+  const eye = c.eyes[i]!;
+  const n = c.heads.length;
+  // Looks at the next player round the table, with the middle of the table in the picture too, and holds as many of the other players as a 90 degree view can.
+  const focus = c.heads[(i + 1) % n]!;
+  const toFocus = Math.atan2(focus.x - eye.x, focus.z - eye.z);
+  const toMiddle = Math.atan2(0 - eye.x, 0 - eye.z);
+  const yaw = toMiddle + wrap(toFocus - toMiddle) / 2; // halfway between the middle of the table and that player
+  let half = 0.25;
+  for (const h of [focus, { x: 0, z: 0 }]) half = Math.max(half, Math.abs(wrap(Math.atan2(h.x - eye.x, h.z - eye.z) - yaw)) + 0.16);
+  const hfov = 2 * half;
+  const vfov = (2 * Math.atan(Math.tan(hfov / 2) / Math.max(c.aspect, 0.1)) * 180) / Math.PI;
+  const dist = Math.hypot(focus.x - eye.x, focus.z - eye.z);
+  return {
+    position: { x: eye.x, y: eye.y, z: eye.z },
+    // a little below the eye line, so the table and the chips are in the picture as well as the face
+    target: { x: eye.x + Math.sin(yaw) * dist, y: Math.max(c.tableY + 0.1, eye.y - 0.22 * dist), z: eye.z + Math.cos(yaw) * dist },
+    fov: Math.min(90, Math.max(45, vfov)),
+  };
+}
+
+const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
 /** Slow in, slow out. */
 export const ease = (t: number) => {
@@ -100,6 +132,11 @@ export class CameraRig {
 
   get moving(): boolean {
     return this.age < this.duration;
+  }
+
+  /** How far through the glide, from 0 to 1 (1 when still). */
+  get progress(): number {
+    return this.duration > 0 ? Math.min(1, this.age / this.duration) : 1;
   }
 
   /** Where the camera is now. */

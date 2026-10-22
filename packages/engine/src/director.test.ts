@@ -72,6 +72,11 @@ describe("Director", () => {
     expect(d.cue({ kind: "street" }, 10 + TIMES.override + 1)).toBe("board");
   });
 
+  it("can cut to the POV grid at the showdown", () => {
+    const d = new Director(undefined, "grid");
+    expect(d.cue({ kind: "showdown" }, 0)).toBe("grid");
+  });
+
   it("ignores a small move but follows a big one", () => {
     const d = new Director();
     expect(d.cue({ kind: "action", seat: 1, big: false }, 0)).toBeUndefined();

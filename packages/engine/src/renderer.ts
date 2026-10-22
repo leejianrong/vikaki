@@ -34,6 +34,8 @@ export interface AvatarRenderer {
   canAct?(): boolean;
   /** Move the arms from their seated pose by these changes to the seat-pose numbers (`forward`, `down`, `elbow`); all zero is the seated pose. */
   setArmOffsets?(offsets: ArmOffsets): void;
+  /** Hide or show the head, for a camera at this avatar's eyes (VIK-99). */
+  setHeadHidden?(hidden: boolean): void;
 }
 
 /** Where things are on an avatar, in world units, for placing the camera and the manga symbols. */

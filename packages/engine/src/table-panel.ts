@@ -52,7 +52,7 @@ export class TablePanel {
     });
     this.floatSwitch.addEventListener("change", () => this.setFloat(this.floatSwitch.checked, true));
     this.setFloat(this.initialFloat(), false);
-    const shots: [string, string, string][] = [["wide", "Wide", "Wide shot (1)"], ["overhead", "Overhead", "Overhead shot (2)"], ...seats.map((s, i): [string, string, string] => [`seat:${i}`, label(s), `Close-up of ${label(s)}${i < 7 ? ` (${i + 3})` : ""}`]), ["board", "Board", "Board shot (B)"]];
+    const shots: [string, string, string][] = [["wide", "Wide", "Wide shot (1)"], ["overhead", "Overhead", "Overhead shot (2)"], ...seats.map((s, i): [string, string, string] => [`seat:${i}`, label(s), `Close-up of ${label(s)}${i < 7 ? ` (${i + 3})` : ""}`]), ["board", "Board", "Board shot (B)"], ["grid", "Grid", "POV grid shot (G)"], ...seats.map((s, i): [string, string, string] => [`pov:${i}`, `POV ${label(s)}`, `Point of view of ${label(s)}`])];
     for (const [id, text, name] of shots) {
       const b = el("button", { type: "button", className: "camera", textContent: text, ariaLabel: name });
       b.setAttribute("aria-pressed", String(id === "wide"));

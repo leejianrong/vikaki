@@ -2,7 +2,7 @@
 // screen (VIK-47, ADR-0017). It is a viewer that shows every line. Each line is played on the avatar of the seat it names, and that avatar
 // gets the lip sync, the line's emotion and its turns' thinking pose; the others breathe, blink and sway. The hub speaks one line at a time,
 // so one lip-sync node serves them all: whoever's line began last owns the mouth.
-import { Box3, Clock, Vector3 } from "three";
+import { Box3, Clock, PerspectiveCamera, Vector3 } from "three";
 import { AudioSession } from "./audio-session.ts";
 import { FirstFrameTimer } from "./first-frame.ts";
 import type { SeatPose, VisemeWeights } from "./renderer.ts";
@@ -13,6 +13,7 @@ import { TableOverlay } from "./table-overlay.ts";
 import { CameraRig, parseShot, shotFor, type Shot, type ShotName } from "./cameras.ts";
 import { parseDeck, setDeck } from "./card-art.ts";
 import { Director, type Cue } from "./director.ts";
+import { gridInterval, gridLayout, type Tile } from "./pov-grid.ts";
 import { actFor, type Act } from "./arm-act.ts";
 import { TablePanel } from "./table-panel.ts";
 import { TopBar } from "./table-topbar.ts";
@@ -152,9 +153,60 @@ try {
   const profiles = duet ? avatars.map((a) => a.widthProfile()) : [];
   /** The table's cameras (VIK-95): the shot asked for (`?camera=wide|overhead|seat:N`), and the rig that glides between shots. */
   let shotName: ShotName = (spots ? parseShot(params.get("camera"), seats.length) : undefined) ?? "wide";
-  const shotNow = (name: ShotName): Shot => shotFor(name, { tableY, spots: spots!, heads: frames.map((f) => f.head), tops: frames.map((f) => f.top), aspect: Math.max(camera.aspect, 0.1), fov: 38 });
+  const eyesNow = () => frames.map((f, i) => ({ x: f.head.x + Math.sin(spots![i]!.facing) * 0.06, y: f.eyeLevel, z: f.head.z + Math.cos(spots![i]!.facing) * 0.06 }));
+  const shotNow = (name: ShotName): Shot => shotFor(name, { tableY, spots: spots!, heads: frames.map((f) => f.head), tops: frames.map((f) => f.top), eyes: eyesNow(), aspect: Math.max(camera.aspect, 0.1), fov: 38 });
   const rig = spots ? new CameraRig(shotNow(shotName)) : undefined;
   overlay.setCloseUp(shotName.startsWith("seat:"));
+  if (shotName.startsWith("pov:")) overlay.setPov(seats[Number(shotName.slice(4))]!.seat);
+  /** The POV grid (VIK-100): drawn tile by tile over the canvas, a few times a second, since it costs a whole picture for each player. */
+  const tileCam = new PerspectiveCamera(38, 1, 0.1, 50);
+  let gridOn = shotName === "grid";
+  let gridFrame = 0;
+  let gridDirty = true;
+  let frameMs = 16;
+  let gridTiles: Tile[] = [];
+  const tileShots: { seat: string; position: number[]; fov: number }[] = [];
+  const drawGrid = () => {
+    const w = canvas.clientWidth || window.innerWidth;
+    const h = canvas.clientHeight || window.innerHeight;
+    if (gridDirty) {
+      const top = topBar && !topBar.root.hidden ? topBar.root.offsetHeight + 4 : 0; // below the bar across the top of the stage
+      gridTiles = gridLayout(seats.length, w, h - top).map((t) => ({ ...t, y: t.y + top }));
+      overlay.setGrid(gridTiles);
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, w, h);
+      renderer.clear(); // the gaps between the tiles
+      gridDirty = false;
+    }
+    renderer.setScissorTest(true);
+    tileShots.length = 0;
+    gridTiles.forEach((t, i) => {
+      const shot = shotFor(`pov:${i}`, { tableY, spots: spots!, heads: frames.map((f) => f.head), tops: frames.map((f) => f.top), eyes: eyesNow(), aspect: t.width / t.height, fov: 38 });
+      tileCam.aspect = t.width / t.height;
+      tileCam.fov = shot.fov;
+      tileCam.updateProjectionMatrix();
+      tileCam.position.set(shot.position.x, shot.position.y, shot.position.z);
+      tileCam.lookAt(shot.target.x, shot.target.y, shot.target.z);
+      tileCam.updateMatrixWorld();
+      hideHead(i); // each tile is that player's own view, without their head
+      const y = h - t.y - t.height;
+      renderer.setViewport(t.x, y, t.width, t.height);
+      renderer.setScissor(t.x, y, t.width, t.height);
+      renderer.render(scene, tileCam);
+      tileShots.push({ seat: seats[i]!.seat, position: [shot.position.x, shot.position.y, shot.position.z], fov: shot.fov });
+    });
+    hideHead(undefined);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, w, h);
+  };
+  /** The head of the player whose eyes the camera is at is hidden (VIK-99), so it does not fill the picture; it goes late in the glide so no head vanishes in view. */
+  let headHidden: number | undefined;
+  const hideHead = (i: number | undefined) => {
+    if (headHidden === i) return;
+    if (headHidden !== undefined) avatars[headHidden]!.setHeadHidden?.(false);
+    headHidden = i;
+    if (i !== undefined) avatars[i]!.setHeadHidden?.(true);
+  };
   const direct = (cue: Cue) => {
     const shot = director.cue(cue, now());
     if (shot) cutTo(shot);
@@ -175,7 +227,7 @@ try {
     placeOverlay();
   };
   /** The auto-director (VIK-96): on unless `?director=off`; a person's own choice of shot quiets it for a while. */
-  const director = new Director();
+  const director = new Director(undefined, params.get("showdown") === "grid" ? "grid" : "wide"); // `?showdown=grid` cuts to the POV grid at the showdown
   director.enabled = params.get("director") !== "off";
   const now = () => performance.now() / 1000;
   /** Cut to another shot with a glide. `byHand` is a person's choice (a button or a key), which the director then leaves alone for a while. */
@@ -186,6 +238,12 @@ try {
     shotName = name;
     rig.moveTo(shotNow(name));
     overlay.setCloseUp(name.startsWith("seat:"));
+    gridOn = name === "grid";
+    gridDirty = true;
+    if (!gridOn) overlay.setGrid(undefined);
+    const pov = name.startsWith("pov:") ? Number(name.slice(4)) : undefined;
+    overlay.setPov(pov !== undefined ? seats[pov]!.seat : undefined);
+    if (pov === undefined) hideHead(undefined); // leaving a POV: the head is back at once, before the camera moves away
     panel?.setCameraShot(name);
   };
   // `?cam=x,y,z,tx,ty,tz` puts the camera there, looking at the target (a dev aid for judging a pose or a prop from the side or above).
@@ -255,6 +313,7 @@ try {
   };
   reframe();
   new ResizeObserver(() => {
+    gridDirty = true; // the tiles of the POV grid follow the canvas (VIK-100)
     resize();
     reframe();
   }).observe(canvas);
@@ -332,7 +391,9 @@ try {
     }
     overlay.setState(state);
     panel?.setState(state);
+    const barWasHidden = topBar?.root.hidden ?? false;
     topBar?.setState(state);
+    if (barWasHidden) gridDirty = true; // the grid's tiles start below the bar, which has just appeared
     props?.setState(state, o.snap);
     if (sfx && !o.silent && JSON.stringify(state) !== JSON.stringify(lastState)) sfx.play(cuesFor(lastState, state, seats.map((x) => x.seat)));
     lastState = state;
@@ -397,6 +458,7 @@ try {
       if (i === undefined) return;
       overlay.setThought(seats[i]!.seat, true);
       panel?.addThought(seats[i]!.seat, t.text);
+      overlay.setPovCaption(seats[i]!.seat, t.text);
     },
     onTableState: (state) => {
       const key = JSON.stringify(state);
@@ -411,6 +473,11 @@ try {
       listening = { mode, ...(seat !== undefined ? { seat } : {}) };
       panel?.setListen(mode, seat);
       spotlight();
+      overlay.setGridSpot(mode === "seat" ? seat : undefined);
+      // Listening in to a seat takes the camera to its eyes (VIK-99); stopping brings it back to the wide shot.
+      const at = mode === "seat" ? seats.findIndex((x) => x.seat === seat) : -1;
+      if (at >= 0) cutTo(`pov:${at}` as ShotName, true);
+      else if (shotName.startsWith("pov:")) cutTo("wide", true);
       api.table!.listen = { ...listening };
     },
     onTransportState: (p) => {
@@ -423,6 +490,7 @@ try {
         // A monologue spoken aloud (VIK-121): a thought bubble and the Thoughts list, never the chat.
         if (line.text !== undefined) {
           overlay.addSpokenThought(line.seat, line.text);
+          overlay.setPovCaption(line.seat, line.text);
           panel?.addThought(line.seat, line.text);
         }
         return;
@@ -452,6 +520,7 @@ try {
     const n = Number(e.key);
     if (e.key.toLowerCase() === "d") return void panel?.toggleDirector(); // the auto-director on or off
     if (e.key.toLowerCase() === "b") return cutTo("board", true);
+    if (e.key.toLowerCase() === "g") return cutTo("grid", true);
     if (!Number.isInteger(n) || n < 1 || n > 2 + seats.length) return;
     cutTo(n === 1 ? "wide" : n === 2 ? "overhead" : (`seat:${n - 3}` as ShotName), true);
   });
@@ -543,8 +612,12 @@ try {
     const next = director.tick(now());
     if (next) cutTo(next);
     if (rig?.moving) applyShot(rig.update(dt)); // glide between shots (VIK-95)
-    if (api.table) api.table.camera = { shot: shotName, director: director.enabled, moving: rig?.moving ?? false, position: [camera.position.x, camera.position.y, camera.position.z] };
-    renderer.render(scene, camera);
+    if (rig && shotName.startsWith("pov:") && rig.progress > 0.85) hideHead(Number(shotName.slice(4)));
+    if (api.table) api.table.camera = { shot: shotName, director: director.enabled, moving: rig?.moving ?? false, position: [camera.position.x, camera.position.y, camera.position.z], grid: gridOn ? { every: gridInterval(frameMs), tiles: tileShots.slice() } : undefined };
+    frameMs = frameMs * 0.9 + dt * 1000 * 0.1;
+    if (gridOn) {
+      if (gridDirty || ++gridFrame % gridInterval(frameMs) === 0) drawGrid();
+    } else renderer.render(scene, camera);
   });
 } catch (err) {
   console.error(err);
