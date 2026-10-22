@@ -505,6 +505,25 @@ describe("the table page", () => {
     await page.waitForFunction(() => window.__vikaki!.table!.listen.seat === "seat-3", null, { timeout: 15_000 });
   });
 
+  it("shows the players' cards and odds as a hole-cam graphic that can float over the 3D view, and stays findable by role and name (VIK-97)", { timeout: 120_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table", { width: 1280, height: 720 });
+    d1.ws.send(JSON.stringify(make("table_state", { pot: 40, street: "turn", board: ["As", "Kd", "2c", "9h"], seats: [{ seat_id: "seat-1", stack: 80, cards: ["Ah", "Qc"], hand: "pair of aces", win: 0.62 }, { seat_id: "seat-2", stack: 80, cards: ["back", "back"] }, { seat_id: "seat-3", stack: 80, cards: ["Kc", "Jd"], hand: "pair of kings", win: 0.38 }] })));
+    const ada = page.getByRole("group", { name: "ada, hand" });
+    await ada.getByText("pair of aces").waitFor({ timeout: 15_000 });
+    expect(await page.getByRole("meter", { name: "ada chance to win" }).getAttribute("aria-valuenow")).toBe("62");
+    const strip = page.getByRole("region", { name: "Players" });
+    const inPanel = (await strip.boundingBox())!;
+    const panelLeft = (await page.getByRole("complementary", { name: "Table panel" }).boundingBox())!.x;
+    expect(inPanel.x).toBeGreaterThanOrEqual(panelLeft); // in the panel
+    await page.getByRole("switch", { name: "Hole cams over the table" }).click();
+    await page.waitForFunction(() => document.body.classList.contains("holecam-float"));
+    const floating = (await strip.boundingBox())!;
+    expect(floating.x + floating.width).toBeLessThanOrEqual(panelLeft + 1); // over the stage, not the panel
+    await ada.getByText("pair of aces").waitFor(); // still there by role and name
+    expect(await page.getByRole("meter", { name: "ada chance to win" }).getAttribute("aria-valuenow")).toBe("62");
+    expect(await page.evaluate(() => document.querySelector("canvas")!.getAttribute("style") ?? "")).not.toMatch(/width|height/);
+  });
+
   it("has camera shots: wide, overhead and a close-up of each player, by button, key or ?camera=, gliding between them and never changing the canvas's own size (VIK-95)", { timeout: 120_000 }, async () => {
     const { page } = await setup("seats=3&view=table");
     const cam = () => page.evaluate(() => window.__vikaki!.table!.camera!);
