@@ -23,6 +23,10 @@ export class TablePanel {
   private items: ActivityItem[] = [];
   private lastEventState: State | undefined;
   private readonly tabs: { tab: HTMLElement; panel: HTMLElement }[] = [];
+  /** The camera shots (VIK-95): Wide, Overhead, and a close-up of each player. */
+  private readonly cameraButtons = new Map<string, HTMLButtonElement>();
+  private readonly cameras = el("div", { className: "cameras", role: "toolbar", ariaLabel: "Camera" });
+  private onCamera: (shot: string) => void = () => {};
   /** Listening in (VIK-98): one button on each player's card, and a switch for every seat's thoughts. */
   private readonly listenButtons: HTMLButtonElement[];
   private readonly hearAll = el("input", { type: "checkbox", role: "switch", ariaLabel: "Hear every thought", checked: true });
@@ -42,6 +46,14 @@ export class TablePanel {
       b.addEventListener("click", () => this.chooseSeat(s.seat));
       return b;
     });
+    const shots: [string, string, string][] = [["wide", "Wide", "Wide shot (1)"], ["overhead", "Overhead", "Overhead shot (2)"], ...seats.map((s, i): [string, string, string] => [`seat:${i}`, label(s), `Close-up of ${label(s)}${i < 7 ? ` (${i + 3})` : ""}`])];
+    for (const [id, text, name] of shots) {
+      const b = el("button", { type: "button", className: "camera", textContent: text, ariaLabel: name });
+      b.setAttribute("aria-pressed", String(id === "wide"));
+      b.addEventListener("click", () => this.onCamera(id));
+      this.cameraButtons.set(id, b);
+      this.cameras.append(b);
+    }
     this.hearAll.addEventListener("change", () => this.onListen(this.hearAll.checked ? "all" : "off"));
     // One column (VIK-138): the players in a compact strip, the activity log, then Chat and Thoughts as tabs.
     this.strip.append(...this.cards);
@@ -58,7 +70,7 @@ export class TablePanel {
       to.tab.focus();
     });
     const listening = el("section", { className: "listening", role: "group", ariaLabel: "Listening in" }, el("label", {}, this.hearAll, " Hear every thought"));
-    this.root.append(this.head, this.strip, el("h2", { className: "title-medium", textContent: "Activity" }), this.activity, tablist, chatTab.panel, thoughtsTab.panel, listening);
+    this.root.append(this.cameras, this.head, this.strip, el("h2", { className: "title-medium", textContent: "Activity" }), this.activity, tablist, chatTab.panel, thoughtsTab.panel, listening);
     document.body.classList.add("has-panel", "has-table-panel");
     parent.append(this.root);
     makeResizable();
@@ -67,6 +79,16 @@ export class TablePanel {
 
   setState(state: State): void {
     this.draw(state);
+  }
+
+  /** What to do when a camera button is pressed (VIK-95). */
+  setCameraHandler(f: (shot: string) => void): void {
+    this.onCamera = f;
+  }
+
+  /** Mark the shot that is on. */
+  setCameraShot(shot: string): void {
+    for (const [id, b] of this.cameraButtons) b.setAttribute("aria-pressed", String(id === shot));
   }
 
   /** What to do when the viewer picks a seat to listen to, every seat, or none (VIK-98). */
