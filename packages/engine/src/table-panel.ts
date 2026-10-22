@@ -23,6 +23,8 @@ export class TablePanel {
   private items: ActivityItem[] = [];
   private lastEventState: State | undefined;
   private readonly tabs: { tab: HTMLElement; panel: HTMLElement }[] = [];
+  /** Show the hole cards and odds as a ribbon over the 3D view instead of in the panel (VIK-97). */
+  private readonly floatSwitch = el("input", { type: "checkbox", role: "switch", ariaLabel: "Hole cams over the table" });
   /** Listening in (VIK-98): one button on each player's card, and a switch for every seat's thoughts. */
   private readonly listenButtons: HTMLButtonElement[];
   private readonly hearAll = el("input", { type: "checkbox", role: "switch", ariaLabel: "Hear every thought", checked: true });
@@ -42,6 +44,8 @@ export class TablePanel {
       b.addEventListener("click", () => this.chooseSeat(s.seat));
       return b;
     });
+    this.floatSwitch.addEventListener("change", () => this.setFloat(this.floatSwitch.checked, true));
+    this.setFloat(this.initialFloat(), false);
     this.hearAll.addEventListener("change", () => this.onListen(this.hearAll.checked ? "all" : "off"));
     // One column (VIK-138): the players in a compact strip, the activity log, then Chat and Thoughts as tabs.
     this.strip.append(...this.cards);
@@ -57,7 +61,7 @@ export class TablePanel {
       this.select(to.tab);
       to.tab.focus();
     });
-    const listening = el("section", { className: "listening", role: "group", ariaLabel: "Listening in" }, el("label", {}, this.hearAll, " Hear every thought"));
+    const listening = el("section", { className: "listening", role: "group", ariaLabel: "Listening in" }, el("label", {}, this.hearAll, " Hear every thought"), el("label", {}, this.floatSwitch, " Hole cams over the table"));
     this.root.append(this.head, this.strip, el("h2", { className: "title-medium", textContent: "Activity" }), this.activity, tablist, chatTab.panel, thoughtsTab.panel, listening);
     document.body.classList.add("has-panel", "has-table-panel");
     parent.append(this.root);
@@ -67,6 +71,28 @@ export class TablePanel {
 
   setState(state: State): void {
     this.draw(state);
+  }
+
+  private initialFloat(): boolean {
+    const asked = new URLSearchParams(location.search).get("holecam");
+    if (asked === "float" || asked === "panel") return asked === "float";
+    try {
+      return localStorage.getItem("vikaki.holecam") === "float";
+    } catch {
+      return false;
+    }
+  }
+
+  /** Put the hole cams in the panel or over the 3D view (VIK-97). */
+  setFloat(on: boolean, remember: boolean): void {
+    this.floatSwitch.checked = on;
+    document.body.classList.toggle("holecam-float", on);
+    if (!remember) return;
+    try {
+      localStorage.setItem("vikaki.holecam", on ? "float" : "panel");
+    } catch {
+      /* not remembered */
+    }
   }
 
   /** What to do when the viewer picks a seat to listen to, every seat, or none (VIK-98). */
@@ -213,6 +239,7 @@ export class TablePanel {
       const notes = [row?.bet ? `Bet ${money(row.bet)}` : "", row?.folded ? "" : (row?.action ?? ""), row?.folded ? "Folded" : ""].filter(Boolean);
       if (notes.length) kids.push(el("p", { className: "note", textContent: notes.join(" · ") }));
       kids.push(this.listenButtons[i]!);
+      card.style.setProperty("--seat-colour", seatColour(i));
       card.replaceChildren(...kids);
     });
   }
