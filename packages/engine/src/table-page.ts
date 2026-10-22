@@ -10,6 +10,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
+import { actFor, type Act } from "./arm-act.ts";
 import { TablePanel } from "./table-panel.ts";
 import { TopBar } from "./table-topbar.ts";
 import { StateHistory } from "./state-history.ts";
@@ -229,6 +230,8 @@ try {
     view: spots ? "table" : "row",
     props: props?.drawn,
     sfx,
+    acted: [],
+    holdAct: (i, act, phase) => puppets[i]?.arms.hold(act as Act | undefined, phase),
     resetPeaks: () => {
       api.table!.seats.forEach((r) => (r.peak = freshPeak()));
       api.table!.spoke.length = 0;
@@ -272,6 +275,8 @@ try {
     if (moved >= 0) {
       actor = moved;
       clearTimeout(actorTimer);
+      const act = actFor(state.event!.kind);
+      if (act) api.table!.acted.push({ seat: seats[moved]!.seat, act, how: puppets[moved]!.act(act) }); // the hands act the decision, or a nod where the arms cannot (VIK-137)
       actorTimer = setTimeout(() => ((actor = undefined), refocus()), ACTOR_GAZE_MS);
       refocus();
     }

@@ -412,6 +412,23 @@ describe("the table page", () => {
     expect((await geometry()).panelWidth).toBe(280);
   });
 
+  it("acts each decision with the seat's hands: a knock for a check, a push for a call or raise, a toss for a fold (VIK-137)", { timeout: 90_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const seats = [{ seat_id: "seat-1", stack: 94 }, { seat_id: "seat-2", stack: 94 }, { seat_id: "seat-3", stack: 94 }];
+    const send = (event: { kind: string; seat_id: string; text: string; amount?: number }) => d1.ws.send(JSON.stringify(make("table_state", { pot: 6, street: "flop", seats, event })));
+    send({ kind: "check", seat_id: "seat-1", text: "Ada checks" });
+    send({ kind: "raise", seat_id: "seat-2", amount: 12, text: "Ben raises to 12" });
+    send({ kind: "fold", seat_id: "seat-3", text: "Cy folds" });
+    send({ kind: "street", seat_id: "seat-3", text: "Turn" }); // a title card is no decision
+    await page.waitForFunction(() => window.__vikaki!.table!.acted.length >= 3, null, { timeout: 15_000 });
+    const acted = await page.evaluate(() => window.__vikaki!.table!.acted);
+    expect(acted).toEqual([
+      { seat: "seat-1", act: "knock", how: "arms" },
+      { seat: "seat-2", act: "push", how: "arms" },
+      { seat: "seat-3", act: "toss", how: "arms" },
+    ]);
+  });
+
   it("lays the table out as a top bar, a players strip, an activity log with hand separators, and Chat and Thoughts as tabs (VIK-138)", { timeout: 90_000 }, async () => {
     const { page, drivers: [d1] } = await setup("seats=3&view=table", { width: 1280, height: 720 });
     const seats = [{ seat_id: "seat-1", stack: 94 }, { seat_id: "seat-2", stack: 94 }, { seat_id: "seat-3", stack: 94 }];

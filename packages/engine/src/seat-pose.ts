@@ -32,9 +32,15 @@ export function applySeat(bone: BoneOf, pose: SeatPose = {}): void {
       bone(`${side}UpperArm`)?.quaternion.setFromEuler(new Euler(0, 0, s * 1.2));
       continue;
     }
-    bone(`${side}UpperArm`)?.quaternion.copy(new Quaternion().setFromEuler(new Euler(0, -s * arms.forward, 0)).multiply(new Quaternion().setFromEuler(new Euler(0, 0, s * arms.down))));
-    bone(`${side}LowerArm`)?.quaternion.setFromEuler(new Euler(0, -s * arms.elbow, 0));
+    poseArm(bone, side, arms);
   }
+}
+
+/** One arm's seated pose from its numbers (`forward`, `down`, `elbow`); `VrmAvatar` calls it again with an act's offsets added (VIK-137). */
+export function poseArm(bone: BoneOf, side: Side, arms: { forward: number; down: number; elbow: number }): void {
+  const s = side === "left" ? 1 : -1;
+  bone(`${side}UpperArm`)?.quaternion.copy(new Quaternion().setFromEuler(new Euler(0, -s * arms.forward, 0)).multiply(new Quaternion().setFromEuler(new Euler(0, 0, s * arms.down))));
+  bone(`${side}LowerArm`)?.quaternion.setFromEuler(new Euler(0, -s * arms.elbow, 0));
 }
 
 /**
