@@ -16,7 +16,7 @@ from typing import Callable
 from .brain import Traits, briefing, history_text, performer_facts, personality_text
 from .llm import Llm, LlmError, Message, Usage
 from .voice import VOICE, clean
-from .strategy import Move, big_blind_of, decide as engine_decide
+from .strategy import Move, big_blind_of, decide as engine_decide, take_route
 
 EMOTIONS = ("neutral", "happy", "smug", "worried", "surprised", "sad", "angry")
 MAX_SAY = 240
@@ -44,6 +44,7 @@ class Decision:
     note: str = ""  # why the engine chose it, and anything that went wrong with the model
     think: str = ""  # the private thought: shown to the audience, never to another player (VIK-93)
     to: str | None = None  # the seat the line is for (VIK-120), or None for the whole table
+    bluffing: bool = False  # the move is the bluff route (ADR-0030)
     equity: float = 0.0  # the engine's chance to win, for the runner to judge whether this is a moment worth a spoken thought (VIK-121)
 
 
@@ -131,16 +132,17 @@ class SeatAgent:
         """`events` are the hand's events so far (`Hand.events`), told as the story of the hand; `names` map seat ids to the characters' names."""
         events = events or []
         move = self.engine(view, events, big_blind=big_blind_of(events), rng=self._rng, samples=self.samples)
+        move = take_route(move, self.traits.bluff, self._rng)  # the one place a trait reaches the move (ADR-0030)
         messages = build_messages(self.persona, self.style, view, talk or [], move, traits=self.traits, history=history_text(events, names or {}), names=names)
         try:
             reply = self.llm.complete(messages, model=self.model, max_tokens=self.max_tokens)
         except LlmError as err:
-            return Decision(move.kind, move.amount, note=f"{move.reason}; the model failed: {err}", equity=move.equity)
+            return Decision(move.kind, move.amount, note=f"{move.reason}; the model failed: {err}", equity=move.equity, bluffing=move.bluffing)
         self.usage.add(reply.usage)
         say = parse_performance(reply.text)
         note = "; ".join(x for x in (move.reason, say.note) if x)
         to = resolve_addressee(say.to, names or {}, self.seat_id) if say.say else None
-        return Decision(move.kind, move.amount, say.say, say.emotion, note, say.think, to, move.equity)
+        return Decision(move.kind, move.amount, say.say, say.emotion, note, say.think, to, move.bluffing, move.equity)
 
     def reflect(self, situation: str, names: dict[str, str] | None = None) -> str:
         """What goes through this character's head after a hand (VIK-121): one short thought, for the audience. `situation` says what just happened.

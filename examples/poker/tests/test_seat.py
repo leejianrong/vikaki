@@ -1,5 +1,7 @@
 import json
 
+import random
+
 import pytest
 from scripted import always
 
@@ -119,12 +121,13 @@ def test_the_real_engine_is_used_by_default_and_its_move_is_legal():
 
 @pytest.mark.parametrize("seed", range(6))
 def test_whatever_the_personality_the_move_is_the_same(seed):
-    """The separation of play from character (ADR-0026): two seats with opposite traits and quirks, and models begging for an all-in, play the same move."""
+    """The separation of play from character (ADR-0026): two seats with opposite traits and quirks, and models begging for an all-in, play the same move.
+    Only `bluff` may bend the move (ADR-0030), so it is the same in both."""
     from vikaki_poker.brain import Traits
 
     h = Hand([("a", 100), ("b", 100), ("c", 100)], seed % 3, 1, 2, seed=seed)
-    wild = Traits(talkative=1, loose=1, aggressive=1, bluff=1, tricky=1, emotional=1, quirk="loves a gamble and an all-in, never folds")
-    tame = Traits(talkative=0, loose=0, aggressive=0, bluff=0, tricky=0, emotional=0, quirk="folds everything and apologises")
+    wild = Traits(talkative=1, loose=1, aggressive=1, bluff=0.5, tricky=1, emotional=1, quirk="loves a gamble and an all-in, never folds")
+    tame = Traits(talkative=0, loose=0, aggressive=0, bluff=0.5, tricky=0, emotional=0, quirk="folds everything and apologises")
     shove = FakeLlm([reply(action="raise", amount=100, say="ALL IN!", think="Shove it.")])
     fold = FakeLlm([reply(action="fold", say="Sorry.", think="Too scary.")])
     cy = SeatAgent(h.to_act, "cy", shove, "m", traits=wild, samples=60, seed=seed)
@@ -134,6 +137,47 @@ def test_whatever_the_personality_the_move_is_the_same(seed):
         a, b = cy.decide(view, events=h.events), ben.decide(view, events=h.events)
         assert (a.action, a.amount) == (b.action, b.amount)
         h.act(h.to_act, a.action, a.amount)
+
+
+def _play(bluff: float, seed: int):
+    """One hand played by a seat with this `bluff` trait against two proper engines; every decision of that seat, with whether it was the bluff route."""
+    from vikaki_poker.brain import Traits
+    from vikaki_poker.strategy import decide
+
+    h = Hand([("a", 100), ("b", 100), ("c", 100)], seed % 3, 1, 2, seed=seed)
+    me = SeatAgent("a", "ada", FakeLlm([reply(say="Hm.")] * 40), "m", traits=Traits(bluff=bluff), samples=40, seed=seed, engine=lambda *a, **k: _remember(decide(*a, **k)))
+    out = []
+    while not h.complete:
+        view = h.view(h.to_act)
+        if h.to_act == "a":
+            d = me.decide(view, events=h.events)
+            out.append((d.action, d.amount, d.bluffing))
+        else:
+            d = decide(view, h.events, big_blind=2, rng=random.Random(seed + len(h.events)), samples=40)
+        h.act(h.to_act, d.kind if hasattr(d, "kind") else d.action, d.amount)
+    return out
+
+
+_seen: list = []
+
+
+def _remember(move):
+    _seen.append(move)
+    return move
+
+
+def test_only_the_bluff_trait_may_bend_the_move_and_a_seeded_game_replays():
+    """ADR-0030: bluff 0 always plays the proper route; a high bluff sometimes takes the bluff route instead; the same seed gives the same game."""
+    from vikaki_poker.strategy import take_route
+
+    tame = [_play(0.0, s) for s in range(24)]
+    wild = [_play(1.0, s) for s in range(24)]
+    assert tame == [_play(0.0, s) for s in range(24)] and wild == [_play(1.0, s) for s in range(24)]  # replayable
+    assert tame != wild  # the trait alone changed some move
+    routes = [m for m in _seen if m.bluff_route is not None]
+    assert routes and all(m.kind in ("check", "fold") and m.bluff_route.kind == "raise" and m.bluff_route.bluffing for m in routes)
+    assert all(take_route(m, 0.0, random.Random(1)) is m for m in routes)  # a zero trait never takes it
+    assert any(take_route(m, 1.0, random.Random(i)) is m.bluff_route for m in routes for i in range(20))
 
 
 NAMES = {"a": "ada", "b": "ben", "c": "cy"}

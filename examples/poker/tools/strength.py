@@ -10,6 +10,7 @@ Every hand is dealt afresh with all stacks reset, and the seats rotate over the 
 from __future__ import annotations
 
 import argparse
+import os
 import math
 import sys
 from concurrent.futures import ProcessPoolExecutor
@@ -21,7 +22,7 @@ from vikaki_poker.advisor import AdvisorBot, CallingStation, EngineBot, RandomBo
 
 
 def make(kind: str, seat: str, seed: int, samples: int):
-    return {"engine": lambda: EngineBot(seat, seed=seed, samples=samples), "advisor": lambda: AdvisorBot(seat, samples=samples), "station": lambda: CallingStation(seat), "random": lambda: RandomBot(seat, seed=seed)}[kind]()
+    return {"engine": lambda: EngineBot(seat, seed=seed, samples=samples), "bluffer": lambda: EngineBot(seat, seed=seed, samples=samples, bluff=float(os.environ.get("BLUFF", "1"))), "advisor": lambda: AdvisorBot(seat, samples=samples), "station": lambda: CallingStation(seat), "random": lambda: RandomBot(seat, seed=seed)}[kind]()
 
 
 def play(args: tuple[list[str], int, int, int, int, int, dict]) -> list[list[float]]:

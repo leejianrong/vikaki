@@ -105,3 +105,23 @@ def test_the_same_spot_with_the_same_dice_gives_the_same_move_and_it_explains_it
     a, b = move(spot("As Kh"), seed=5), move(spot("As Kh"), seed=5)
     assert (a.kind, a.amount) == (b.kind, b.amount)
     assert "to win" in a.reason and a.ev and 0 < a.equity < 1
+
+
+def test_the_bluff_route_sits_beside_a_proper_check_and_is_sized_like_a_bluff():
+    """ADR-0030: a hand that checks has a bet of half to a pot beside the check (the board is a scary one), and a strong hand has no route at all."""
+    h = staged("8c 4h", "Js Td 9c")
+    to_flop(h)
+    routes = [m for m in (move(h, seed=s, samples=120) for s in range(8)) if m.kind == "check"]
+    assert routes and all(m.bluff_route is not None for m in routes)  # the proper move is a check in some, and each has its bluff
+    for m in routes:
+        assert m.bluff_route.kind == "raise" and m.bluff_route.bluffing and not m.bluffing
+        assert 0.5 * h.pot - 1 <= m.bluff_route.amount <= h.pot + 1
+    nuts = move(heads_up_river("Ac Ad"), samples=200)
+    assert nuts.bluff_route is None and not nuts.bluffing  # a bluff is only ever beside a check or a fold
+
+
+def test_a_scary_board_is_a_pair_three_of_a_suit_or_three_close_ranks():
+    from vikaki_poker.strategy import scary_board
+
+    assert scary_board(["Ks", "Kd", "9c"]) and scary_board(["2h", "7h", "Jh"]) and scary_board(["8c", "9d", "Th"])
+    assert not scary_board(["As", "7d", "2c"]) and not scary_board([])

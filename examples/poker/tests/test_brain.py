@@ -120,3 +120,14 @@ def test_table_talk_says_who_spoke_to_whom_and_marks_the_seats_own_lines_as_you(
     assert f"you (to {names[others[0]]}): We shall see." in text
     assert f"{names[others[1]]}: Hello all." in text  # to the table: no addressee
     assert f"{names[others[0]]} (to {names[others[1]]}): Just you and me." in text
+
+
+def test_a_bluff_is_told_to_the_performer_but_a_proper_move_is_not():
+    """ADR-0030: the model is told "you are bluffing here" so its words fit, and is told not to give the bluff away."""
+    from dataclasses import replace
+
+    h, view = view_for(acts=[("a", "raise", 8)])
+    names = {"a": "ada", "b": "ben", "c": "cy"}
+    proper = briefing(view, performer_facts(view), history_text(h.events, names), [], names, MOVE)
+    bluff = briefing(view, performer_facts(view), history_text(h.events, names), [], names, replace(MOVE, bluffing=True))
+    assert "bluffing" not in proper and "You are bluffing here" in bluff and "do not say you are bluffing" in bluff
