@@ -490,6 +490,38 @@ describe("the table page", () => {
     await page.waitForFunction(() => window.__vikaki!.table!.listen.seat === "seat-3", null, { timeout: 15_000 });
   });
 
+  it("has camera shots: wide, overhead and a close-up of each player, by button, key or ?camera=, gliding between them and never changing the canvas's own size (VIK-95)", { timeout: 120_000 }, async () => {
+    const { page } = await setup("seats=3&view=table");
+    const cam = () => page.evaluate(() => window.__vikaki!.table!.camera!);
+    // the page reports the camera once a frame, so wait for the shot it names and for it to have stopped, not for "not moving" alone
+    const arrived = (shot: string) => page.waitForFunction((n) => window.__vikaki!.table!.camera!.shot === n && window.__vikaki!.table!.camera!.moving === false, shot, { timeout: 30_000 });
+    const wide = await cam();
+    expect(wide.shot).toBe("wide");
+    await page.getByRole("button", { name: "Close-up of ben (4)" }).click();
+    await page.waitForFunction(() => window.__vikaki!.table!.camera!.moving === true, null, { timeout: 15_000 });
+    // it glides: a frame in the middle is neither where it began nor where it ends
+    const mid = await cam();
+    await arrived("seat:1");
+    const close = await cam();
+    expect(close.shot).toBe("seat:1");
+    expect(Math.hypot(...close.position.map((v, i) => v - wide.position[i]!))).toBeGreaterThan(1);
+    expect(mid.position.some((v, i) => Math.abs(v - wide.position[i]!) > 1e-6 || Math.abs(v - close.position[i]!) > 1e-6)).toBe(true);
+    expect(await page.getByRole("button", { name: "Close-up of ben (4)" }).getAttribute("aria-pressed")).toBe("true");
+    await page.keyboard.press("2"); // a key for the overhead shot
+    await arrived("overhead");
+    expect((await cam()).shot).toBe("overhead");
+    expect((await cam()).position[1]).toBeGreaterThan(wide.position[1]! + 1);
+    await page.getByRole("button", { name: "Wide shot (1)" }).click();
+    await arrived("wide");
+    const back = await cam();
+    expect(back.position.every((v, i) => Math.abs(v - wide.position[i]!) < 1e-6)).toBe(true); // back exactly where it began
+    expect(await page.evaluate(() => document.querySelector("canvas")!.getAttribute("style") ?? "")).not.toMatch(/width|height/); // ADR-0012
+    await page.close();
+    pages.splice(pages.indexOf(page), 1);
+    const second = await setup("seats=3&view=table&camera=overhead");
+    expect((await second.page.evaluate(() => window.__vikaki!.table!.camera!)).shot).toBe("overhead");
+  });
+
   it("announces each beat of a hand in a banner: a move fades, a win stays until the next beat, and the actor's plate pulses (VIK-113)", { timeout: 90_000 }, async () => {
     const { page, drivers: [d1] } = await setup("seats=3&view=table");
     const send = (event: { kind: string; text: string; seat_id?: string; amount?: number }, extra: object = {}) =>

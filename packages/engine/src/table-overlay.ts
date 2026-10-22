@@ -144,6 +144,11 @@ export class TableOverlay {
     this.showBeat(state.event);
   }
 
+  /** In a close-up of one player (VIK-95) the name plates would sit over the face, so they are put away. */
+  setCloseUp(on: boolean): void {
+    this.root.classList.toggle("close-up", on);
+  }
+
   /** Called with a seat when its plate is clicked (VIK-98). */
   onSelect?: (seat: string) => void;
 
