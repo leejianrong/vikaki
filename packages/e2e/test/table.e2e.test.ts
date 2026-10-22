@@ -427,6 +427,8 @@ describe("the table page", () => {
       { seat: "seat-2", act: "push", how: "arms" },
       { seat: "seat-3", act: "toss", how: "arms" },
     ]);
+  });
+
   it("lays the table out as a top bar, a players strip, an activity log with hand separators, and Chat and Thoughts as tabs (VIK-138)", { timeout: 90_000 }, async () => {
     const { page, drivers: [d1] } = await setup("seats=3&view=table", { width: 1280, height: 720 });
     const seats = [{ seat_id: "seat-1", stack: 94 }, { seat_id: "seat-2", stack: 94 }, { seat_id: "seat-3", stack: 94 }];
