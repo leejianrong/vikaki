@@ -40,4 +40,15 @@ describe("cuesFor", () => {
     const won = state({ ...shove, street: "complete", pot: 0, winners: [{ seat_id: "b", amount: 188 }], seats: [{ seat_id: "a", stack: 0 }, { seat_id: "b", stack: 188 }] } as S);
     expect(names(shove, won)).toContain("bust");
   });
+
+  it("shows each decision: two knocks for a check, a push for a call, bet or raise, none for the same beat again", () => {
+    const check = state({ ...base, event: { kind: "check", seat_id: "a", text: "A checks" } } as S);
+    expect(names(base, check)).toEqual(["knock", "knock"]);
+    expect(names(check, check)).toEqual([]);
+    const call = state({ ...base, event: { kind: "call", seat_id: "b", amount: 6, text: "B calls 6" } } as S);
+    expect(names(check, call)).toContain("push");
+    const raise = state({ ...base, event: { kind: "raise", seat_id: "a", amount: 12, text: "A raises to 12" } } as S);
+    expect(names(base, raise)).toContain("push");
+    expect(names(base, state({ ...base, event: { kind: "fold", seat_id: "a", text: "A folds" } } as S))).not.toContain("push");
+  });
 });
