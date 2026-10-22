@@ -257,3 +257,7 @@ body.resizing-panel { user-select: none; cursor: col-resize; }
 .table-panel .tab .new-dot[hidden] { display: none; }
 .table-panel .chat[hidden] { display: none; }
 .table-panel .cards.board .card { font-size: 0.8rem; }
+
+/* The classic deck (VIK-115): the card is one picture. */
+.card.classic { padding: 0; min-width: 0; width: 2.25em; overflow: hidden; background: transparent; }
+.card.classic img { display: block; width: 100%; height: 100%; object-fit: fill; }

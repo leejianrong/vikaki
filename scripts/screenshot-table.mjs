@@ -1,6 +1,6 @@
 // Dev helper: drive the poker table page with `table_state` messages and screenshot it (the machine is software-rendered, so drive states directly).
 // Start a table first: `pnpm serve --port 8787 --personas personas.table.example.yaml` (after `pnpm build`).
-// usage: node scripts/screenshot-table.mjs <steps.json> <outPrefix> [query]   (PORT, VIEWPORT=WxH, SEATS=ada,ben,cy: the personas, pass the same in the query)
+// usage: node scripts/screenshot-table.mjs <steps.json> <outPrefix> [query]   (PORT, VIEWPORT=WxH, DPR=2, a step's "clip": {x,y,width,height}, SEATS=ada,ben,cy: the personas, pass the same in the query)
 // steps.json: [{ "state": {...table_state fields}, "msg": {type, ...fields}, "eval": "js run in the page", "wait": 800, "shot": "name" }, ...]; `shot` writes <outPrefix>-<name>.png.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -19,7 +19,7 @@ const [vw, vh] = (process.env.VIEWPORT ?? "1280x720").split("x").map(Number);
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--autoplay-policy=no-user-gesture-required"] });
 const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
 try {
-  const page = await browser.newPage({ viewport: { width: vw, height: vh } });
+  const page = await browser.newPage({ viewport: { width: vw, height: vh }, deviceScaleFactor: Number(process.env.DPR ?? 1) });
   page.on("console", (m) => m.type() === "error" && console.error("page error:", m.text()));
   await page.goto(`http://127.0.0.1:${port}/avatar?${query}`);
   await page.waitForFunction(() => window.__vikaki?.ready === true, null, { timeout: 60000 });
@@ -33,7 +33,7 @@ try {
     if (step.msg) ws.send(JSON.stringify({ protocol_version: 1, ...step.msg }));
     if (step.eval) await page.evaluate(step.eval);
     await new Promise((r) => setTimeout(r, step.wait ?? 600));
-    if (step.shot) await page.screenshot({ path: `${prefix}-${step.shot}.png` });
+    if (step.shot) await page.screenshot({ path: `${prefix}-${step.shot}.png`, ...(step.clip ? { clip: step.clip } : {}) });
   }
 } finally {
   ws.terminate();

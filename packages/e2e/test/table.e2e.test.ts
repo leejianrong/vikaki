@@ -453,6 +453,21 @@ describe("the table page", () => {
     expect(await page.getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")).toBe("false");
   });
 
+  it("draws the cards in the classic look only when asked: ?cards=classic puts a picture of each face in the panel, and the default stays clean (VIK-115)", { timeout: 120_000 }, async () => {
+    const seats = [{ seat_id: "seat-1", stack: 94, cards: ["Ah", "Kd"] }, { seat_id: "seat-2", stack: 94 }, { seat_id: "seat-3", stack: 94 }];
+    const state = { pot: 18, street: "flop", board: ["As", "Kd", "10c"], seats };
+    for (const [query, pictures] of [["seats=3&view=table&cards=classic", 5], ["seats=3&view=table", 0]] as const) {
+      const { page, drivers: [d1] } = await setup(query);
+      d1.ws.send(JSON.stringify(make("table_state", state)));
+      const panel = page.getByRole("complementary", { name: "Table panel" });
+      await panel.getByRole("list", { name: "Board" }).getByRole("listitem").first().waitFor({ timeout: 15_000 });
+      expect(await panel.getByRole("listitem", { name: "10♣" }).count()).toBe(1); // a card keeps its name either way
+      expect(await panel.locator(".card img").count()).toBe(pictures);
+      await page.close();
+      pages.splice(pages.indexOf(page), 1);
+    }
+  });
+
   it("announces each beat of a hand in a banner: a move fades, a win stays until the next beat, and the actor's plate pulses (VIK-113)", { timeout: 90_000 }, async () => {
     const { page, drivers: [d1] } = await setup("seats=3&view=table");
     const send = (event: { kind: string; text: string; seat_id?: string; amount?: number }, extra: object = {}) =>

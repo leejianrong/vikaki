@@ -1,6 +1,7 @@
 // What `table_state` looks like on the 3D table (VIK-62): cards, chips and the dealer button as plain meshes. Like the overlay, it draws
 // what the game sent and holds no game logic. The layout and the chip counting are pure (and tested); `TableProps` is the three.js part.
 import type { MessageOf } from "@vikaki/protocol";
+import { currentDeck, drawClassicFace } from "./card-art.ts";
 import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Sprite, SpriteMaterial, type Texture, Vector3 } from "three";
 import { cardFace, SUIT_PATHS } from "./table.ts";
 import { type Hold, middlePot, type Place, type Plan, planMotion } from "./table-motion.ts";
@@ -114,13 +115,21 @@ interface Live {
 const cardTextures = new Map<string, Texture>();
 
 function cardTexture(card: string): Texture {
-  const hit = cardTextures.get(card);
+  const key = `${currentDeck()}:${card}`;
+  const hit = cardTextures.get(key);
   if (hit) return hit;
   const f = cardFace(card);
   const c = document.createElement("canvas");
   c.width = 128;
   c.height = 180;
   const g = c.getContext("2d")!;
+  if (currentDeck() === "classic" && !f.down && f.suit) {
+    drawClassicFace(g, f, 128, 180); // the classic look (VIK-115), only for a face that is shown
+    const t = new CanvasTexture(c);
+    t.colorSpace = SRGBColorSpace;
+    cardTextures.set(key, t);
+    return t;
+  }
   g.fillStyle = f.down ? "#b4442f" : "#fdf8ee";
   g.fillRect(0, 0, 128, 180);
   g.strokeStyle = f.down ? "#f2d9c2" : "#8a7d6a";
@@ -144,7 +153,7 @@ function cardTexture(card: string): Texture {
   }
   const t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
-  cardTextures.set(card, t);
+  cardTextures.set(key, t);
   return t;
 }
 
