@@ -278,3 +278,9 @@ body.resizing-panel { user-select: none; cursor: col-resize; }
 .table-panel .camera[aria-pressed="true"] { background: var(--md-sys-color-secondary-container); border-color: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
 .table-panel .camera:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; }
 .table-overlay.close-up .seat-plate { display: none; }
+
+/* A camera at a player's eyes (VIK-99): a soft vignette, cooler colours, and the thought as a caption. */
+.table-overlay.pov::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, color-mix(in srgb, var(--md-sys-color-scrim) 55%, transparent) 100%); backdrop-filter: saturate(0.75); z-index: 1; }
+.pov-caption { position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); max-width: min(80%, 36em); margin: 0; padding: 8px 16px; border-radius: var(--shape-l); background: color-mix(in srgb, var(--md-sys-color-scrim) 70%, transparent); color: var(--md-sys-color-inverse-on-surface); font: italic 500 1rem/1.5rem var(--md-ref-typeface-plain); text-align: center; z-index: 2; pointer-events: none; }
+.pov-caption[hidden] { display: none; }
+.table-overlay:not(.pov) .pov-caption { display: none; }

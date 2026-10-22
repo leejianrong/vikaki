@@ -5,8 +5,9 @@ import { ovalSeats, TABLE_A, TABLE_B } from "./table3d.ts";
 
 const spots = ovalSeats(3);
 const heads = spots.map((s) => ({ x: s.x, y: 1.0, z: s.z }));
+const eyes = heads.map((h, i) => ({ x: h.x, y: h.y + 0.1 + i * 0.02, z: h.z }));
 const tops = [1.35, 1.3, 1.4]; // different heights: a hat, a round head, a tall one
-const ctx = (aspect: number): ShotContext => ({ tableY: 0.7, spots, heads, tops, aspect, fov: 38 });
+const ctx = (aspect: number): ShotContext => ({ tableY: 0.7, spots, heads, tops, eyes, aspect, fov: 38 });
 
 function camera(shot: Shot, aspect: number): PerspectiveCamera {
   const cam = new PerspectiveCamera(shot.fov, aspect, 0.1, 50);
@@ -57,6 +58,21 @@ describe("shotFor", () => {
     }
   });
 
+  for (const aspect of [1.0, 1.6, 2.2]) {
+    it(`shows the next player and the table from a player's eyes, at aspect ${aspect}`, () => {
+      heads.forEach((_, i) => {
+        const shot = shotFor(`pov:${i}`, ctx(aspect));
+        const cam = camera(shot, aspect);
+        expect(shot.position).toEqual(eyes[i]); // from the eyes
+        // the next player round the table is in the picture, with the middle of the table
+        expect(inView(cam, heads[(i + 1) % heads.length]!), `player ${(i + 1) % 3} seen from ${i} at aspect ${aspect}`).toBe(true);
+        expect(inView(cam, { x: 0, y: 0.7, z: 0 }), `the table's middle from ${i}`).toBe(true);
+        expect(shot.fov).toBeGreaterThanOrEqual(45);
+        expect(shot.fov).toBeLessThanOrEqual(90);
+      });
+    });
+  }
+
   it("looks straight down in the overhead shot", () => {
     const s = shotFor("overhead", ctx(1.6));
     expect(s.position.y).toBeGreaterThan(s.target.y + 2);
@@ -66,7 +82,7 @@ describe("shotFor", () => {
 
 describe("parseShot", () => {
   it("knows wide, overhead and a seat that exists", () => {
-    expect(["wide", "overhead", "board", "seat:2", "seat:3", "seat:x", null, "crane"].map((v) => parseShot(v, 3))).toEqual(["wide", "overhead", "board", "seat:2", undefined, undefined, undefined, undefined]);
+    expect(["wide", "overhead", "board", "seat:2", "pov:1", "seat:3", "pov:3", "seat:x", null, "crane"].map((v) => parseShot(v, 3))).toEqual(["wide", "overhead", "board", "seat:2", "pov:1", undefined, undefined, undefined, undefined, undefined]);
   });
 });
 

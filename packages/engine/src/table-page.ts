@@ -152,9 +152,18 @@ try {
   const profiles = duet ? avatars.map((a) => a.widthProfile()) : [];
   /** The table's cameras (VIK-95): the shot asked for (`?camera=wide|overhead|seat:N`), and the rig that glides between shots. */
   let shotName: ShotName = (spots ? parseShot(params.get("camera"), seats.length) : undefined) ?? "wide";
-  const shotNow = (name: ShotName): Shot => shotFor(name, { tableY, spots: spots!, heads: frames.map((f) => f.head), tops: frames.map((f) => f.top), aspect: Math.max(camera.aspect, 0.1), fov: 38 });
+  const shotNow = (name: ShotName): Shot => shotFor(name, { tableY, spots: spots!, heads: frames.map((f) => f.head), tops: frames.map((f) => f.top), eyes: frames.map((f, i) => ({ x: f.head.x + Math.sin(spots![i]!.facing) * 0.06, y: f.eyeLevel, z: f.head.z + Math.cos(spots![i]!.facing) * 0.06 })), aspect: Math.max(camera.aspect, 0.1), fov: 38 });
   const rig = spots ? new CameraRig(shotNow(shotName)) : undefined;
   overlay.setCloseUp(shotName.startsWith("seat:"));
+  if (shotName.startsWith("pov:")) overlay.setPov(seats[Number(shotName.slice(4))]!.seat);
+  /** The head of the player whose eyes the camera is at is hidden (VIK-99), so it does not fill the picture; it goes late in the glide so no head vanishes in view. */
+  let headHidden: number | undefined;
+  const hideHead = (i: number | undefined) => {
+    if (headHidden === i) return;
+    if (headHidden !== undefined) avatars[headHidden]!.setHeadHidden?.(false);
+    headHidden = i;
+    if (i !== undefined) avatars[i]!.setHeadHidden?.(true);
+  };
   const direct = (cue: Cue) => {
     const shot = director.cue(cue, now());
     if (shot) cutTo(shot);
@@ -186,6 +195,9 @@ try {
     shotName = name;
     rig.moveTo(shotNow(name));
     overlay.setCloseUp(name.startsWith("seat:"));
+    const pov = name.startsWith("pov:") ? Number(name.slice(4)) : undefined;
+    overlay.setPov(pov !== undefined ? seats[pov]!.seat : undefined);
+    if (pov === undefined) hideHead(undefined); // leaving a POV: the head is back at once, before the camera moves away
     panel?.setCameraShot(name);
   };
   // `?cam=x,y,z,tx,ty,tz` puts the camera there, looking at the target (a dev aid for judging a pose or a prop from the side or above).
@@ -397,6 +409,7 @@ try {
       if (i === undefined) return;
       overlay.setThought(seats[i]!.seat, true);
       panel?.addThought(seats[i]!.seat, t.text);
+      overlay.setPovCaption(seats[i]!.seat, t.text);
     },
     onTableState: (state) => {
       const key = JSON.stringify(state);
@@ -411,6 +424,10 @@ try {
       listening = { mode, ...(seat !== undefined ? { seat } : {}) };
       panel?.setListen(mode, seat);
       spotlight();
+      // Listening in to a seat takes the camera to its eyes (VIK-99); stopping brings it back to the wide shot.
+      const at = mode === "seat" ? seats.findIndex((x) => x.seat === seat) : -1;
+      if (at >= 0) cutTo(`pov:${at}` as ShotName, true);
+      else if (shotName.startsWith("pov:")) cutTo("wide", true);
       api.table!.listen = { ...listening };
     },
     onTransportState: (p) => {
@@ -423,6 +440,7 @@ try {
         // A monologue spoken aloud (VIK-121): a thought bubble and the Thoughts list, never the chat.
         if (line.text !== undefined) {
           overlay.addSpokenThought(line.seat, line.text);
+          overlay.setPovCaption(line.seat, line.text);
           panel?.addThought(line.seat, line.text);
         }
         return;
@@ -543,6 +561,7 @@ try {
     const next = director.tick(now());
     if (next) cutTo(next);
     if (rig?.moving) applyShot(rig.update(dt)); // glide between shots (VIK-95)
+    if (rig && shotName.startsWith("pov:") && rig.progress > 0.85) hideHead(Number(shotName.slice(4)));
     if (api.table) api.table.camera = { shot: shotName, director: director.enabled, moving: rig?.moving ?? false, position: [camera.position.x, camera.position.y, camera.position.z] };
     renderer.render(scene, camera);
   });

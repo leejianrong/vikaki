@@ -559,6 +559,27 @@ describe("the table page", () => {
     expect(await page.getByRole("button", { name: "Auto director (D)" }).getAttribute("aria-pressed")).toBe("false");
   });
 
+  it("puts the camera at a player's eyes: a vignette, their thought as a caption, and it follows listening in (VIK-99)", { timeout: 120_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const arrived = (shot: string) => page.waitForFunction((n) => window.__vikaki!.table!.camera!.shot === n && window.__vikaki!.table!.camera!.moving === false, shot, { timeout: 30_000 });
+    const overlay = page.locator(".table-overlay");
+    expect(await overlay.evaluate((e) => e.classList.contains("pov"))).toBe(false);
+    d1.think("Ben always folds to a big bet. Push.");
+    await page.getByRole("button", { name: "Point of view of ada" }).click();
+    await arrived("pov:0");
+    expect(await overlay.evaluate((e) => e.classList.contains("pov"))).toBe(true);
+    expect(await page.getByRole("status", { name: "Thought" }).innerText()).toBe("Ben always folds to a big bet. Push.");
+    await page.getByRole("button", { name: "Wide shot (1)" }).click();
+    await arrived("wide");
+    expect(await overlay.evaluate((e) => e.classList.contains("pov"))).toBe(false);
+    // listening in to a seat takes the camera to its eyes, and stopping brings it back
+    await page.getByRole("button", { name: "Listen in to ben" }).click();
+    await arrived("pov:1");
+    await page.getByRole("switch", { name: "Hear every thought" }).click();
+    await arrived("wide");
+    expect(await page.evaluate(() => document.querySelector("canvas")!.getAttribute("style") ?? "")).not.toMatch(/width|height/);
+  });
+
   it("announces each beat of a hand in a banner: a move fades, a win stays until the next beat, and the actor's plate pulses (VIK-113)", { timeout: 90_000 }, async () => {
     const { page, drivers: [d1] } = await setup("seats=3&view=table");
     const send = (event: { kind: string; text: string; seat_id?: string; amount?: number }, extra: object = {}) =>

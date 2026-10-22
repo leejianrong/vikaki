@@ -123,7 +123,7 @@ export class TableOverlay {
       m.style.setProperty("--seat-colour", seatColour(i));
       return m;
     });
-    this.root.append(this.info, ...this.plates, ...this.bubbles, ...this.marks, this.beat, this.log);
+    this.root.append(this.info, ...this.plates, ...this.bubbles, ...this.marks, this.beat, this.log, this.povCaption);
     parent.append(this.root);
     this.draw();
   }
@@ -149,6 +149,29 @@ export class TableOverlay {
     this.state = state;
     this.draw();
     this.showBeat(state.event);
+  }
+
+  private povSeat: string | undefined;
+  private readonly povCaption = el("p", { className: "pov-caption", role: "status", ariaLabel: "Thought", hidden: true });
+  private readonly lastThought = new Map<string, string>();
+
+  /** The camera is at a player's eyes (VIK-99): a soft vignette and cooler colours, and their latest thought as a caption. */
+  setPov(seat: string | undefined): void {
+    this.povSeat = seat;
+    this.root.classList.toggle("pov", seat !== undefined);
+    this.showCaption();
+  }
+
+  /** A seat thought something (VIK-99): kept, and shown while the camera is at that seat's eyes. */
+  setPovCaption(seat: string, text: string): void {
+    this.lastThought.set(seat, text);
+    this.showCaption();
+  }
+
+  private showCaption(): void {
+    const text = this.povSeat !== undefined ? this.lastThought.get(this.povSeat) : undefined;
+    this.povCaption.hidden = text === undefined;
+    if (text !== undefined) this.povCaption.textContent = text;
   }
 
   /** In a close-up of one player (VIK-95) the name plates would sit over the face, so they are put away. */
