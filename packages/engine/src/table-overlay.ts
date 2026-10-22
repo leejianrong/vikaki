@@ -4,6 +4,7 @@
 import type { MessageOf } from "@vikaki/protocol";
 import type { EmbedOptions } from "./embed.ts";
 import { addToTranscript, cardFace, SUIT_PATHS, lineLabel, seatColour, type Seat, type TranscriptLine } from "./table.ts";
+import { classicFaceUrl, currentDeck } from "./card-art.ts";
 import { el } from "./ui/dom.ts";
 import "./ui/material.ts";
 import "./ui/table.css";
@@ -66,6 +67,12 @@ export function moveIcon(kind: string): SVGSVGElement | undefined {
 
 export function cardEl(card: string): HTMLElement {
   const f = cardFace(card);
+  const classic = currentDeck() === "classic" ? classicFaceUrl(card) : undefined;
+  if (classic) {
+    // The classic look (VIK-115): the whole card is a picture, with the same name for a reader and for tests.
+    const img = el("img", { src: classic, alt: "", draggable: false });
+    return el("li", { className: `card classic${f.red ? " red" : ""}`, ariaLabel: f.text }, img);
+  }
   const path = SUIT_PATHS[f.suit];
   const pip = path ? [pipSvg(path)] : [];
   return el("li", { className: `card${f.red ? " red" : ""}${f.down ? " down" : ""}`, ariaLabel: f.down ? "face-down card" : f.text }, ...(path ? [el("span", { className: "rank", textContent: f.rank }), ...pip] : [f.text]));

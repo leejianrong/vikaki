@@ -14,6 +14,10 @@ Record the licence here before committing any asset.
 
 The first two VRMs have the five vowel blendshapes `a e i o u` and `blink`, which three-vrm exposes as `aa ih ou ee oh blink`.
 
+## Card art
+
+The `?cards=classic` deck (VIK-115) is drawn in code (`src/card-art.ts`: index corners, pips in their traditional places, framed court cards with a crown or cap) and uses no third-party artwork or font, so nothing here needs a licence. A deck made from someone's artwork (an open-source vector deck, say) would be recorded in the table above before it was committed.
+
 ## Lip-sync profile
 
 | File | What | Source | Licence |

@@ -10,6 +10,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
+import { parseDeck, setDeck } from "./card-art.ts";
 import { actFor, type Act } from "./arm-act.ts";
 import { TablePanel } from "./table-panel.ts";
 import { TopBar } from "./table-topbar.ts";
@@ -28,6 +29,7 @@ import { SpeakerLight } from "./duet-light.ts";
 
 const params = new URLSearchParams(location.search);
 const embedOpts = parseEmbed(params);
+setDeck(parseDeck(params.get("cards"))); // `?cards=classic` (VIK-115): the cards drawn as in a real deck; the default stays the clean look
 if (embedOpts.embed) makeTransparent(document);
 const hud = document.getElementById("hud");
 if (hud && !embedOpts.hud) hud.hidden = true;
