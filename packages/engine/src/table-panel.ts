@@ -74,8 +74,6 @@ export class TablePanel {
       to.tab.focus();
     });
     const listening = el("section", { className: "listening", role: "group", ariaLabel: "Listening in" }, el("label", {}, this.hearAll, " Hear every thought"), el("label", {}, this.floatSwitch, " Hole cams over the table"));
-    this.root.append(this.head, this.strip, el("h2", { className: "title-medium", textContent: "Activity" }), this.activity, tablist, chatTab.panel, thoughtsTab.panel, listening);
-    const listening = el("section", { className: "listening", role: "group", ariaLabel: "Listening in" }, el("label", {}, this.hearAll, " Hear every thought"));
     this.root.append(this.cameras, this.head, this.strip, el("h2", { className: "title-medium", textContent: "Activity" }), this.activity, tablist, chatTab.panel, thoughtsTab.panel, listening);
     document.body.classList.add("has-panel", "has-table-panel");
     parent.append(this.root);
