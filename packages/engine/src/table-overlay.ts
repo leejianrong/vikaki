@@ -111,6 +111,7 @@ export class TableOverlay {
       this.root.classList.toggle("captions", embed.captions);
     }
     this.plates = seats.map((s) => el("div", { className: "seat-plate", role: "group", ariaLabel: label(s) }));
+    this.plates.forEach((p, i) => p.addEventListener("click", () => this.onSelect?.(seats[i]!.seat)));
     this.bubbles = seats.map((s, i) => {
       const b = el("p", { className: "bubble", hidden: true, ariaLabel: `${label(s)} says` });
       b.style.setProperty("--seat-colour", seatColour(i));
@@ -148,6 +149,17 @@ export class TableOverlay {
     this.state = state;
     this.draw();
     this.showBeat(state.event);
+  }
+
+  /** Called with a seat when its plate is clicked (VIK-98). */
+  onSelect?: (seat: string) => void;
+
+  /** Spotlight one seat's plate while its thoughts are listened to or spoken (VIK-98): the others dim. `undefined` puts every plate back. */
+  setSpotlight(seat: string | undefined): void {
+    this.plates.forEach((p, i) => {
+      p.classList.toggle("spotlit", seat !== undefined && this.seats[i]!.seat === seat);
+      p.classList.toggle("dim", seat !== undefined && this.seats[i]!.seat !== seat);
+    });
   }
 
   /** The banner for the beat just played ("Ben raises to 12"), and a pulse on the acting seat's plate. The words are the game's. */

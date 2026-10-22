@@ -719,6 +719,80 @@
         },
         "type": {
           "type": "string",
+          "const": "listen"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "seat",
+            "all",
+            "off"
+          ]
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "listen_state"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "seat",
+            "all",
+            "off"
+          ]
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
           "const": "speech_started"
         },
         "utterance_id": {

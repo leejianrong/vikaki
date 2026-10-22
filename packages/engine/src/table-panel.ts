@@ -23,6 +23,11 @@ export class TablePanel {
   private items: ActivityItem[] = [];
   private lastEventState: State | undefined;
   private readonly tabs: { tab: HTMLElement; panel: HTMLElement }[] = [];
+  /** Listening in (VIK-98): one button on each player's card, and a switch for every seat's thoughts. */
+  private readonly listenButtons: HTMLButtonElement[];
+  private readonly hearAll = el("input", { type: "checkbox", role: "switch", ariaLabel: "Hear every thought", checked: true });
+  private listenState: { mode: "seat" | "all" | "off"; seat?: string } = { mode: "all" };
+  private onListen: (mode: "seat" | "all" | "off", seat?: string) => void = () => {};
   private readonly cards: HTMLElement[];
   private readonly chat = el("div", { className: "chat", role: "log", ariaLabel: "Chat", tabIndex: 0 });
   private lines: TranscriptLine[] = [];
@@ -31,6 +36,13 @@ export class TablePanel {
 
   constructor(private readonly seats: Seat[], parent: HTMLElement = document.body) {
     this.cards = seats.map((s) => el("section", { className: "seat-card", role: "group", ariaLabel: `${label(s)}, hand` }));
+    this.listenButtons = seats.map((s) => {
+      const b = el("button", { type: "button", className: "listen-in", textContent: "Listen in", ariaLabel: `Listen in to ${label(s)}` });
+      b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", () => this.chooseSeat(s.seat));
+      return b;
+    });
+    this.hearAll.addEventListener("change", () => this.onListen(this.hearAll.checked ? "all" : "off"));
     // One column (VIK-138): the players in a compact strip, the activity log, then Chat and Thoughts as tabs.
     this.strip.append(...this.cards);
     const chatTab = this.makeTab("Chat", this.chat, true);
@@ -45,7 +57,8 @@ export class TablePanel {
       this.select(to.tab);
       to.tab.focus();
     });
-    this.root.append(this.head, this.strip, el("h2", { className: "title-medium", textContent: "Activity" }), this.activity, tablist, chatTab.panel, thoughtsTab.panel);
+    const listening = el("section", { className: "listening", role: "group", ariaLabel: "Listening in" }, el("label", {}, this.hearAll, " Hear every thought"));
+    this.root.append(this.head, this.strip, el("h2", { className: "title-medium", textContent: "Activity" }), this.activity, tablist, chatTab.panel, thoughtsTab.panel, listening);
     document.body.classList.add("has-panel", "has-table-panel");
     parent.append(this.root);
     makeResizable();
@@ -54,6 +67,26 @@ export class TablePanel {
 
   setState(state: State): void {
     this.draw(state);
+  }
+
+  /** What to do when the viewer picks a seat to listen to, every seat, or none (VIK-98). */
+  setListenHandler(f: (mode: "seat" | "all" | "off", seat?: string) => void): void {
+    this.onListen = f;
+  }
+
+  /** Clicking a player's button listens to that seat; clicking it again stops. */
+  chooseSeat(seat: string): void {
+    if (this.listenState.mode === "seat" && this.listenState.seat === seat) this.onListen("off");
+    else this.onListen("seat", seat);
+  }
+
+  /** The table's choice, as the hub says it: marks the pressed button and the switch. */
+  setListen(mode: "seat" | "all" | "off", seat?: string): void {
+    this.listenState = { mode, ...(seat !== undefined ? { seat } : {}) };
+    this.hearAll.checked = mode === "all";
+    this.seats.forEach((s, i) => this.listenButtons[i]!.setAttribute("aria-pressed", String(mode === "seat" && seat === s.seat)));
+    this.cards.forEach((c, i) => c.classList.toggle("spotlit", mode === "seat" && seat === this.seats[i]!.seat));
+    this.strip.classList.toggle("listening-in", mode === "seat");
   }
 
   /** A state arrived (live, not a review): its beat goes in the activity log. */
@@ -179,6 +212,7 @@ export class TablePanel {
       }
       const notes = [row?.bet ? `Bet ${money(row.bet)}` : "", row?.folded ? "" : (row?.action ?? ""), row?.folded ? "Folded" : ""].filter(Boolean);
       if (notes.length) kids.push(el("p", { className: "note", textContent: notes.join(" · ") }));
+      kids.push(this.listenButtons[i]!);
       card.replaceChildren(...kids);
     });
   }

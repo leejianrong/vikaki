@@ -43,6 +43,14 @@ interface Utterance {
   persona?: string;
   /** Thinking aloud (VIK-121): its audio goes through a soft filter, so it sounds unlike a line said to the table. */
   filter?: ThoughtFilter;
+  /** A private thought spoken aloud, and whether nobody is listening to its seat (VIK-98): a muted one is not synthesised, and counts as said at once. */
+  thought?: boolean;
+  muted?: boolean;
+  /** Made up by the engine (a replayed thought), not sent by the game: the driver is told nothing of it. */
+  quiet?: boolean;
+  startedAt?: number;
+  /** Everything the line said, for the seat's latest thought. */
+  said: string;
   chunker: SentenceChunker;
   controller: AbortController;
   textAt: number;
@@ -92,6 +100,11 @@ export class SpeechEngine {
   private busy = false;
   private readonly maxSlice: number;
   private readonly idleMs: number;
+  /** Each seat's latest private thought (VIK-98), to speak when someone starts listening to a seat that is not thinking aloud just now. */
+  private readonly latestThought = new Map<string, { text: string; persona?: string }>();
+  private replays = 0;
+  /** Thoughts whose audio has all been sent but may still be playing on a page, with when it should end (the engine is quicker than the voice). */
+  private readonly playing = new Map<string, { seat: string; until: number }>();
 
   constructor(private readonly o: SpeechOptions) {
     this.maxSlice = o.maxSliceSeconds ?? 1;
@@ -100,11 +113,50 @@ export class SpeechEngine {
 
   attach(hub: Hub): void {
     this.hub = hub;
+    hub.onListenChange(() => this.listenChanged());
+  }
+
+  /** Tell the driver, unless the line is one the engine made up itself (a replayed thought: the game never sent it, so it has no answer to wait for). */
+  private toDriver(u: Utterance, message: Message): void {
+    if (!u.quiet) this.hub?.toDriver(message);
+  }
+
+  /**
+   * The listen choice changed (VIK-98): a thought being voiced for a seat that is no longer listened to stops (an ordinary cancel), a queued one is not
+   * voiced, and a seat just chosen speaks its latest thought if it is not already thinking aloud.
+   */
+  private listenChanged(): void {
+    const hub = this.hub;
+    if (!hub) return;
+    const now = Date.now();
+    for (const [id, p] of [...this.playing]) {
+      if (p.until <= now) this.playing.delete(id);
+      else if (!hub.mayHear(p.seat)) {
+        this.playing.delete(id);
+        hub.toViewers(make("cancel", { utterance_id: id })); // already sent, still playing on the page: the page stops it
+      }
+    }
+    for (const u of [...this.utterances.values()]) {
+      if (!u.thought || hub.mayHear(u.seatId)) continue;
+      u.muted = true;
+      if (u.spoken) this.cancel(u.id, "cancelled", true);
+    }
+    const { mode, seat } = hub.listening;
+    if (mode !== "seat" || seat === undefined) return;
+    if ([...this.utterances.values()].some((u) => u.thought && u.seatId === seat && !u.muted)) return;
+    const last = this.latestThought.get(seat);
+    if (!last) return;
+    const id = `listen-${++this.replays}`;
+    const m = make("utterance", { utterance_id: id, seat_id: seat, text: last.text, thought: true, ...(last.persona ? { persona: last.persona } : {}) });
+    hub.markQuiet(id);
+    hub.toViewers(m); // the page shows it as a thought like any other
+    this.onUtterance(m, true);
   }
 
   /** Feed the driver's messages in here. */
   handle(message: Message): void {
     if (message.type === "utterance") this.onUtterance(message);
+    else if (message.type === "thought") this.latestThought.set(message.seat_id, { text: message.text, ...(message.persona ? { persona: message.persona } : {}) });
     else if (message.type === "cancel" && message.utterance_id !== undefined) this.cancel(message.utterance_id, "cancelled", false); // the hub expands an id-less cancel
   }
 
@@ -115,7 +167,7 @@ export class SpeechEngine {
 
   // ---- intake ----
 
-  private onUtterance(m: Extract<Message, { type: "utterance" }>): void {
+  private onUtterance(m: Extract<Message, { type: "utterance" }>, quiet = false): void {
     if (this.cancelled.has(m.utterance_id)) return; // a driver may keep streaming after cancelling
     let u = this.utterances.get(m.utterance_id);
     if (u?.closed) {
@@ -127,7 +179,9 @@ export class SpeechEngine {
         id: m.utterance_id,
         seatId: m.seat_id,
         persona: m.persona,
-        ...(m.thought ? { filter: new ThoughtFilter() } : {}),
+        ...(m.thought ? { filter: new ThoughtFilter(), thought: true, muted: !(this.hub?.mayHear(m.seat_id) ?? true) } : {}),
+        ...(quiet ? { quiet: true } : {}),
+        said: "",
         chunker: new SentenceChunker(this.o.chunker),
         controller: new AbortController(),
         textAt: Date.now(),
@@ -145,6 +199,7 @@ export class SpeechEngine {
       this.utterances.set(u.id, u);
     }
 
+    u.said += m.text ?? m.delta ?? "";
     const pieces = m.text !== undefined ? u.chunker.push(m.text) : u.chunker.push(m.delta!);
     const done = m.text !== undefined || m.final === true;
     if (done) pieces.push(...u.chunker.flush());
@@ -156,6 +211,7 @@ export class SpeechEngine {
 
   private finishIntake(u: Utterance): void {
     u.closed = true;
+    if (u.thought && !u.quiet && u.said) this.latestThought.set(u.seatId, { text: u.said, ...(u.persona ? { persona: u.persona } : {}) });
     clearTimeout(u.idleTimer);
     this.jobs.push({ u, end: true });
   }
@@ -185,17 +241,17 @@ export class SpeechEngine {
     this.o.observer?.end?.({ utterance_id: id, outcome: u.failure ? "failed" : "cancelled", reason: u.failure ?? reason, at: Date.now() });
     if (tellViewers) this.hub?.toViewers(make("cancel", { utterance_id: id }));
     // With no avatar page connected, the engine is the one playing, so it reports the interruption.
-    if (u.virtual && u.spoken) this.hub?.toDriver(make("speech_interrupted", { utterance_id: id, reason }));
+    if (u.virtual && u.spoken) this.toDriver(u, make("speech_interrupted", { utterance_id: id, reason }));
     // A line that never reached a page (still queued, or being synthesised: a real voice can take seconds for its first sentence, and may not
     // stop when told) is one no page will ever report on, so answer at once. Whatever the voice makes for it is thrown away in `speak`.
     // A failed line has had its error; a driver that left needs no answer.
-    else if (!u.spoken && !u.failure && reason === "cancelled") this.hub?.toDriver(make("speech_interrupted", { utterance_id: id, reason }));
+    else if (!u.spoken && !u.failure && reason === "cancelled") this.toDriver(u, make("speech_interrupted", { utterance_id: id, reason }));
   }
 
   private fail(u: Utterance, err: unknown): void {
     const code = (err as { code?: string })?.code === "tts_failed" ? "tts_failed" : "internal";
     u.failure = (err as Error)?.message ?? "speech failed";
-    this.hub?.toDriver(make("error", { code, message: u.failure, utterance_id: u.id }));
+    this.toDriver(u, make("error", { code, message: u.failure, utterance_id: u.id }));
     this.cancel(u.id, "cancelled", true);
   }
 
@@ -220,6 +276,7 @@ export class SpeechEngine {
   }
 
   private async speak(u: Utterance, text: string): Promise<void> {
+    if (u.muted) return; // nobody is listening to this seat's thoughts: no synthesis (VIK-98)
     const voice = this.o.voiceFor ? this.o.voiceFor(u.persona) : u.persona;
     u.sentences++;
     this.o.observer?.sentence?.({ utterance_id: u.id, index: u.sentences - 1, text, persona: u.persona, voice, at: Date.now() });
@@ -239,11 +296,12 @@ export class SpeechEngine {
     if (chunk.samples.length === 0) return;
     if (!u.spoken) {
       u.spoken = true;
+      u.startedAt = Date.now();
       u.virtual = (this.hub?.viewerCountFor(u.persona) ?? 0) === 0;
       this.o.onTiming?.({ utterance_id: u.id, textAt: u.textAt, firstAudioAt: Date.now() });
       if (u.virtual) {
         u.virtualStart = Date.now();
-        this.hub?.toDriver(make("speech_started", { utterance_id: u.id, seat_id: u.seatId }));
+        this.toDriver(u, make("speech_started", { utterance_id: u.id, seat_id: u.seatId }));
       }
     }
     u.rate = chunk.sampleRate;
@@ -274,8 +332,8 @@ export class SpeechEngine {
   private async end(u: Utterance): Promise<void> {
     if (!u.spoken) {
       // Nothing to say (empty text). Report it as spoken so the driver is not left waiting.
-      this.hub?.toDriver(make("speech_started", { utterance_id: u.id, seat_id: u.seatId }));
-      this.hub?.toDriver(make("speech_finished", { utterance_id: u.id }));
+      this.toDriver(u, make("speech_started", { utterance_id: u.id, seat_id: u.seatId }));
+      this.toDriver(u, make("speech_finished", { utterance_id: u.id }));
       this.utterances.delete(u.id);
       this.o.observer?.end?.({ utterance_id: u.id, outcome: "completed", at: Date.now() });
       return;
@@ -283,9 +341,10 @@ export class SpeechEngine {
     if (u.virtual) {
       await sleepUntil(u.virtualStart + u.virtualSeconds * 1000, u.controller.signal);
       if (u.cancelled) return;
-      this.hub?.toDriver(make("speech_finished", { utterance_id: u.id }));
+      this.toDriver(u, make("speech_finished", { utterance_id: u.id }));
     } else {
       this.hub?.toViewers(make("audio", { utterance_id: u.id, seat_id: u.seatId, seq: u.seq++, sample_rate: u.rate, pcm: "", final: true }));
+      if (u.thought && u.startedAt !== undefined) this.playing.set(u.id, { seat: u.seatId, until: u.startedAt + u.virtualSeconds * 1000 });
     }
     this.utterances.delete(u.id);
     this.o.observer?.end?.({ utterance_id: u.id, outcome: "completed", at: Date.now() });

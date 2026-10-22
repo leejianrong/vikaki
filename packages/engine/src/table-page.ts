@@ -233,6 +233,7 @@ try {
     props: props?.drawn,
     sfx,
     acted: [],
+    listen: { mode: "all" },
     holdAct: (i, act, phase) => puppets[i]?.arms.hold(act as Act | undefined, phase),
     resetPeaks: () => {
       api.table!.seats.forEach((r) => (r.peak = freshPeak()));
@@ -244,6 +245,11 @@ try {
 
   /** Whose line has the mouth: the seat whose line began last. The voice is one node, and the hub speaks one line at a time. */
   let speaking: number | undefined;
+  /** Who is thinking aloud now (VIK-98): the mouth stays still, the plate is spotlit. */
+  let aloud: number | undefined;
+  /** Whose thoughts the table voices, as the hub last said (it starts with every seat's). */
+  let listening: { mode: "seat" | "all" | "off"; seat?: string } = { mode: "all" };
+  const spotlight = () => overlay.setSpotlight(listening.mode === "seat" ? listening.seat : aloud !== undefined ? seats[aloud]!.seat : undefined);
   /** Who has a line being heard now (cleared when it ends, unlike `speaking`, which the mouth keeps until the next line), and who is thinking. */
   let talker: number | undefined;
   let thinker: number | undefined;
@@ -299,6 +305,18 @@ try {
     onEmotion: (emotion, intensity, phase, line) => {
       const i = seatFor(seats, line);
       if (i === undefined) return;
+      if (line?.thought) {
+        // A thought said aloud (VIK-98): the seat feels it but its mouth stays still, and its plate is spotlit while it plays.
+        if (phase === "start") {
+          aloud = i;
+          puppets[i]!.emotion.set(emotion, intensity);
+        } else {
+          if (aloud === i) aloud = undefined;
+          puppets[i]!.emotion.release(0.7);
+        }
+        spotlight();
+        return;
+      }
       if (phase === "start") {
         speaking = talker = i;
         puppets[i]!.emotion.set(emotion, intensity);
@@ -345,6 +363,12 @@ try {
       if (shown) show(shown);
       refreshBar();
     },
+    onListenState: (mode, seat) => {
+      listening = { mode, ...(seat !== undefined ? { seat } : {}) };
+      panel?.setListen(mode, seat);
+      spotlight();
+      api.table!.listen = { ...listening };
+    },
     onTransportState: (p) => {
       transport.available = true;
       transport.paused = p;
@@ -370,6 +394,8 @@ try {
       showHud();
     },
   });
+  panel?.setListenHandler((mode, seat) => void player.sendListen(mode, seat));
+  overlay.onSelect = (seat) => panel?.chooseSeat(seat); // a click on a player's plate listens in, as its button does
   const bar = panel
     ? new TransportBar({
         back: () => {
