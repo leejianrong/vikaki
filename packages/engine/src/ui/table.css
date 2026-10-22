@@ -272,6 +272,23 @@ body.resizing-panel { user-select: none; cursor: col-resize; }
 .table-panel .listen-in:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 2px; }
 .table-panel .listening label { display: flex; align-items: center; gap: 8px; color: var(--md-sys-color-on-surface-variant); }
 
+/* The hole-cam graphic (VIK-97): the players' cards and odds as a broadcast lower third, in the panel or floated over the 3D view as a ribbon. */
+.players-strip .seat-card { background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface); border: 0; border-inline-start: 4px solid var(--seat-colour, var(--md-sys-color-primary)); border-radius: var(--shape-s); }
+.players-strip .seat-card[aria-current="true"] { background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface); outline: 2px solid var(--md-sys-color-inverse-primary, var(--md-sys-color-primary)); }
+.players-strip .seat-card[aria-current="true"] .money, .players-strip .seat-title .money, .players-strip .note, .players-strip .hand-name { color: var(--md-sys-color-inverse-on-surface); opacity: 0.85; }
+.players-strip .seat-title .name { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.8125rem; }
+.players-strip .meter { background: color-mix(in srgb, var(--md-sys-color-inverse-on-surface) 25%, transparent); }
+.players-strip .meter .fill, .players-strip .seat-card.lead .meter .fill { background: var(--seat-colour, var(--md-sys-color-primary)); }
+.players-strip .pct { font: 700 1.125rem/1.5rem var(--md-ref-typeface-brand); color: var(--md-sys-color-inverse-on-surface); }
+.players-strip .card { font-size: 0.8rem; }
+.players-strip .seat-card.spotlit { border-inline-start-color: var(--md-sys-color-tertiary); }
+.players-strip .listen-in { color: var(--md-sys-color-inverse-on-surface); border-color: color-mix(in srgb, var(--md-sys-color-inverse-on-surface) 50%, transparent); }
+body.holecam-float .players-strip { position: fixed; top: 46px; left: 8px; right: calc(var(--panel-width) + 8px); z-index: 3; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); pointer-events: none; }
+body.holecam-float .players-strip .seat-card { pointer-events: auto; opacity: 0.94; }
+body.holecam-float .players-strip .listen-in { display: none; }
+body.holecam-float .table-overlay.with-panel .beat { top: 150px; }
+body.holecam-float .table-overlay.with-panel .beat.title { top: 190px; }
+@media (max-width: 800px) { body.holecam-float .players-strip { right: 8px; } }
 /* The camera shots (VIK-95): a row of toggle buttons at the top of the panel. */
 .table-panel .cameras { display: flex; flex-wrap: wrap; gap: 4px; }
 .table-panel .camera { padding: 3px 12px; border: 1px solid var(--md-sys-color-outline-variant); border-radius: var(--shape-full, 999px); background: transparent; color: var(--md-sys-color-on-surface-variant); font: 500 0.75rem/1.25rem var(--md-ref-typeface-plain); cursor: pointer; }
