@@ -23,6 +23,7 @@ import { cuesFor } from "./sfx-cues.ts";
 import { Sfx } from "./sfx.ts";
 import { TableProps } from "./table-props.ts";
 import { buildTable, medianHeight, ovalSeats, seatLookYaw, type SeatSpot } from "./table3d.ts";
+import { buildDen, type Den } from "./den.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
 import { makeTransparent, parseEmbed } from "./embed.ts";
@@ -85,6 +86,7 @@ try {
   let xs: number[];
   let tableY = 0;
   let props: TableProps | undefined;
+  let den: Den | undefined;
   if (spots) {
     const poses = seats.map((s) => known.find((p) => p.name === s.persona)?.pose);
     avatars.forEach((a, i) => {
@@ -97,6 +99,10 @@ try {
     const handsY = medianHeight(avatars.map((a) => a.handHeight()).filter((y): y is number => y !== undefined));
     tableY = handsY - 0.03;
     scene.add(buildTable(tableY));
+    if (params.get("den") !== "off") {
+      den = buildDen(tableY); // the living room round the table (VIK-101); `?den=off` leaves the bare table
+      scene.add(den.group);
+    }
     props = new TableProps(tableY, spots, seats.map((x) => x.seat));
     scene.add(props.group);
     avatars.forEach((a) => scene.add(a.scene));
@@ -236,6 +242,7 @@ try {
     if (byHand) director.override(name, now());
     if (name === shotName) return;
     shotName = name;
+    den?.setPendantVisible(name !== "overhead"); // the overhead camera sits right above the lamp
     rig.moveTo(shotNow(name));
     overlay.setCloseUp(name.startsWith("seat:"));
     gridOn = name === "grid";
@@ -319,6 +326,7 @@ try {
   }).observe(canvas);
 
   api.table = {
+    den: den && { triangles: den.triangles, targets: den.lookTargets.map((t) => t.name) },
     seats: seats.map((s, i) => ({ seat: s.seat, persona: s.persona, avatarUrl: urls[i]!, x: xs[i]!, visemes: {}, symbol: null, look: 0, yaw: 0, pitch: 0, roll: 0, peak: freshPeak(), kneeReach: spots ? avatars[i]!.kneeReach(Math.sin(spots[i]!.facing), Math.cos(spots[i]!.facing)) : undefined })),
     spoke: [],
     view: spots ? "table" : "row",

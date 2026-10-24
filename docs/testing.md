@@ -65,7 +65,7 @@ There is no dedicated performance machine. If that is ever needed, the options a
 
 ## The room's draw budget (VIK-107)
 
-The 3D table page reports what its last frame cost in `__vikaki.table.render` (draw calls and triangles from `renderer.info`, and a smoothed frame time). The e2e test "keeps the room inside its draw budget" fails above 30 calls or 45k triangles (measured: 12 and 20.8k with three seats), the same on any machine, so it runs on CI. The frame-time check (under 120 ms on the software renderer, measured about 50) runs off CI only (`STRICT_TIMING`). Furnishing the room (VIK-101) may raise the budget, on purpose, with the reason written next to the numbers. Proven by mutation: sixty extra spheres give 72 calls and fail it.
+The 3D table page reports what its last frame cost in `__vikaki.table.render` (draw calls and triangles from `renderer.info`, and a smoothed frame time). The e2e test "keeps the room inside its draw budget" fails above 30 calls or 45k triangles (measured: 15 and 23.6k with three seats and the den; 12 and 20.8k bare), the same on any machine, so it runs on CI. The frame-time check (under 120 ms on the software renderer, measured about 70) runs off CI only (`STRICT_TIMING`). Furnishing the room (VIK-101) may raise the budget, on purpose, with the reason written next to the numbers. Proven by mutation: sixty extra spheres give 72 calls and fail it.
 
 ## V2 test plan: where each item is covered
 

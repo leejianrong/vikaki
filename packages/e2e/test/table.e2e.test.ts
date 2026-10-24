@@ -236,10 +236,19 @@ describe("the table page", () => {
     await page.waitForFunction(() => (window.__vikaki!.table!.render?.calls ?? 0) > 0, null, { timeout: 30_000 });
     await page.waitForTimeout(1500); // let the smoothed frame time settle (time, not an event: the budget below is off CI only)
     const r = await page.evaluate(() => window.__vikaki!.table!.render!);
-    // Measured at 12 calls and 20.8k triangles with three seats; the budget is about twice that. Raise it on purpose, with a reason, when the room gets furnished (docs/testing.md).
+    // Measured at 15 calls and 23.6k triangles with three seats and the den (12 and 20.8k bare); the budget is about twice that. Raise it on purpose, with a reason, when the room gets furnished (docs/testing.md).
     expect(r.calls, "draw calls in one frame").toBeLessThanOrEqual(30);
     expect(r.triangles, "triangles in one frame").toBeLessThanOrEqual(45_000);
-    if (STRICT_TIMING) expect(r.frameMs, "smoothed frame time on the software renderer, ms").toBeLessThan(120); // measured about 50
+    if (STRICT_TIMING) expect(r.frameMs, "smoothed frame time on the software renderer, ms").toBeLessThan(120); // measured about 70
+  });
+
+  it("furnishes the table with a den unless ?den=off (VIK-101)", { timeout: 90_000 }, async () => {
+    const { page } = await setup("seats=3&view=table", undefined, false);
+    const den = await page.evaluate(() => window.__vikaki!.table!.den);
+    expect(den!.targets).toEqual(expect.arrayContaining(["window", "bookcase", "clock", "armchair", "sofa", "lamp"]));
+    expect(den!.triangles).toBeLessThan(9000);
+    const bare = await setup("seats=3&view=table&den=off", undefined, false);
+    expect(await bare.page.evaluate(() => window.__vikaki!.table!.den)).toBeUndefined();
   });
 
   it("seats every avatar with the thighs running under the table, not away from it (VIK-81)", { timeout: 90_000 }, async () => {
