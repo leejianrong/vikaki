@@ -151,6 +151,14 @@ describe("MjpegFeed", () => {
     expect(evil.status).toBe(403);
   });
 
+  it("answers a Host the operator listed (VIK-127), and still refuses the rest", async () => {
+    const url = await serve({ fps: 30, allowedHosts: ["vikaki:8787"] });
+    feed!.push(jpeg(1));
+    expect((await readFrames(`${url}/stream.mjpg`, 1, { Host: "vikaki:8787" })).status).toBe(200);
+    expect((await readFrames(`${url}/stream.mjpg`, 1, { Host: "vikaki:9" })).status).toBe(403);
+    expect((await readFrames(`${url}/stream.mjpg`, 1, { Host: "evil.example" })).status).toBe(403);
+  });
+
   it("ends every viewer's stream when closed", async () => {
     const url = await serve({ fps: 30 });
     feed!.push(jpeg(1));

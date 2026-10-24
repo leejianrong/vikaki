@@ -8,15 +8,18 @@ export interface MjpegOptions {
   fps: number;
   /** If set, a viewer must give it as `?token=`. */
   token?: string;
+  /** Host names to answer besides the local ones (`vikaki` or `vikaki:8787`): the same list as the hub's `--allow-host`. */
+  allowedHosts?: string[];
 }
 
 const sha = (s: string) => createHash("sha256").update(s).digest();
 
 /** The same rule as the hub's: only local names, so a web page cannot reach the feed through DNS rebinding. */
-function localHost(req: IncomingMessage): boolean {
+function localHost(req: IncomingMessage, extra: readonly string[] = []): boolean {
   const host = (req.headers.host ?? "").toLowerCase();
   const hostname = host.startsWith("[") ? host.slice(0, host.indexOf("]") + 1) : host.split(":")[0];
-  return ["127.0.0.1", "localhost", "[::1]"].includes(hostname ?? "");
+  if (["127.0.0.1", "localhost", "[::1]"].includes(hostname ?? "")) return true;
+  return extra.some((e) => e === host || e === hostname);
 }
 
 /**
@@ -43,7 +46,7 @@ export class MjpegFeed {
   }
 
   private refuse(req: IncomingMessage, res: ServerResponse): boolean {
-    if (!localHost(req)) {
+    if (!localHost(req, this.o.allowedHosts)) {
       res.writeHead(403).end("unexpected Host header");
       return true;
     }

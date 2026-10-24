@@ -4,6 +4,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer as createNetServer, type AddressInfo } from "node:net";
 import { frameAncestorAllowed, frameAncestorsPolicy } from "./frame-ancestors.ts";
 export { parseFrameAncestors, DEFAULT_FRAME_ANCESTORS } from "./frame-ancestors.ts";
+export { parseAllowedHosts, hostAllowed } from "./allowed-hosts.ts";
 import { Hub, type HubOptions } from "./hub.ts";
 import type { PersonaBook } from "./personas.ts";
 import { SpeechEngine, type SpeechOptions } from "./speech.ts";

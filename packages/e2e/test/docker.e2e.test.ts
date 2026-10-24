@@ -20,8 +20,8 @@ afterAll(async () => {
 });
 
 /** Start a container, publishing 8787 on a free port of the host's loopback only. Returns the port and when it started. */
-async function start(image: string, args: string[] = []) {
-  const id = await docker("run", "-d", "-p", "127.0.0.1::8787", image, ...args);
+async function start(image: string, args: string[] = [], env: Record<string, string> = {}) {
+  const id = await docker("run", "-d", "-p", "127.0.0.1::8787", ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]), image, ...args);
   containers.push(id);
   const startedAt = Date.now();
   const mapping = await docker("port", id, "8787/tcp");
@@ -83,6 +83,34 @@ describe.skipIf(!enabled)("the small image (target vikaki)", () => {
     expect(await page.text()).toContain("<canvas");
     const { finished } = await say(c.port, "Hello from outside the container.");
     expect(finished.utterance_id).toBe("u1"); // the hub kept time itself: no page was open
+  });
+
+  it("is configured by environment variables alone: the default command, no flags (VIK-126)", { timeout: 10 * 60_000 }, async () => {
+    const c = await start("vikaki:test", [], { VIKAKI_TTS: "none", VIKAKI_TOKEN: "s3cret", VIKAKI_FRAME_ANCESTORS: "https://game.example" });
+    await healthy(c.id, c.startedAt);
+    const logs = (await run("docker", ["logs", c.id])).stdout;
+    expect(logs).toContain("(token required); speech: off");
+    expect(logs).toContain("framing: https://game.example may embed the avatar page");
+    expect((await fetch(`http://127.0.0.1:${c.port}/avatar/?parent=https://game.example`)).status).toBe(200);
+    expect((await fetch(`http://127.0.0.1:${c.port}/avatar/?parent=https://other.example`)).status).toBe(403);
+    expect(logs).not.toContain("s3cret");
+  });
+
+  it("answers a listed Host name such as vikaki:8787 and still refuses other names (VIK-127)", { timeout: 10 * 60_000 }, async () => {
+    const plain = await start("vikaki:test");
+    const listed = await start("vikaki:test", [], { VIKAKI_ALLOWED_HOSTS: "vikaki:8787" });
+    await healthy(plain.id, plain.startedAt);
+    await healthy(listed.id, listed.startedAt);
+    const open = (port: number, host: string) =>
+      new Promise<string>((ok) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers: { Host: host } });
+        ws.once("open", () => (ws.close(), ok("open")));
+        ws.once("unexpected-response", (_req, res) => ok(String(res.statusCode)));
+        ws.once("error", () => ok("error"));
+      });
+    expect(await open(plain.port, "vikaki:8787")).toBe("403");
+    expect(await open(listed.port, "vikaki:8787")).toBe("open");
+    expect(await open(listed.port, "evil.example")).toBe("403");
   });
 
   it("refuses a browser from another site, so publishing the port does not open it to the web", { timeout: 10 * 60_000 }, async () => {

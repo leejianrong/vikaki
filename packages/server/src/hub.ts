@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
+import { hostAllowed } from "./allowed-hosts.ts";
 import type { PersonaBook } from "./personas.ts";
 import { CONTROLLER_MAY_SEND, DRIVER_MAY_SEND, EMOTIONS, make, parseMessage, VIEWER_MAY_SEND, type ErrorCode, type Message } from "@vikaki/protocol";
 
@@ -9,6 +10,8 @@ export interface HubOptions {
   token?: string;
   /** Extra browser origins allowed to connect, besides the hub's own page. */
   allowedOrigins?: string[];
+  /** Host names to answer besides the local ones (`vikaki` or `vikaki:8787`), for a hub behind a container network. Off by default. */
+  allowedHosts?: string[];
   /** Called for every message the hub accepts or sends, in order. Used for the JSONL log. */
   onEvent?: (event: HubEvent) => void;
   /** Close a connection that has not said hello after this long. */
@@ -163,8 +166,7 @@ export class Hub {
    */
   private checkRequest(req: IncomingMessage): string | undefined {
     const host = (req.headers.host ?? "").toLowerCase();
-    const hostname = host.startsWith("[") ? host.slice(0, host.indexOf("]") + 1) : host.split(":")[0];
-    if (!["127.0.0.1", "localhost", "[::1]"].includes(hostname ?? "")) return "unexpected Host header";
+    if (!hostAllowed(host, this.opts.allowedHosts)) return "unexpected Host header";
     const origin = req.headers.origin;
     if (origin === undefined) return undefined; // not a browser: the CLI, a script, a game process
     if (origin === `http://${host}` || this.opts.allowedOrigins?.includes(origin)) return undefined;
