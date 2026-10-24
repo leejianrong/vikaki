@@ -163,3 +163,11 @@ def test_a_seat_carries_how_much_its_body_moves_when_the_game_says_so_and_nothin
     s = table_state(h, fidgety={"a": 0.9, "c": 0.1})
     assert (seat(s, "a")["fidgety"], seat(s, "c")["fidgety"]) == (0.9, 0.1)
     assert "fidgety" not in seat(s, "b")
+
+
+def test_a_seat_that_sat_the_hand_out_broke_is_listed_as_out_with_the_policy():
+    h = Hand([("a", 10), ("b", 100)], 0, 1, 2, seed=4)
+    s = table_state(h, busted=("z",), rebuy="ask")
+    assert s["rebuy"] == "ask"
+    assert seat(s, "z") == {"seat_id": "z", "stack": 0, "out": True, "action": "out of chips"}
+    assert all("out" not in x for x in s["seats"] if x["seat_id"] != "z")

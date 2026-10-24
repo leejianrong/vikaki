@@ -10,7 +10,7 @@ Jian's feedback of 2026-10-18, turned into epics on Pandan board 35. Where the b
 - **Cameras.** Study of real broadcasts (hole cams in the rail or under glass since 1999, wide and overhead shots, reaction close-ups): presets plus an auto-director; no crane moves. The hole-cam is the panel's cards with win percentages.
 - **Run-out and showdown.** When everyone is all in the streets are revealed one at a time and the pot visibly goes to the winner (the engine used to deal the rest of the board inside the last bet).
 - **Life.** A cozy den (a living room in someone's house), procedural cartoon props, and fidgets in this order of value: looking round the room, peeking at the cards, restacking chips. Arms differ between avatars, so reaching fidgets get per-avatar fallbacks.
-- **Built so far:** the den (VIK-101, ADR-0033), look-around (VIK-102, ADR-0034), the fidget scheduler (VIK-103, ADR-0035), peeking at the cards (VIK-104, ADR-0036), restacking chips (VIK-105, ADR-0037), the idle extras (VIK-106, ADR-0038).
+- **Built so far:** the den (VIK-101, ADR-0033), look-around (VIK-102, ADR-0034), the fidget scheduler (VIK-103, ADR-0035), peeking at the cards (VIK-104, ADR-0036), restacking chips (VIK-105, ADR-0037), the idle extras (VIK-106, ADR-0038), buy-back (VIK-108, ADR-0039).
 - **Buy-back** by audience request, with a policy (ask, auto, never). **Commentary:** Jian commentates himself for now (a volume or mute control and a reserved `commentary` kind); an AI commentator is a stretch goal. **A table of 6 or more** is wanted eventually (VIK-88).
 
 ## The phases

@@ -194,6 +194,28 @@ describe("table_state", () => {
   });
 });
 
+describe("audience requests and the rebuy policy (VIK-108)", () => {
+  it("takes a rebuy request for a seat from a viewer and nobody else", () => {
+    expect(parseMessage({ protocol_version: 1, type: "audience_request", kind: "rebuy", seat_id: "a" })).toMatchObject({ ok: true, message: { kind: "rebuy", seat_id: "a" } });
+    expect(VIEWER_MAY_SEND).toContain("audience_request");
+    expect(DRIVER_MAY_SEND).not.toContain("audience_request");
+    for (const bad of [{ kind: "refund", seat_id: "a" }, { kind: "rebuy" }, { kind: "rebuy", seat_id: "" }]) expect(parseMessage({ protocol_version: 1, type: "audience_request", ...bad }).ok, JSON.stringify(bad)).toBe(false);
+  });
+
+  it("lets a seat be marked out of chips, as a bool", () => {
+    const seat = (extra: object) => ({ protocol_version: 1, type: "table_state", seats: [{ seat_id: "a", stack: 0, ...extra }] });
+    expect(parseMessage(seat({ out: true }))).toMatchObject({ ok: true, message: { seats: [{ out: true }] } });
+    expect(parseMessage(seat({ out: "yes" })).ok).toBe(false);
+  });
+
+  it("lets a table state say ask, auto or never, and nothing else", () => {
+    const state = (extra: object) => ({ protocol_version: 1, type: "table_state", seats: [{ seat_id: "a", stack: 0 }], ...extra });
+    for (const rebuy of ["ask", "auto", "never"]) expect(parseMessage(state({ rebuy })).ok, rebuy).toBe(true);
+    expect(parseMessage(state({ rebuy: "maybe" })).ok).toBe(false);
+    expect(parseMessage(state({})).ok).toBe(true);
+  });
+});
+
 describe("table_state spectator fields (VIK-83)", () => {
   const seat = (extra: object) => ({ protocol_version: 1, type: "table_state", seats: [{ seat_id: "a", stack: 5, ...extra }] });
 

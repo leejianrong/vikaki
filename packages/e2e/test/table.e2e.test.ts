@@ -298,6 +298,26 @@ describe("the table page", () => {
     await page.waitForFunction(() => window.__vikaki!.table!.seats.some((s) => ["lean", "stretch", "tap", "scratch"].some((k) => s.peak.fidgets.has(k))), null, { timeout: 120_000 });
   });
 
+  it("offers a button to buy a broke seat back in only while the table asks, and a click reaches the game (VIK-108)", { timeout: 120_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const state = (rebuy: string, out: boolean) => d1.ws.send(JSON.stringify({ protocol_version: 1, type: "table_state", street: "complete", rebuy, seats: [{ seat_id: "seat-1", stack: out ? 0 : 50, ...(out ? { out: true } : {}) }, { seat_id: "seat-2", stack: 120 }, { seat_id: "seat-3", stack: 130 }] }));
+    const button = page.getByRole("button", { name: "Buy ada back in" });
+    state("never", true);
+    await page.getByLabel("ada, hand").getByText("Stack 0").waitFor({ timeout: 15_000 });
+    expect(await button.count(), "no button unless the table asks").toBe(0);
+    state("ask", false);
+    await page.getByLabel("ada, hand").getByText("Stack 50").waitFor({ timeout: 15_000 });
+    expect(await button.count(), "no button for a seat that has chips").toBe(0);
+    state("ask", true);
+    await button.waitFor({ timeout: 15_000 });
+    await button.click();
+    await d1.waitFor((m) => m.type === "audience_request" && m.kind === "rebuy" && m.seat_id === "seat-1");
+    await page.getByRole("button", { name: "Buy ada back in" }).and(page.locator("[disabled]")).waitFor({ timeout: 15_000 }); // it says Asked and cannot be pressed twice
+    state("ask", false); // dealt back in
+    await page.getByLabel("ada, hand").getByText("Stack 50").waitFor({ timeout: 15_000 });
+    expect(await button.count()).toBe(0);
+  });
+
   it("seats every avatar with the thighs running under the table, not away from it (VIK-81)", { timeout: 90_000 }, async () => {
     const { page } = await setup("seats=3&view=table", undefined, false);
     const reach = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.kneeReach));

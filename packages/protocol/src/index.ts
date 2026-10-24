@@ -117,6 +117,11 @@ export const TableState = z
     dealer: id.optional(),
     /** The seat whose turn it is, shown with a marker. */
     turn: id.optional(),
+    /**
+     * Whether the audience may buy a busted seat back in (VIK-108): `ask` shows a "Buy back in" button on the seat's card and the game grants a request at the
+     * next hand; `auto` and `never` show none (the game rebuys a busted seat itself, or does not). Absent is `never`.
+     */
+    rebuy: z.enum(["ask", "auto", "never"]).optional(),
     /** Which hand of a session this is (VIK-113), for a title card. */
     hand_no: z.number().int().min(1).optional(),
     /**
@@ -157,6 +162,8 @@ export const TableState = z
           hand: z.string().min(1).max(60).optional(),
           win: z.number().min(0).max(1).optional(),
           action: z.string().min(1).max(40).optional(),
+          /** The seat is out of chips and out of the game (VIK-108), not merely all in: a hand is over and it has nothing left, or it sat this one out broke. With `rebuy: ask` the page offers a button to buy it back in. */
+          out: z.boolean().optional(),
           /** How much the seat's body moves while it waits (VIK-103), from 0 (still) to 1 (restless): the page schedules its fidgets by it. Absent is middling. */
           fidgety: z.number().min(0).max(1).optional(),
         }),
@@ -221,6 +228,12 @@ export const Transport = z.object({ ...common, type: z.literal("transport"), act
 
 /** A game that can be paused tells the viewers where it stands (VIK-135): the page shows its controls once it has heard this. The game sends it at every beat, so a page that joins late learns it too. */
 export const TransportState = z.object({ ...common, type: z.literal("transport_state"), paused: z.boolean() });
+
+/**
+ * A request from the audience to the game (VIK-108): for now only `rebuy`, to buy a busted seat back in. The hub passes it to every driver, and only while the
+ * last `table_state` said `rebuy: ask`; otherwise it drops it. The game decides: it grants a request at the next hand, or ignores it.
+ */
+export const AudienceRequest = z.object({ ...common, type: z.literal("audience_request"), kind: z.enum(["rebuy"]), seat_id: id });
 
 /**
  * Which private thoughts are voiced (VIK-98): a viewer asks to listen in to one seat (`mode: "seat"` with `seat_id`), to every seat's thoughts (`"all"`, how a
@@ -305,6 +318,7 @@ export const Message = z.discriminatedUnion("type", [
   TransportState,
   Listen,
   ListenState,
+  AudienceRequest,
   SpeechStarted,
   SpeechFinished,
   SpeechInterrupted,
@@ -319,7 +333,7 @@ export type MessageOf<T extends MessageType> = Extract<Message, { type: T }>;
 export const DRIVER_MAY_SEND: readonly MessageType[] = ["utterance", "cancel", "turn_started", "turn_ended", "game_over", "table_state", "react", "thought", "transport_state"];
 /** A controller is not a driver: it never holds the driver slot and may only stop speech (`vikaki cancel`). */
 export const CONTROLLER_MAY_SEND: readonly MessageType[] = ["cancel"];
-export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance", "transport", "listen"];
+export const VIEWER_MAY_SEND: readonly MessageType[] = ["speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance", "transport", "listen", "audience_request"];
 
 export type ParseResult = { ok: true; message: Message } | { ok: false; code: ErrorCode; message: string };
 

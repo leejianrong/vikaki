@@ -152,6 +152,13 @@ export class SpeechPlayer {
     return true;
   }
 
+  /** Ask the game to buy a broke seat back in (VIK-108). The hub passes it on only while the table asks. False if the hub is not connected. */
+  sendAudienceRequest(kind: "rebuy", seat: string): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify(make("audience_request", { kind, seat_id: seat })));
+    return true;
+  }
+
   /** Ask the table to voice one seat's thoughts, every seat's, or none (VIK-98). False if the hub is not connected. */
   sendListen(mode: "seat" | "all" | "off", seat?: string): boolean {
     if (this.ws?.readyState !== WebSocket.OPEN) return false;

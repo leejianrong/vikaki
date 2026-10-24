@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import threading
+import time
 
 import pytest
 
@@ -9,6 +11,7 @@ from vikaki_poker import Hand
 from vikaki_poker.brain import Traits
 from vikaki_poker.__main__ import main
 from vikaki_poker.llm import FakeLlm
+from vikaki_poker.rebuy import Rebuys
 from vikaki_poker.runner import PrintVoice, play_hand, play_session
 from vikaki_poker.seat import Decision, SeatAgent
 from vikaki_poker.table import TableError, build_agents, load_table
@@ -596,3 +599,96 @@ def test_the_others_take_a_shove_with_a_startled_reaction_and_the_shover_does_no
     first = [c for c in after[: after.index(next(c for c in after if c[0] == "start"))] if c[0] == "react"]
     assert {c[1] for c in first} == {"b", "c"}  # everyone still in, never the shover
     assert all(c[2] == "surprised" for c in first)  # an all-in startles the table
+
+
+# ---- buying back in (VIK-108) ----
+
+
+class ClickingVoice(RecordingVoice):
+    """A voice for a page whose audience clicks "Buy back in" on every broke seat the table shows while it asks."""
+
+    def __init__(self, rebuys, clicks: bool = True) -> None:
+        super().__init__()
+        self.rebuys, self.clicks = rebuys, clicks
+        self.states: list[dict] = []
+
+    def table_state(self, state):
+        self.states.append(state)
+        if self.clicks and state.get("rebuy") == "ask":
+            for seat in state["seats"]:
+                if seat.get("out"):
+                    self.rebuys.request(seat["seat_id"])
+
+
+def shove_agents():
+    return agents_that(("a", ['{"action": "raise", "amount": 20}']), ("b", ['{"action": "call"}']))
+
+
+def test_with_never_a_broke_player_is_out_and_the_session_ends_with_a_winner():
+    session = play_session(shove_agents(), RecordingVoice(), hands=30, stack=10, seed=5, out=quiet, rebuy="never")
+    assert session.hands_played < 30 and not session.rebuys
+    assert sorted(session.stacks.values()) == [0, 20]
+
+
+def test_with_ask_a_broke_player_stays_out_until_the_audience_asks_and_then_is_dealt_in_at_the_next_hand():
+    rebuys = Rebuys("ask")
+    unattended = play_session(shove_agents(), ClickingVoice(rebuys, clicks=False), hands=30, stack=10, seed=5, out=quiet, rebuy=rebuys)
+    assert unattended.hands_played < 30 and not unattended.rebuys  # nobody asked: it ends as never does
+    rebuys = Rebuys("ask")
+    lines: list[str] = []
+    asked = play_session(shove_agents(), ClickingVoice(rebuys), hands=12, stack=10, seed=5, out=lines.append, rebuy=rebuys)
+    assert asked.hands_played == 12 and sum(asked.rebuys.values()) >= 1
+    assert any("buys back in for 10" in line for line in lines)
+    assert sum(asked.stacks.values()) == 2 * 10 + 10 * sum(asked.rebuys.values())
+
+
+def test_a_table_that_asks_waits_for_a_request_when_one_player_is_left_and_ends_when_none_comes():
+    class Late(ClickingVoice):
+        def table_state(self, state):  # the click comes a moment after the table shows the broke seat
+            self.states.append(state)
+            if state.get("rebuy") == "ask" and any(s.get("out") for s in state["seats"]):
+                threading.Timer(0.05, lambda: [self.rebuys.request(s["seat_id"]) for s in state["seats"] if s.get("out")]).start()
+
+    rebuys = Rebuys("ask")
+    session = play_session(shove_agents(), Late(rebuys), hands=3, stack=10, seed=5, out=quiet, rebuy=rebuys, rebuy_wait=2.0)
+    assert session.hands_played == 3 and sum(session.rebuys.values()) >= 1
+    rebuys = Rebuys("ask")
+    started = time.monotonic()
+    ended = play_session(shove_agents(), ClickingVoice(rebuys, clicks=False), hands=30, stack=10, seed=5, out=quiet, rebuy=rebuys, rebuy_wait=0.2)
+    assert ended.hands_played < 30 and time.monotonic() - started < 5
+
+
+def test_requests_are_ignored_unless_the_policy_is_ask_and_stale_ones_are_dropped():
+    for policy in ("auto", "never"):
+        r = Rebuys(policy)
+        r.request("a")
+        assert r.grant(["a"]) == (["a"] if policy == "auto" else [])  # auto grants by itself, never not at all: the click changes nothing
+    r = Rebuys("ask")
+    r.request("a")
+    assert r.grant(["b"]) == []  # a was not broke: the request is stale
+    assert r.grant(["a"]) == []  # and it is gone, not kept for later
+    r.request("a")
+    assert r.grant(["a", "b"]) == ["a"]
+    assert Rebuys(True).policy == "auto" and Rebuys(False).policy == "never"
+    with pytest.raises(ValueError):
+        Rebuys("sometimes")
+
+
+def test_the_table_state_carries_the_policy_and_lists_a_broke_seat_with_nothing():
+    rebuys = Rebuys("ask")
+    voice = ClickingVoice(rebuys, clicks=False)
+    play_session(shove_agents(), voice, hands=30, stack=10, seed=5, out=quiet, rebuy=rebuys)
+    assert voice.states and all(s.get("rebuy") == "ask" for s in voice.states)
+    last = voice.states[-1]
+    assert sorted(x["stack"] for x in last["seats"]) == [0, 20]
+    assert [x["seat_id"] for x in last["seats"] if x.get("out")] == [next(x["seat_id"] for x in last["seats"] if x["stack"] == 0)]
+    mid = [s for s in voice.states if any(x["stack"] == 0 and not x.get("out") for x in s["seats"])]
+    assert mid, "an all-in seat has a stack of 0 too, and is not out"
+
+
+def test_the_command_line_takes_rebuy_ask_auto_never_and_still_the_old_no_rebuy(capsys):
+    for flags in (["--rebuy", "never"], ["--no-rebuy"], ["--rebuy", "ask"]):
+        assert main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--hands", "1", "--no-reactions", *flags]) == 0
+    capsys.readouterr()
+    with pytest.raises(SystemExit):
+        main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--rebuy", "sometimes"])

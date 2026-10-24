@@ -323,3 +323,16 @@ def test_table_state_carries_the_beat_the_hand_number_and_the_winners(hub):
     run(go())
     sent = hub.wait_received(2)[1]
     assert sent["hand_no"] == 2 and sent["event"]["text"] == "S folds" and sent["winners"] == [{"seat_id": "s", "amount": 5}]
+
+
+def test_table_state_carries_the_rebuy_policy_and_an_audience_request_arrives_as_an_event(hub):
+    async def go():
+        async with await VikakiClient.connect(hub.url, seats=[{"seat_id": "s"}]) as c:
+            await c.table_state([{"seat_id": "s", "stack": 0}], rebuy="ask")
+            hub.push({"protocol_version": 1, "type": "audience_request", "kind": "rebuy", "seat_id": "s"})
+            async for e in c.events():
+                return e
+
+    event = run(go())
+    assert hub.wait_received(2)[1]["rebuy"] == "ask"
+    assert event == {"protocol_version": 1, "type": "audience_request", "kind": "rebuy", "seat_id": "s"}

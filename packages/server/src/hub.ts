@@ -115,6 +115,8 @@ export class Hub {
   /** Which private thoughts are voiced (VIK-98). A table starts with every seat's thoughts voiced. */
   private listen: { mode: "seat" | "all" | "off"; seat?: string } = { mode: "all" };
   private readonly listenWatchers: (() => void)[] = [];
+  /** Whether the last `table_state` said the audience may buy a busted seat back in (VIK-108): only then is an `audience_request` passed on. */
+  private rebuyAsk = false;
 
   /** Whether a thought of this seat is to be voiced now. */
   mayHear(seat: string): boolean {
@@ -237,6 +239,13 @@ export class Hub {
         for (const f of this.listenWatchers) f();
         return;
       }
+      if (message.type === "audience_request") {
+        // Only a table that asked for requests hears them; the game still decides what to do with one.
+        if (!this.rebuyAsk) return;
+        for (const d of this.drivers.keys()) this.send(d, message);
+        this.opts.onEvent?.({ at: Date.now(), from: "viewer", to: "driver", message });
+        return;
+      }
       if (message.type === "transport") {
         // A control bar's request is for the game, whichever driver is running it (a table of seat drivers has no single one): every driver gets it.
         for (const d of this.drivers.keys()) this.send(d, message);
@@ -261,6 +270,7 @@ export class Hub {
   private relayFromDriver(from: "driver" | "controller", ws: WebSocket, message: Message): void {
     const seats = this.drivers.get(ws)?.seats;
     if (seats && !this.mayAct(ws, seats, message)) return;
+    if (message.type === "table_state") this.rebuyAsk = message.rebuy === "ask";
     if (message.type === "utterance") {
       const owner = this.inFlight.get(message.utterance_id);
       if (owner !== undefined && owner !== ws) {

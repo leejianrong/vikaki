@@ -374,6 +374,14 @@
           "minLength": 1,
           "maxLength": 128
         },
+        "rebuy": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "auto",
+            "never"
+          ]
+        },
         "hand_no": {
           "type": "integer",
           "minimum": 1,
@@ -495,6 +503,9 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 40
+              },
+              "out": {
+                "type": "boolean"
               },
               "fidgety": {
                 "type": "number",
@@ -781,6 +792,42 @@
         "protocol_version",
         "type",
         "mode"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "number",
+          "const": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "const": "audience_request"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "rebuy"
+          ]
+        },
+        "seat_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "protocol_version",
+        "type",
+        "kind",
+        "seat_id"
       ],
       "additionalProperties": false
     },

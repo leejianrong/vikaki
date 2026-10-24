@@ -550,6 +550,7 @@ try {
     cutTo(n === 1 ? "wide" : n === 2 ? "overhead" : (`seat:${n - 3}` as ShotName), true);
   });
   panel?.setListenHandler((mode, seat) => void player.sendListen(mode, seat));
+  panel?.setRebuyHandler((seat) => void player.sendAudienceRequest("rebuy", seat)); // the audience buys a broke seat back in (VIK-108)
   overlay.onSelect = (seat) => panel?.chooseSeat(seat); // a click on a player's plate listens in, as its button does
   const bar = panel
     ? new TransportBar({

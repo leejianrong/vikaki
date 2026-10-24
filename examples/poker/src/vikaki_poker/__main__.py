@@ -12,6 +12,7 @@ from .stats import style_lines, style_stats
 from .monologue import MODES, Monologue
 from .pace import PACES, Pace
 from .llm import KEY_ENV, FakeLlm, Llm, LlmError, OpenRouterLlm, Usage, load_dotenv
+from .rebuy import POLICIES, Rebuys
 from .transport import Transport
 from .runner import HubVoice, PrintVoice, Voice, play_session
 from .table import TableError, build_agents, build_reactor, load_table
@@ -43,7 +44,8 @@ def _parser() -> argparse.ArgumentParser:
     play.add_argument("--monologue", choices=MODES, default="critical", help="which private thoughts are spoken aloud, softly, as an inner monologue: critical (an all-in, a big bet or call, a strong hand folded, a showdown, a win, going broke), all, or off (default: critical)")
     play.add_argument("--stack", type=int, help="chips each seat starts with (default: the table file's)")
     play.add_argument("--blinds", help="the blinds as SMALL/BIG, such as 5/10 (default: the table file's); with a short --stack they end a --no-rebuy game sooner")
-    play.add_argument("--no-rebuy", action="store_true", help="a player who goes broke is out, and the session ends when one player has every chip (default: they buy back in)")
+    play.add_argument("--rebuy", choices=POLICIES, default="auto", help="what happens to a player who goes broke: auto (dealt back in at once, a cash game), ask (the audience may buy them back in with a button on the page; the table waits a little when one player is left) or never (they are out, and the session ends when one player has every chip)")
+    play.add_argument("--no-rebuy", action="store_true", help=argparse.SUPPRESS)  # the old spelling of --rebuy never
     play.add_argument("--hide-cards", action="store_true", help="keep the hands face down until a showdown, with no hand names or odds on the page")
     play.add_argument("--model", help="play every seat with this model instead of the table file's")
     play.add_argument("--reasoning", action="store_true", help="let a thinking model think before it answers (default: off; slower, and it needs a larger max_tokens in the table file)")
@@ -97,19 +99,20 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
     for i, agent in enumerate(agents.values()):
         agent.reseed(seed * 101 + i)  # the engine's dice follow the seed too
     transport = Transport()
+    rebuys = Rebuys("never" if args.no_rebuy else args.rebuy)
     own_voice = voice is None
     if voice is None:
         if args.no_hub:
             voice = PrintVoice()
         else:
             try:
-                voice = HubVoice(args.url, table.personas(), token=args.token, transport=transport)
+                voice = HubVoice(args.url, table.personas(), token=args.token, transport=transport, rebuys=rebuys)
             except Exception as err:  # connect_failed, driver_busy, unknown_persona: say so plainly
                 code = getattr(err, "code", type(err).__name__)
                 print(f"vikaki_poker: could not join the table at {args.url} ({code}). Is `pnpm serve --personas personas.table.example.yaml` running?", file=sys.stderr)
                 return 1
     try:
-        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=not args.no_rebuy, pace=Pace(PACES[args.pace or ("off" if args.no_hub else "normal")], gate=transport.gate), monologue=Monologue(args.monologue))
+        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=rebuys, rebuy_wait=15.0, pace=Pace(PACES[args.pace or ("off" if args.no_hub else "normal")], gate=transport.gate), monologue=Monologue(args.monologue))
     finally:
         if own_voice and hasattr(voice, "close"):
             try:

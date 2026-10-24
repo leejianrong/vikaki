@@ -225,6 +225,7 @@ class VikakiClient:
         hand_no: int | None = None,
         event: dict[str, Any] | None = None,
         winners: list[dict[str, Any]] | None = None,
+        rebuy: str | None = None,
     ) -> None:
         """The state of the table, for the table page's overlay. Send the whole state each time it changes.
 
@@ -233,8 +234,10 @@ class VikakiClient:
 
         `event` is the beat that has just been played, for the page to animate and caption: `{"kind": "raise", "seat_id": "s1", "amount": 12, "text": "Ada raises to 12"}`.
         `hand_no` says which hand this is, and `winners` (`{"seat_id", "amount", "hand"?}`) who took the pot once it is paid.
+        `rebuy` (`"ask"`, `"auto"` or `"never"`) says whether the audience may buy a busted seat back in: with `"ask"` the page shows a button on the seat's card and the
+        hub passes the `audience_request` that a click sends to the game as an event (`{"type": "audience_request", "kind": "rebuy", "seat_id": ...}`).
         """
-        await self._send(make("table_state", seats=seats, pot=pot, street=street, board=board, dealer=dealer, turn=turn, hand_no=hand_no, event=event, winners=winners))
+        await self._send(make("table_state", seats=seats, pot=pot, street=street, board=board, dealer=dealer, turn=turn, hand_no=hand_no, event=event, winners=winners, rebuy=rebuy))
 
     async def _send(self, message: Event) -> None:
         try:
@@ -316,7 +319,7 @@ class VikakiClient:
             fut = self._outcomes.get(uid)
             if fut is not None and not fut.done():
                 fut.set_result(message)
-        if kind in ("speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance", "transport"):
+        if kind in ("speech_started", "speech_finished", "speech_interrupted", "error", "human_utterance", "transport", "audience_request"):
             self._events.append(message)
             self._events_ready.set()
             for listener in list(self._listeners):
