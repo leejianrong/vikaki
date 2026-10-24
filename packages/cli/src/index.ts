@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { DEFAULT_FRAME_ANCESTORS, DebugRecorder, EventLog, findFreePort, loadPersonas, parseFrameAncestors, PersonaError, startServer } from "@vikaki/server";
+import { DEFAULT_FRAME_ANCESTORS, DebugRecorder, EventLog, findFreePort, loadPersonas, parseAllowedHosts, parseFrameAncestors, PersonaError, startServer } from "@vikaki/server";
 import { HeadlessRenderer, MjpegFeed, RendererUnavailable, startScreencast } from "@vikaki/render";
 import { cancel, replay, say, type Io } from "./commands.ts";
 import { runMcp } from "./mcp.ts";
@@ -42,12 +42,14 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
   --demo     the demo page: avatar plus mic, audio-file and mouth-shape controls
   --speech-demo  the speech demo: type text, press Speak, watch and hear the avatar say it
   --open     open the page in your browser (works from WSL, macOS and Linux)
-  --tts      speech engine. auto uses Kokoro if installed, else a test voice. none turns speech off.
+  --tts      speech engine. auto uses Kokoro if installed, else a test voice. none turns speech off. (or set VIKAKI_TTS)
   --voice    default Kokoro voice, such as af_heart
   --debug-dir  save each spoken utterance (wav, spectrogram, metrics, text, timings) under <dir>.
              On by default for --speech-demo, into .vikaki/debug. "off" turns it off.
   --token    require this token from the driver (or set VIKAKI_TOKEN)
-  --frame-ancestors  origins whose pages may embed the avatar page in an iframe, comma-separated (default: localhost on any port; none: nobody)
+  --frame-ancestors  origins whose pages may embed the avatar page in an iframe, comma-separated (default: localhost on any port; none: nobody) (or set VIKAKI_FRAME_ANCESTORS)
+  --allow-host  extra Host names the hub answers, comma-separated (vikaki:8787, or a name for any port), for a hub behind a container network.
+             Off by default: only 127.0.0.1, localhost and [::1] are answered, which is what stops DNS rebinding. (or set VIKAKI_ALLOWED_HOSTS)
   --headless  also open the avatar page in a hidden Chromium (one tab per persona), so lines are rendered with no one at a screen.
              Needs the optional browser: \`make install-renderer\`. --audio-only opens audio-only pages that draw nothing;
              --gpu uses the machine's GPU instead of software WebGL; --chrome (or VIKAKI_CHROME) names a browser to use.
@@ -55,7 +57,7 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
              http://127.0.0.1:<port>/stream.mjpg (one frame: /stream.jpg). --size, --fps and --quality set the picture;
              --background is a solid colour as 6 hex digits, or \`green\` for chroma keying (video cannot be transparent);
              --stream-persona says which persona's page to publish when there are several. With --token, add ?token=<secret>.
-  --personas  a personas file: named characters (avatar, voice, default emotion, style). A line naming a persona the file lacks is refused.
+  --personas  a personas file: named characters (avatar, voice, default emotion, style). A line naming a persona the file lacks is refused. (or set VIKAKI_PERSONAS)
   --event-log  write every message the hub sees, one JSON object per line (audio as its size only). Feed it to \`vikaki replay\`.`;
 
 // Default to the engine's built page (run \`pnpm build\` first).
@@ -161,10 +163,11 @@ async function serve(argv: string[]): Promise<void> {
       demo: { type: "boolean", default: false },
       "speech-demo": { type: "boolean", default: false },
       open: { type: "boolean", default: false },
-      tts: { type: "string", default: "auto" },
+      tts: { type: "string" },
       voice: { type: "string" },
       token: { type: "string" },
       "frame-ancestors": { type: "string" },
+      "allow-host": { type: "string" },
       "debug-dir": { type: "string" },
       "event-log": { type: "string" },
       personas: { type: "string" },
@@ -180,8 +183,11 @@ async function serve(argv: string[]): Promise<void> {
       "stream-persona": { type: "string" },
     },
   });
-  if (!["auto", "kokoro", "fake", "none"].includes(values.tts!)) {
-    console.error(`--tts must be auto, kokoro, fake or none, not "${values.tts}"`);
+  // A container is configured through its environment (VIK-126): each setting has a VIKAKI_* variable, and the flag wins.
+  const env = process.env;
+  const ttsMode = values.tts ?? env.VIKAKI_TTS ?? "auto";
+  if (!["auto", "kokoro", "fake", "none"].includes(ttsMode)) {
+    console.error(`${values.tts !== undefined ? "--tts" : "VIKAKI_TTS"} must be auto, kokoro, fake or none, not "${ttsMode}"`);
     process.exit(1);
   }
   const streaming = values.stream;
@@ -202,19 +208,28 @@ async function serve(argv: string[]): Promise<void> {
   }
   let frameAncestors: string[] | undefined;
   try {
-    frameAncestors = values["frame-ancestors"] !== undefined ? parseFrameAncestors(values["frame-ancestors"]) : undefined;
+    const given = values["frame-ancestors"] ?? (env.VIKAKI_FRAME_ANCESTORS || undefined);
+    frameAncestors = given !== undefined ? parseFrameAncestors(given) : undefined;
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+  let allowedHosts: string[] | undefined;
+  try {
+    const given = values["allow-host"] ?? (env.VIKAKI_ALLOWED_HOSTS || undefined);
+    allowedHosts = given !== undefined ? parseAllowedHosts(given, values["allow-host"] !== undefined ? "--allow-host" : "VIKAKI_ALLOWED_HOSTS") : undefined;
   } catch (err) {
     console.error(err instanceof Error ? err.message : err);
     process.exit(1);
   }
   const host = values.host!;
   const port = values.port !== undefined ? Number(values.port) : await findFreePort(8787, host);
-  const chosen = await chooseTts(values.tts!, values.voice).catch((err) => {
+  const chosen = await chooseTts(ttsMode, values.voice).catch((err) => {
     console.error(err instanceof Error ? err.message : err);
     process.exit(1);
   });
   const tts = chosen?.tts;
-  const token = values.token ?? process.env.VIKAKI_TOKEN;
+  const token = values.token ?? (env.VIKAKI_TOKEN || undefined);
   const debugArg = values["debug-dir"] ?? (values["speech-demo"] ? ".vikaki/debug" : undefined);
   const debugDir = debugArg && debugArg !== "off" && tts ? (values["debug-dir"] ? fromHere(debugArg) : resolve(debugArg)) : undefined;
   const recorder = debugDir
@@ -224,13 +239,14 @@ async function serve(argv: string[]): Promise<void> {
         onError: (err) => console.error(`  debug: could not save a recording: ${err instanceof Error ? err.message : err}`),
       })
     : undefined;
-  const personas = values.personas
-    ? await loadPersonas(fromHere(values.personas)).catch((err) => {
+  const personasFile = values.personas ?? (env.VIKAKI_PERSONAS || undefined);
+  const personas = personasFile
+    ? await loadPersonas(fromHere(personasFile)).catch((err) => {
         console.error(err instanceof PersonaError ? err.message : err);
         process.exit(1);
       })
     : undefined;
-  const feed = streaming ? new MjpegFeed({ fps, token }) : undefined;
+  const feed = streaming ? new MjpegFeed({ fps, token, allowedHosts }) : undefined;
   const eventLog = values["event-log"] ? new EventLog(fromHere(values["event-log"])) : undefined;
   const server = await startServer({
     staticDir: values.static!,
@@ -239,7 +255,7 @@ async function serve(argv: string[]): Promise<void> {
     personas,
     routes: feed ? { "/stream.mjpg": (req, res) => feed.handle(req, res), "/stream.jpg": (req, res) => feed.snapshot(req, res) } : undefined,
     frameAncestors,
-    hub: { ...(token ? { token } : {}), onEvent: eventLog?.record },
+    hub: { ...(token ? { token } : {}), ...(allowedHosts ? { allowedHosts } : {}), onEvent: eventLog?.record },
     speech: tts
       ? { tts, defaultVoice: chosen?.voice, observer: recorder, onTiming: (t) => console.log(`  ${t.utterance_id}: first audio made ${t.firstAudioAt - t.textAt} ms after the text arrived`) }
       : undefined,

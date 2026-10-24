@@ -233,6 +233,23 @@ describe("other websites cannot use the hub", () => {
     server = await startServer({ staticDir: dir });
     await expect(Client.open(server.wsUrl, { Host: "evil.example" })).rejects.toMatchObject({ status: 403 });
   });
+
+  it("answers a listed Host name (vikaki:8787) and the driver socket works through it, but still refuses every other name (VIK-127)", async () => {
+    server = await startServer({ staticDir: dir, hub: { allowedHosts: ["vikaki:8787", "hub.internal"] } });
+    const driver = track(await Client.open(server.wsUrl, { Host: "vikaki:8787" }));
+    driver.send(make("hello", { role: "driver" }));
+    expect((await driver.next()).type).toBe("welcome");
+    track(await Client.open(server.wsUrl, { Host: "hub.internal:9999" }));
+    for (const host of ["evil.example", "vikaki:9999", "vikaki.evil.example:8787", "hub.internal.evil.example"]) {
+      await expect(Client.open(server.wsUrl, { Host: host }), host).rejects.toMatchObject({ status: 403 });
+    }
+  });
+
+  it("a browser at a listed Host is still held to the origin rule", async () => {
+    server = await startServer({ staticDir: dir, hub: { allowedHosts: ["vikaki:8787"] } });
+    track(await Client.open(server.wsUrl, { Host: "vikaki:8787", Origin: "http://vikaki:8787" }));
+    await expect(Client.open(server.wsUrl, { Host: "vikaki:8787", Origin: "https://evil.example" })).rejects.toMatchObject({ status: 403 });
+  });
 });
 
 describe("event log hook", () => {

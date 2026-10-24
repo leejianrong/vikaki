@@ -19,6 +19,40 @@ ffplay http://127.0.0.1:8787/stream.mjpg
 
 `vikaki serve` listens on `0.0.0.0` inside the container (the default command passes `--host 0.0.0.0 --port 8787`), so **publish the port to the host's loopback only**, as above (`127.0.0.1:8787:8787`). The hub refuses browser origins from other sites and `Host` names that are not local, but it is a control channel for your avatar and should not face a network. Add `--token <secret>` (or `-e VIKAKI_TOKEN=...`) if more than one program shares the machine.
 
+## Configuration by environment
+
+A container is configured through its environment, so a compose file does not have to override the command. Each variable does what its flag does, and **a flag wins** when both are given. An empty variable counts as unset; a bad value names the variable and the hub does not start.
+
+| Variable | Flag | Value |
+| --- | --- | --- |
+| `VIKAKI_TTS` | `--tts` | `auto` (default), `kokoro`, `fake` or `none` |
+| `VIKAKI_TOKEN` | `--token` | a secret the driver must send in `hello` |
+| `VIKAKI_FRAME_ANCESTORS` | `--frame-ancestors` | comma-separated origins that may embed the avatar page, or `none` |
+| `VIKAKI_PERSONAS` | `--personas` | path of a personas file, such as `/data/personas.yaml` |
+| `VIKAKI_ALLOWED_HOSTS` | `--allow-host` | extra `Host` names to answer, such as `vikaki:8787` (see below) |
+
+```bash
+docker run --rm -p 127.0.0.1:8787:8787 -v $PWD:/data \
+  -e VIKAKI_TOKEN=change-me -e VIKAKI_FRAME_ANCESTORS=https://game.example -e VIKAKI_PERSONAS=/data/personas.yaml vikaki
+```
+
+There is no config file ([VIK-126](https://github.com/leejianrong/vikaki)): the four variables are the whole surface a container needs. The token is never printed.
+
+## A game beside the hub: extra Host names
+
+The hub answers only `127.0.0.1`, `localhost` and `[::1]` as `Host`, so a web page on another site cannot reach it by pointing a DNS name at your machine (DNS rebinding). Inside a compose network a game reaches the hub as `vikaki:8787`, which that rule refuses. List the names you expect, and only those:
+
+```yaml
+services:
+  vikaki:
+    image: ghcr.io/leejianrong/vikaki
+    environment:
+      VIKAKI_ALLOWED_HOSTS: vikaki:8787
+    ports: ["127.0.0.1:8787:8787"]
+```
+
+A name with a port (`vikaki:8787`) matches that port only; a bare name (`vikaki`) matches any port. No wildcards, no schemes, nothing is accepted by default, and every other name is still refused (403). The browser origin rule is separate and unchanged. The MJPEG feed of `stream` takes the same list. Listing a name opens no port to the network: publish the port to loopback only, as above, and keep the hub on a private compose network. See [ADR-0044](adr/0044-extra-host-names-are-an-explicit-list.md).
+
 ## What the image does
 
 - Runs as the unprivileged user `node` (uid 1000), exposes only `8787`, and has a health check (the avatar page answers) that passes about 5 seconds after start on the development machine (the test requires under 10).
