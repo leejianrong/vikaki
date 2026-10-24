@@ -38,7 +38,7 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `emotion` | string | no | at most 32 characters |
 | `intensity` | number | no | 0 to 1 |
 | `persona` | string | no | 1 to 64 characters |
-| `kind` | one of `banter`, `clue`, `table_talk` | no |  |
+| `kind` | one of `banter`, `clue`, `table_talk`, `commentary` | no |  |
 | `to` | string | no | 1 to 128 characters |
 | `thought` | boolean | no |  |
 

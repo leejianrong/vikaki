@@ -88,6 +88,26 @@
 .transcript p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .transcript b { font-weight: 600; margin-inline-end: 6px; color: var(--md-sys-color-primary); }
 
+/* The commentator's own strip (VIK-109): always shown, over the stage under the top bar, apart from the chat and the seats' bubbles. */
+.commentary {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  width: min(640px, calc(100% - 24px));
+  padding: 6px 16px;
+  border-radius: var(--shape-l);
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+  font: 500 0.875rem/1.25rem var(--md-ref-typeface-plain);
+  z-index: 2;
+  pointer-events: none;
+}
+.commentary:empty { display: none; }
+.commentary p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.commentary b { font-weight: 600; margin-inline-end: 6px; }
+
 /* With the panel the chat is there and a bubble sits over the speaker's head (VIK-91): no strip at the bottom. */
 .bubble { display: none; }
 .table-overlay.with-panel .transcript { display: none; }

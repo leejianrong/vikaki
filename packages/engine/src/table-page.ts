@@ -62,7 +62,7 @@ const LOOKS = [`${baseUrl}avatars/cookieman.vrm`, `${baseUrl}avatars/snowy.vrm`]
 const GAP = 0.15; // metres between neighbours
 const seed = Number(params.get("seed") ?? Date.now());
 const session = new AudioSession(`${baseUrl}profiles/default.bin`);
-api.audio = { get state() { return session.state; }, get played() { return session.played; }, get time() { return session.time; } };
+api.audio = { get state() { return session.state; }, get played() { return session.played; }, get time() { return session.time; }, get voice() { return { ...session.voice, gain: session.busGain }; } };
 const embedAudio = mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
 
 /** What a seat showed since the last reset: the head's swing, the widest mouth, every mark over the head, and whether it was asked to think. */
@@ -136,6 +136,27 @@ try {
   if (topBar) document.body.append(topBar.root);
   // Sound effects (VIK-122) go with the panel's controls: a page with no panel (an embed) leaves the sound to its host.
   const sfx = panel ? new Sfx(session) : undefined;
+  const VOICE_KEY = "vikaki.voice";
+  try {
+    const saved = JSON.parse(localStorage.getItem(VOICE_KEY) ?? "{}") as { volume?: number; muted?: boolean };
+    session.setVoice({ ...(typeof saved.volume === "number" ? { volume: saved.volume } : {}), ...(typeof saved.muted === "boolean" ? { muted: saved.muted } : {}) });
+  } catch {
+    /* not remembered */
+  }
+  /** The table voices' level (VIK-109): for talking over them. Remembered, like the effects'. */
+  const voiceLevel = {
+    get volume() { return session.voice.volume; },
+    get muted() { return session.voice.muted; },
+    set(o: { volume?: number; muted?: boolean }) {
+      session.setVoice(o);
+      try {
+        localStorage.setItem(VOICE_KEY, JSON.stringify({ volume: session.voice.volume, muted: session.voice.muted }));
+      } catch {
+        /* not remembered */
+      }
+    },
+  };
+  if (panel) panel.addVoiceControls(voiceLevel);
   if (panel && sfx) panel.addSoundControls(sfx);
   let lastState: Parameters<typeof cuesFor>[1] | undefined;
   const puppets = avatars.map((a, i) => new Puppet(a, seed + i * 101, params.get("still") !== "1"));
@@ -431,6 +452,10 @@ try {
     session,
     sessionId: params.get("session") ?? undefined,
     onEmotion: (emotion, intensity, phase, line) => {
+      if (line?.commentary) {
+        if (phase === "start") speaking = undefined; // the voice is the commentator's: the last speaker's mouth must not follow it (VIK-109)
+        return;
+      }
       const i = seatFor(seats, line);
       if (i === undefined) return;
       if (line?.thought) {
@@ -511,6 +536,11 @@ try {
       refreshBar();
     },
     onText: (line) => {
+      if (line.commentary) {
+        // The commentator (VIK-109): its own strip, never the chat or a seat's bubble.
+        overlay.addCommentary(line);
+        return;
+      }
       if (line.thought) {
         // A monologue spoken aloud (VIK-121): a thought bubble and the Thoughts list, never the chat.
         if (line.text !== undefined) {

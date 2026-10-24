@@ -21,6 +21,9 @@ export class AudioSession {
   /** Which mouth driver is running, once audio has started. */
   mouthKind?: "wlipsync" | "amplitude";
   private fileSource?: AudioBufferSourceNode;
+  /** How loud the voices are (VIK-109), for someone talking over them: a level from 0 to 1 and a mute. It only changes what is heard: the lip sync listens before it, so the mouths keep moving. */
+  readonly voice = { volume: 1, muted: false };
+  private bus?: GainNode;
 
   constructor(
     private readonly profileUrl: string,
@@ -30,6 +33,33 @@ export class AudioSession {
   /** Current mouth weights, or undefined if nothing has been started yet. */
   get lipsync(): MouthDriver | undefined {
     return this.ls;
+  }
+
+  /** Set the voices' level or mute, live: lines already playing change at once, a thought as much as a line. */
+  setVoice(o: { volume?: number; muted?: boolean }): void {
+    if (o.volume !== undefined) this.voice.volume = Math.min(1, Math.max(0, o.volume));
+    if (o.muted !== undefined) this.voice.muted = o.muted;
+    if (this.bus) this.bus.gain.value = this.voiceGain;
+  }
+
+  /** The level the voices' gain node is at, or undefined before one exists. For tests. */
+  get busGain(): number | undefined {
+    return this.bus?.gain.value;
+  }
+
+  /** The gain the voices are played at now: 0 when muted. */
+  get voiceGain(): number {
+    return this.voice.muted ? 0 : this.voice.volume;
+  }
+
+  /** Where the voices go: through the level control when the context has one, else straight out. */
+  private out(ctx: AudioContext): AudioNode {
+    if (!this.bus && typeof ctx.createGain === "function") {
+      this.bus = ctx.createGain();
+      this.bus.gain.value = this.voiceGain;
+      this.bus.connect(ctx.destination);
+    }
+    return this.bus ?? ctx.destination;
   }
 
   /** The audio context while the browser lets the page make sound, else undefined. For effects that play beside the speech (VIK-122). */
@@ -97,7 +127,7 @@ export class AudioSession {
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         ls.connect(source);
-        source.connect(ctx.destination);
+        source.connect(this.out(ctx));
         source.start(at);
         this.played++;
         return {
@@ -164,7 +194,7 @@ export class AudioSession {
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     ls.connect(source);
-    source.connect(ctx.destination);
+    source.connect(this.out(ctx));
     this.fileSource = source;
     await new Promise<void>((done) => {
       source.onended = () => done();

@@ -225,6 +225,15 @@ export class TablePanel {
     if (t && t.panel.hidden) (t.tab.querySelector(".new-dot") as HTMLElement).hidden = false;
   }
 
+  /** A mute switch and a volume slider for the table's voices (VIK-109), so a commentator can talk over them. */
+  addVoiceControls(voice: { volume: number; muted: boolean; set(o: { volume?: number; muted?: boolean }): void }): void {
+    const mute = el("input", { type: "checkbox", role: "switch", ariaLabel: "Mute table voices", checked: voice.muted });
+    const volume = el("input", { type: "range", min: "0", max: "100", step: "5", value: String(Math.round(voice.volume * 100)), ariaLabel: "Table voices volume" });
+    mute.addEventListener("change", () => voice.set({ muted: mute.checked }));
+    volume.addEventListener("input", () => voice.set({ volume: Number(volume.value) / 100 }));
+    this.root.append(el("section", { className: "sound-controls", role: "group", ariaLabel: "Table voices" }, el("h2", { className: "title-medium", textContent: "Table voices" }), el("label", {}, mute, " Mute"), el("label", {}, "Volume ", volume)));
+  }
+
   /** A mute switch and a volume slider for the sound effects (VIK-122), at the foot of the left column. */
   addSoundControls(sfx: { volume: number; muted: boolean; set(o: { volume?: number; muted?: boolean }): void }): void {
     const mute = el("input", { type: "checkbox", role: "switch", ariaLabel: "Mute sound effects", checked: sfx.muted });

@@ -72,7 +72,7 @@ declare global {
       /** Set when the page is connected to a hub (`?live=1`). `events` lists what it reported to the driver. */
       live?: { state: LiveState; soundBlocked: boolean; events: string[] };
       /** The audio context's state, how many buffers have gone to the speakers, and the audio clock (it only runs while the state is "running"). */
-      audio?: { state: string; played: number; time: number | undefined };
+      audio?: { state: string; played: number; time: number | undefined; /** The table voices' level, and the gain node's value once one exists (VIK-109). */ voice?: { volume: number; muted: boolean; gain: number | undefined } };
       /** True if the avatar has eye bones; false means eye level is estimated. */
       eyeBones?: boolean;
       /** On the table page (`?seats=`) only: one entry per seat, left to right. `symbol` is the mark over the head ("dots" while thinking), or null. */

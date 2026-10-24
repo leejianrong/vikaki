@@ -318,6 +318,38 @@ describe("the table page", () => {
     expect(await button.count()).toBe(0);
   });
 
+  it("has a mute and a volume for the table voices that work while a line is playing, and a commentary line goes in its own strip and moves no avatar (VIK-109)", { timeout: 120_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table");
+    const voice = () => page.evaluate(() => window.__vikaki!.audio!.voice!);
+    await page.evaluate(() => window.__vikaki!.table!.resetPeaks());
+    d1.say("This is a fairly long line so that there is time to turn the voices down while it plays. Mind the mute.", "v1");
+    await page.waitForFunction(() => window.__vikaki!.audio!.played > 0, null, { timeout: 20_000 });
+    expect((await voice()).gain, "full level").toBe(1);
+    await page.getByRole("switch", { name: "Mute table voices" }).click(); // mid-line
+    expect(await voice()).toMatchObject({ muted: true, gain: 0 });
+    await page.getByRole("switch", { name: "Mute table voices" }).click();
+    await page.getByRole("slider", { name: "Table voices volume" }).fill("40");
+    const level = await voice();
+    expect(level).toMatchObject({ muted: false, volume: 0.4 });
+    expect(level.gain, "a gain node holds a 32-bit float").toBeCloseTo(0.4, 5);
+    await d1.waitFor((m) => m.type === "speech_finished" && m.utterance_id === "v1");
+    expect(await page.evaluate(() => window.__vikaki!.table!.seats[0]!.peak.mouth), "the mouth kept moving while the voice was quieter or muted").toBeGreaterThan(0.3);
+    // a thought is played at the same level
+    const before = await page.evaluate(() => window.__vikaki!.audio!.played);
+    d1.say("Hold on a moment. Hold on.", "t9", { thought: true });
+    await page.waitForFunction((n) => window.__vikaki!.audio!.played > n, before, { timeout: 20_000 });
+    expect((await voice()).gain).toBeCloseTo(0.4, 5);
+    await d1.waitFor((m) => m.type === "speech_finished" && m.utterance_id === "t9");
+    // the commentator
+    await page.waitForFunction(() => window.__vikaki!.table!.seats.every((s) => Object.values(s.visemes).every((w) => w < 0.01)), null, { timeout: 10_000 }); // the last line's mouth has settled
+    await page.evaluate(() => window.__vikaki!.table!.resetPeaks());
+    d1.say("And ada raises. What a move.", "c1", { kind: "commentary" });
+    await page.getByRole("log", { name: "Commentary" }).getByText("What a move").waitFor({ timeout: 20_000 });
+    await d1.waitFor((m) => m.type === "speech_finished" && m.utterance_id === "c1");
+    expect(Math.max(...(await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.peak.mouth)))), "no avatar speaks it").toBeLessThan(0.05);
+    expect(await page.getByRole("log", { name: "Chat" }).getByText("What a move").count(), "and it is not in the chat").toBe(0);
+  });
+
   it("seats every avatar with the thighs running under the table, not away from it (VIK-81)", { timeout: 90_000 }, async () => {
     const { page } = await setup("seats=3&view=table", undefined, false);
     const reach = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.kneeReach));

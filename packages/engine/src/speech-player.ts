@@ -18,6 +18,8 @@ export interface LineInfo {
   persona?: string;
   /** The line is a private thought spoken aloud (VIK-98): the page keeps the mouth still. */
   thought?: boolean;
+  /** The line is the commentator's (VIK-109, `kind: commentary`): it is heard and captioned in its own strip, and no avatar speaks it. */
+  commentary?: boolean;
 }
 
 export interface SpeechPlayerOptions {
@@ -49,7 +51,7 @@ export interface SpeechPlayerOptions {
   /** The game sent the state of the table (pot, stacks, cards, whose turn): draw it. */
   onTableState?: (state: MessageOf<"table_state">) => void;
   /** A piece of a line's text arrived: the whole `text`, or one `delta` of a line still being written. For a transcript. `thought` marks an inner monologue spoken aloud (VIK-121): not table talk. */
-  onText?: (line: { id: string; seat: string; text?: string; delta?: string; to?: string; thought?: boolean }) => void;
+  onText?: (line: { id: string; seat: string; text?: string; delta?: string; to?: string; thought?: boolean; commentary?: boolean }) => void;
   /** Times lines for the `timing` of `speech_finished`. The page's render loop feeds it frames. */
   timer?: FirstFrameTimer;
   /** Called when all the audio of a spoken sentence has arrived, which is before it is heard. */
@@ -79,7 +81,7 @@ export class SpeechPlayer {
   private lastBlocked = true;
   private readonly owners: LineOwners;
   /** The emotion each line asked for, until it ends. */
-  private readonly feelings = new Map<string, { emotion?: string; intensity?: number; seat?: string; persona?: string; thought?: boolean }>();
+  private readonly feelings = new Map<string, { emotion?: string; intensity?: number; seat?: string; persona?: string; thought?: boolean; commentary?: boolean }>();
 
   constructor(private readonly o: SpeechPlayerOptions) {
     this.owners = new LineOwners(o.persona);
@@ -90,7 +92,7 @@ export class SpeechPlayer {
           o.session.lipsync?.unmute();
           o.timer?.heard(id, performance.now());
           const f = this.feelings.get(id);
-          o.onEmotion?.(f?.emotion, f?.intensity, "start", f ? { id, seat: f.seat, persona: f.persona, ...(f.thought ? { thought: true } : {}) } : undefined);
+          o.onEmotion?.(f?.emotion, f?.intensity, "start", f ? { id, seat: f.seat, persona: f.persona, ...(f.thought ? { thought: true } : {}), ...(f.commentary ? { commentary: true } : {}) } : undefined);
           this.report(make("speech_started", { utterance_id: id, ...(seat ? { seat_id: seat } : {}) }), `started:${id}`);
           this.lifecycle({ type: "speech_started", utterance_id: id }, seat ?? f?.seat);
         },
@@ -203,8 +205,8 @@ export class SpeechPlayer {
         this.owners.see(m.utterance_id, m.persona);
         if (!this.owners.mine(m.utterance_id)) break; // another persona's line: its own page plays it
         this.o.timer?.received(m.utterance_id, performance.now());
-        this.o.onText?.({ id: m.utterance_id, seat: m.seat_id, ...(m.text !== undefined ? { text: m.text } : {}), ...(m.delta !== undefined ? { delta: m.delta } : {}), ...(m.to !== undefined ? { to: m.to } : {}), ...(m.thought ? { thought: true } : {}) });
-        if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity, seat: m.seat_id, persona: m.persona, ...(m.thought ? { thought: true } : {}) }); // the first message of a streamed line carries it
+        this.o.onText?.({ id: m.utterance_id, seat: m.seat_id, ...(m.text !== undefined ? { text: m.text } : {}), ...(m.delta !== undefined ? { delta: m.delta } : {}), ...(m.to !== undefined ? { to: m.to } : {}), ...(m.thought ? { thought: true } : {}), ...(m.kind === "commentary" ? { commentary: true } : {}) });
+        if (!this.feelings.has(m.utterance_id)) this.feelings.set(m.utterance_id, { emotion: m.emotion, intensity: m.intensity, seat: m.seat_id, persona: m.persona, ...(m.thought ? { thought: true } : {}), ...(m.kind === "commentary" ? { commentary: true } : {}) }); // the first message of a streamed line carries it
         break;
       case "react":
         if (this.owners.turnIsMine(m.persona)) this.o.onReact?.({ seat: m.seat_id, persona: m.persona, emotion: m.emotion, intensity: m.intensity, gesture: m.gesture, seconds: m.seconds ?? DEFAULT_REACT_SECONDS });
@@ -256,7 +258,7 @@ export class SpeechPlayer {
     this.owners.forget(id);
     const f = this.feelings.get(id);
     this.feelings.delete(id);
-    if (f) this.o.onEmotion?.(f.emotion, f.intensity, "end", { id, seat: f.seat, persona: f.persona });
+    if (f) this.o.onEmotion?.(f.emotion, f.intensity, "end", { id, seat: f.seat, persona: f.persona, ...(f.commentary ? { commentary: true } : {}) });
   }
 
   private lifecycle(event: SpeechEvent, seat: string | undefined): void {
