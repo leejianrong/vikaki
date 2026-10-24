@@ -17,6 +17,17 @@ pnpm serve --personas personas.example.yaml
 pnpm --silent vikaki say --persona ada "Good morning everyone."
 ```
 
+## What a game can rely on (VIK-131)
+
+A game that runs a released Vikaki image and brings its own characters depends on these, and they stay put across minor versions:
+
+- **The file.** `VIKAKI_PERSONAS` (or `--personas`) names a YAML file. In the image, mount your folder at **`/data`** (`-v $PWD:/data`, read-only is fine) and set `VIKAKI_PERSONAS=/data/personas.yaml`. An `avatar` is resolved against the file's folder, so `avatar: mine.vrm` finds `/data/mine.vrm`; an absolute path is used as written.
+- **The bundled avatars** are at **`/app/avatars/<name>.vrm`**: `cactusboy`, `cookieman`, `froggy`, `lilbro`, `mushy`, `snowy`, `wambo` (licences in `packages/engine/ASSETS.md`). `/app/personas.example.yaml` is an example only: copy it, do not depend on it.
+- **The format.** The top-level keys are `version` (optional, `1`) and `personas`; each persona takes `avatar` (required), `voice`, `emotion`, `style` and `pose`, as above. Format version **1** is what this build reads. Within a version, changes are additive: new optional fields, never a renamed or removed one, and a field's meaning does not change. A file with another `version` is refused at start with a message that says which version this build reads; a misspelled field is refused too, so a file never half works. A change that breaks a file would be a new `version`, announced in the release notes, with the old one still read for at least one minor release.
+- **What the hub serves** for pages and drivers: `/avatar/personas.json` and `/avatar/personas/<name>.vrm`, and `welcome.personas` (the names).
+
+`PERSONAS_FORMAT_VERSION` in `packages/server/src/personas.ts` is the number a test pins; a docker test starts the image with a mounted file naming both a bundled avatar and its own.
+
 ## What a persona does
 
 - **Voice.** A line naming `ada` is spoken with ada's voice. A persona with no `voice` uses the engine's own default. (Without a personas file, the persona name itself is passed as the voice id, as before.)

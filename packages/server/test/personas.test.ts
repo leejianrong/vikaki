@@ -98,3 +98,15 @@ describe("the example file", () => {
     expect(book.get("ada")?.emotion).toBe("happy");
   });
 });
+
+describe("the file's version (VIK-131)", () => {
+  it("version 1 is the format; a file without one is version 1", () => {
+    expect(parsePersonas(`version: 1\n${ok}`, base).names).toEqual(["ada", "ben"]);
+    expect(parsePersonas(ok, base).names).toEqual(["ada", "ben"]);
+  });
+  it("a newer or malformed version is refused by saying what this hub reads", () => {
+    for (const v of ["2", "0", '"1"', "1.5"]) {
+      expect(problem(`version: ${v}\n${ok}`), v).toMatch(/personas file `version` is .*; this vikaki reads version 1/);
+    }
+  });
+});

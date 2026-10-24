@@ -41,7 +41,8 @@ COPY --from=build /app/packages/engine/dist packages/engine/dist
 COPY personas.example.yaml ./
 COPY packages/engine/public/avatars packages/engine/public/avatars
 # One folder for what the person brings (a personas file, recordings), owned by the user the server runs as.
-RUN mkdir /data && chown node:node /data
+# /app/avatars is the promised path of the bundled avatars (docs/personas.md): a game's personas file may name /app/avatars/cookieman.vrm.
+RUN mkdir /data && chown node:node /data && ln -s /app/packages/engine/public/avatars /app/avatars
 WORKDIR /app/packages/cli
 ENV VIKAKI_IMAGE=vikaki
 USER node

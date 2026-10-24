@@ -24,7 +24,11 @@ export class PersonaError extends Error {}
 
 const NAME = z.string().min(1).max(64); // the protocol's limit for `persona`
 
+/** The version of the personas file format this build reads. Additive changes keep it; a new one means a game's file may need changes (docs/personas.md). */
+export const PERSONAS_FORMAT_VERSION = 1;
+
 const PersonaFile = z.object({
+  version: z.unknown().optional(),
   personas: z.record(NAME, z.unknown()),
 });
 
@@ -77,6 +81,10 @@ export function parsePersonas(text: string, baseDir: string): PersonaBook {
   if (!file.success) {
     const nameProblem = file.error.issues.find((i) => i.path[0] === "personas" && i.path.length > 1);
     throw new PersonaError(nameProblem ? `a persona name must be 1 to 64 characters` : "the personas file needs a top-level `personas:` map of name to persona");
+  }
+  const version = file.data.version;
+  if (version !== undefined && version !== PERSONAS_FORMAT_VERSION) {
+    throw new PersonaError(`the personas file \`version\` is ${JSON.stringify(version)}; this vikaki reads version ${PERSONAS_FORMAT_VERSION} (leave \`version\` out, or write \`version: ${PERSONAS_FORMAT_VERSION}\`)`);
   }
   const entries = Object.entries(file.data.personas);
   if (entries.length === 0) throw new PersonaError("the personas file needs at least one persona under `personas:`");

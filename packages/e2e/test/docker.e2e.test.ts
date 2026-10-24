@@ -1,4 +1,7 @@
 import { execFile } from "node:child_process";
+import { chmod, copyFile, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
@@ -111,6 +114,23 @@ describe.skipIf(!enabled)("the small image (target vikaki)", () => {
     expect(await open(plain.port, "vikaki:8787")).toBe("403");
     expect(await open(listed.port, "vikaki:8787")).toBe("open");
     expect(await open(listed.port, "evil.example")).toBe("403");
+  });
+
+  it("loads a game's own personas file from a mounted /data, naming a bundled avatar and its own (VIK-131)", { timeout: 10 * 60_000 }, async () => {
+    const dir = await mkdtemp(join(tmpdir(), "vikaki-personas-"));
+    await copyFile(join(repo, "packages/engine/public/avatars/snowy.vrm"), join(dir, "mine.vrm"));
+    await writeFile(join(dir, "personas.yaml"), "version: 1\npersonas:\n  bundled:\n    avatar: /app/avatars/cookieman.vrm\n    emotion: happy\n  mine:\n    avatar: mine.vrm\n    voice: af_heart\n");
+    await chmod(dir, 0o755);
+    await Promise.all(["mine.vrm", "personas.yaml"].map((f) => chmod(join(dir, f), 0o644)));
+    const id = await docker("run", "-d", "-p", "127.0.0.1::8787", "-v", `${dir}:/data:ro`, "-e", "VIKAKI_PERSONAS=/data/personas.yaml", "vikaki:test");
+    containers.push(id);
+    const startedAt = Date.now();
+    await healthy(id, startedAt);
+    const port = Number(/:(\d+)\s*$/m.exec((await docker("port", id, "8787/tcp")).split("\n")[0]!)![1]);
+    const list = (await (await fetch(`http://127.0.0.1:${port}/avatar/personas.json`)).json()) as { personas?: { name: string }[] } | { name: string }[];
+    const names = (Array.isArray(list) ? list : (list.personas ?? [])).map((p) => p.name);
+    expect(names).toEqual(["bundled", "mine"]);
+    for (const n of names) expect((await fetch(`http://127.0.0.1:${port}/avatar/personas/${n}.vrm`)).status, n).toBe(200);
   });
 
   it("refuses a browser from another site, so publishing the port does not open it to the web", { timeout: 10 * 60_000 }, async () => {
