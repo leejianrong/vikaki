@@ -84,10 +84,17 @@ def _candidates(view: dict, hero_stack: int, hero_bet: int, big_blind: int) -> l
     return sorted(out)
 
 
-def decide(view: dict, events: list[dict], *, big_blind: int, rng: random.Random | None = None, samples: int = 300) -> Move:
-    """The move for the seat to act in `view` (`Hand.view` for it), given the hand's `events` so far. Always legal."""
+def decide(view: dict, events: list[dict], *, big_blind: int, rng: random.Random | None = None, samples: int = 300, solver: bool = False) -> Move:
+    """The move for the seat to act in `view` (`Hand.view` for it), given the hand's `events` so far. Always legal. With `solver` a short stack's push/fold and a
+    heads-up river are answered from the solved charts and the river solver (`solver.py`) when the spot is one they cover; everything else is as below."""
     rng = rng or random.Random()
     hero = view["to_act"]
+    if solver:
+        from .solver import pushfold_move, river_move
+
+        solved = pushfold_move(view, events, hero, big_blind, rng) or river_move(view, events, hero, big_blind, rng)
+        if solved is not None:
+            return solved
     legal = view["legal"]
     me = next(p for p in view["players"] if p["seat_id"] == hero)
     kinds = legal["kinds"]

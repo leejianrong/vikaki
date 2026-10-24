@@ -107,5 +107,5 @@ def build_reactor(table: Table, llm: Llm | None) -> Reactor:
     return MirrorReactor()
 
 
-def build_agents(table: Table, llm: Llm) -> dict[str, SeatAgent]:
-    return {s.seat_id: SeatAgent(s.seat_id, s.persona, llm, s.model, s.style, table.max_tokens, s.traits) for s in table.seats}
+def build_agents(table: Table, llm: Llm, solver: bool = False) -> dict[str, SeatAgent]:
+    return {s.seat_id: SeatAgent(s.seat_id, s.persona, llm, s.model, s.style, table.max_tokens, s.traits, solver=solver) for s in table.seats}

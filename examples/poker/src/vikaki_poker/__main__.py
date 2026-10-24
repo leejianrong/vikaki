@@ -38,6 +38,7 @@ def _parser() -> argparse.ArgumentParser:
     play.add_argument("--token", default=os.environ.get("VIKAKI_TOKEN"), help="the hub's driver token, if it has one")
     play.add_argument("--no-hub", action="store_true", help="print the lines instead of speaking them")
     play.add_argument("--fake-llm", action="store_true", help=f"no model calls: a scripted stand-in (no {KEY_ENV} needed)")
+    play.add_argument("--solver", action="store_true", help="answer a short stack's push/fold and a heads-up river from the solved charts and the river solver (VIK-123) where they cover the spot, instead of the engine's own arithmetic")
     play.add_argument("--no-reactions", action="store_true", help="the seats that are listening stay still (no silent reactions)")
     play.add_argument("--show-cards", action="store_true", help="show every live hand face up on the page (the default: the table page is a spectator's view, with each seat's hand and chance to win)")
     play.add_argument("--pace", choices=sorted(PACES, key=PACES.get), help="how long each beat of a hand stays on screen: slow, normal (about 1.75 s an action, 2.5 s a street), fast, or off (default: normal; off with --no-hub)")
@@ -92,7 +93,7 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
     except (TableError, LlmError) as err:
         print(f"vikaki_poker: {err}", file=sys.stderr)
         return 2
-    agents = build_agents(table, llm)
+    agents = build_agents(table, llm, solver=args.solver)
     reactor = None if args.no_reactions else build_reactor(table, None if args.fake_llm else llm)
     seed = args.seed if args.seed is not None else random.SystemRandom().randrange(1, 1_000_000)
     print(f"seed {seed} (repeat this deal with --seed {seed})")

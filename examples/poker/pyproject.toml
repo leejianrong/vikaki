@@ -19,6 +19,9 @@ dev = ["pytest>=8"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+vikaki_poker = ["data/*.json"]  # the solved push/fold charts and the class-against-class equities (VIK-123)
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["integration: needs a running `vikaki serve --personas personas.table.example.yaml` (set VIKAKI_HUB_URL)"]

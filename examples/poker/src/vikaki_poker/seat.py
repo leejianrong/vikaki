@@ -119,6 +119,7 @@ class SeatAgent:
     engine: Callable[..., Move] = engine_decide
     samples: int = 300
     seed: int | None = None
+    solver: bool = False  # ask the solved push/fold charts and the river solver where they cover the spot (VIK-123)
     _rng: random.Random = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -131,7 +132,8 @@ class SeatAgent:
     def decide(self, view: dict, talk: list[tuple[str, ...]] | None = None, events: list[dict] | None = None, names: dict[str, str] | None = None) -> Decision:
         """`events` are the hand's events so far (`Hand.events`), told as the story of the hand; `names` map seat ids to the characters' names."""
         events = events or []
-        move = self.engine(view, events, big_blind=big_blind_of(events), rng=self._rng, samples=self.samples)
+        extra = {"solver": True} if self.solver else {}  # an engine that is not the real one need not know the word
+        move = self.engine(view, events, big_blind=big_blind_of(events), rng=self._rng, samples=self.samples, **extra)
         move = take_route(move, self.traits.bluff, self._rng)  # the one place a trait reaches the move (ADR-0030)
         messages = build_messages(self.persona, self.style, view, talk or [], move, traits=self.traits, history=history_text(events, names or {}), names=names)
         try:
