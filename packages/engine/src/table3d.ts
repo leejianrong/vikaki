@@ -78,7 +78,7 @@ export function buildTable(tableY: number): Group {
   const pedestal = new Mesh(new CylinderGeometry(0.2, 0.3, tableY, 24), mat(0x4a3018));
   pedestal.scale.x = 2.6;
   pedestal.position.y = tableY / 2 - 0.05;
-  const floor = new Mesh(new PlaneGeometry(14, 10), mat(0x1c232b, 1));
+  const floor = new Mesh(new PlaneGeometry(14, 10), mat(0x8a6244, 1));
   floor.rotation.x = -Math.PI / 2;
   g.add(top, rim, pedestal, floor);
   return g;
