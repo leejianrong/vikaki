@@ -1,0 +1,9 @@
+version: 1
+personas:
+  ada:
+    avatar: /app/avatars/cookieman.vrm   # a bundled avatar: this path is promised (docs/personas.md)
+    voice: af_heart
+    emotion: happy
+  ben:
+    avatar: /app/avatars/snowy.vrm
+    voice: am_adam

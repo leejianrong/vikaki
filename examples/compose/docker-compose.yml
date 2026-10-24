@@ -1,0 +1,46 @@
+# A game and the Vikaki hub side by side (VIK-128, docs/docker.md). The "game" here is a stand-in: a small Python program that serves a page
+# with the avatar framed in it and, as the game server, makes the avatars speak. Replace it with your own service and keep the `vikaki` one.
+#
+#   docker compose up --build            then open http://127.0.0.1:8765
+#   docker compose down
+#
+# Ports: both are published to this machine's loopback only (the hub is a control channel for your avatars; do not face it to a network).
+# Change them with VIKAKI_PORT and GAME_PORT in the environment or a .env file; the frame-ancestors setting follows GAME_PORT.
+services:
+  vikaki:
+    # In a real project, use the released image:  image: ghcr.io/leejianrong/vikaki:0.1
+    build:
+      context: ../..
+      target: vikaki
+    image: vikaki:compose-example
+    environment:
+      # Who may frame the avatar page: the game's page, as the browser shows its origin.
+      VIKAKI_FRAME_ANCESTORS: http://127.0.0.1:${GAME_PORT:-8765}
+      # The game server reaches the hub inside the compose network as `vikaki:8787`. The hub refuses unknown Host names unless listed.
+      VIKAKI_ALLOWED_HOSTS: vikaki:8787
+      # The game's own characters, from the mounted folder (a bundled avatar and the format are promised: docs/personas.md).
+      VIKAKI_PERSONAS: /data/personas.yaml
+      # A driver must send this token. Use your own secret (an environment variable or a compose secret), not this one.
+      VIKAKI_TOKEN: ${VIKAKI_TOKEN:-example-token-change-me}
+      # fake is the steady test tone; kokoro needs the voice installed (docs/docker.md).
+      VIKAKI_TTS: ${VIKAKI_TTS:-fake}
+    volumes:
+      - ./personas.yaml:/data/personas.yaml:ro
+    ports:
+      - "127.0.0.1:${VIKAKI_PORT:-8787}:8787"
+
+  game:
+    build:
+      context: ../..
+      dockerfile: examples/compose/game/Dockerfile
+    depends_on:
+      vikaki:
+        condition: service_healthy
+    environment:
+      VIKAKI_URL: ws://vikaki:8787/ws
+      VIKAKI_TOKEN: ${VIKAKI_TOKEN:-example-token-change-me}
+      # Where the player's browser reaches the hub and this page (the published loopback ports above).
+      PUBLIC_HUB_URL: http://127.0.0.1:${VIKAKI_PORT:-8787}
+      PUBLIC_GAME_URL: http://127.0.0.1:${GAME_PORT:-8765}
+    ports:
+      - "127.0.0.1:${GAME_PORT:-8765}:8765"

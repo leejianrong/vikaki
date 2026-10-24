@@ -53,6 +53,8 @@ services:
 
 A name with a port (`vikaki:8787`) matches that port only; a bare name (`vikaki`) matches any port. No wildcards, no schemes, nothing is accepted by default, and every other name is still refused (403). The browser origin rule is separate and unchanged. The MJPEG feed of `stream` takes the same list. Listing a name opens no port to the network: publish the port to loopback only, as above, and keep the hub on a private compose network. See [ADR-0044](adr/0044-extra-host-names-are-an-explicit-list.md).
 
+A complete, runnable wiring of a game beside the hub (a stand-in game, loopback ports, the settings above) is in [examples/compose](../examples/compose/README.md).
+
 ## What the image does
 
 - Runs as the unprivileged user `node` (uid 1000), exposes only `8787`, and has a health check (the avatar page answers) that passes about 5 seconds after start on the development machine (the test requires under 10).
@@ -67,4 +69,4 @@ A name with a port (`vikaki:8787`) matches that port only; a bare name (`vikaki`
 
 ## Tests
 
-`make docker-test` builds both images, starts containers and checks: non-root user, only the documented port, healthy within 10 seconds, the avatar page served, a driver outside the container makes it speak, a browser origin from another site is refused, and (render image) a line is drawn by the hidden page with no GPU and `ffprobe` on the feed sees an MJPEG stream at the size asked for. CI runs them in `.github/workflows/docker.yml` when the image or the code it runs changes, and nightly.
+`make docker-test` builds both images, starts containers and checks: non-root user, only the documented port, healthy within 10 seconds, the avatar page served, a driver outside the container makes it speak, a browser origin from another site is refused, the environment-variable settings, a listed Host name, a mounted personas file, the compose example (a game and the hub, brought up with `docker compose`), and (render image) a line is drawn by the hidden page with no GPU and `ffprobe` on the feed sees an MJPEG stream at the size asked for. CI runs them in `.github/workflows/docker.yml` when the image or the code it runs changes, and nightly.

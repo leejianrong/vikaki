@@ -17,6 +17,7 @@ on:
       - packages/tts/**
       - packages/engine/**
       - packages/e2e/test/docker.e2e.test.ts
+      - examples/compose/**
       - .github/workflows/docker.yml
   push:
     branches: [main]

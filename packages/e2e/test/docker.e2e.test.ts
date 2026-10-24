@@ -172,3 +172,35 @@ describe.skipIf(!enabled)("the image with a browser (target vikaki-render)", () 
     expect(out).toMatch(/make install-renderer|vikaki-render/);
   });
 });
+
+// The compose example (VIK-128): a stand-in game and the hub on a compose network, on free loopback ports, under their own project name.
+describe.skipIf(!enabled)("the compose example (examples/compose)", () => {
+  const project = `vikaki-compose-test-${process.pid}`;
+  const file = join(repo, "examples/compose/docker-compose.yml");
+  const compose = (...args: string[]) => run("docker", ["compose", "-p", project, "-f", file, ...args], { cwd: repo, timeout: 25 * 60_000, maxBuffer: 50 * 1024 * 1024, env: { ...process.env, VIKAKI_PORT: String(hubPort), GAME_PORT: String(gamePort) } });
+  const hubPort = 20000 + (process.pid % 10000);
+  const gamePort = hubPort + 1;
+  afterAll(async () => {
+    await compose("down", "-v", "--remove-orphans").catch(() => {});
+  });
+
+  it("brings up a game and the hub: the game's line is spoken through the hub, framing and Host rules hold", { timeout: 30 * 60_000 }, async () => {
+    await compose("up", "-d", "--build", "--wait", "--wait-timeout", "180");
+    const logs = (await compose("logs", "game")).stdout;
+    expect(logs).toContain("connected to ws://vikaki:8787/ws");
+    expect(logs).toMatch(/said .*speech_finished/);
+    expect((await fetch(`http://127.0.0.1:${gamePort}/`)).status).toBe(200);
+    const hub = `http://127.0.0.1:${hubPort}`;
+    expect((await fetch(`${hub}/avatar/?parent=http://127.0.0.1:${gamePort}`)).status).toBe(200);
+    expect((await fetch(`${hub}/avatar/?parent=https://other.example`)).status).toBe(403);
+    const hostRefused = await new Promise<boolean>((ok) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${hubPort}/ws`, { headers: { Host: "evil.example" } });
+      ws.once("open", () => ok(false));
+      ws.once("unexpected-response", () => ok(true));
+      ws.once("error", () => ok(true));
+    });
+    expect(hostRefused).toBe(true);
+    const published = (await run("docker", ["compose", "-p", project, "-f", file, "ps", "--format", "{{.Ports}}"], { cwd: repo, env: { ...process.env, VIKAKI_PORT: String(hubPort), GAME_PORT: String(gamePort) } })).stdout;
+    expect(published).not.toMatch(/0\.0\.0\.0:/);
+  });
+});
