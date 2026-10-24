@@ -617,7 +617,10 @@ try {
     frameMs = frameMs * 0.9 + dt * 1000 * 0.1;
     if (gridOn) {
       if (gridDirty || ++gridFrame % gridInterval(frameMs) === 0) drawGrid();
-    } else renderer.render(scene, camera);
+    } else {
+      renderer.render(scene, camera);
+      if (api.table) api.table.render = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, frameMs }; // the room's cost, for the guard (VIK-107)
+    }
   });
 } catch (err) {
   console.error(err);
