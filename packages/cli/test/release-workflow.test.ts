@@ -34,11 +34,11 @@ describe(".github/workflows/release.yml", () => {
     expect(text).toMatch(/merge-base --is-ancestor "\$GITHUB_SHA" origin\/main/);
   });
 
-  it("pins every third-party action to a commit, and gives first-party ones a version", () => {
+  it("pins every third-party action to a commit, and gives first-party ones a version or a commit", () => {
     const uses = lines.map((l) => /uses:\s*(\S+)/.exec(l)?.[1]).filter((u): u is string => !!u);
     expect(uses.length).toBeGreaterThan(3);
     for (const u of uses) {
-      if (u.startsWith("actions/")) expect(u, u).toMatch(/@v\d+$/);
+      if (u.startsWith("actions/")) expect(u, u).toMatch(/@(v\d+|[0-9a-f]{40})$/);
       else expect(u, u).toMatch(/@[0-9a-f]{40}$/);
     }
   });
@@ -46,5 +46,33 @@ describe(".github/workflows/release.yml", () => {
   it("gives a job the rights to write packages only where it pushes", () => {
     expect(text.match(/packages: write/g)?.length).toBeGreaterThan(0);
     expect(text).toMatch(/^permissions:\n  contents: read\n/m); // the default for the whole file is read-only
+  });
+
+  it("signs and releases only on a tag, and only the signing job may ask for an identity token", () => {
+    const job = (name: string) => {
+      const start = text.indexOf(`\n  ${name}:\n`);
+      expect(start, `job ${name}`).toBeGreaterThan(0);
+      const rest = text.slice(start + 1);
+      const next = rest.slice(1).search(/\n  [a-z-]+:\n/);
+      return next < 0 ? rest : rest.slice(0, next + 1);
+    };
+    for (const name of ["sign", "github-release"]) expect(job(name), name).toMatch(/if: needs\.plan\.outputs\.publish == 'true'/);
+    expect(job("sign")).toContain("id-token: write");
+    expect(text.match(/id-token: write/g)).toHaveLength(1);
+    expect(job("github-release")).toContain("contents: write");
+    expect(text.match(/contents: write/g)).toHaveLength(1);
+    expect(job("github-release")).toMatch(/needs: \[plan, sign\]/); // never a release for images that are not signed
+  });
+
+  it("signs both images by digest, never by a movable tag, and attaches an SBOM to each", () => {
+    expect(text).toMatch(/cosign sign --yes "\$IMAGE@\$DIGEST"/);
+    expect(text).toMatch(/cosign sign --yes "\$IMAGE@\$KOKORO_DIGEST"/);
+    expect(text).toMatch(/cosign attest --yes --type spdxjson --predicate "vikaki-\$VERSION\.spdx\.json"/);
+    expect(text).toMatch(/cosign attest --yes --type spdxjson --predicate "vikaki-\$VERSION-kokoro\.spdx\.json"/);
+    expect(text).not.toMatch(/cosign sign[^\n]*:latest/);
+  });
+
+  it("needs the release notes to exist before it pushes anything", () => {
+    expect(text).toMatch(/test -f "docs\/releases\/\$GITHUB_REF_NAME\.md"/);
   });
 });
