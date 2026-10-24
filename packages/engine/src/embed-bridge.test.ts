@@ -123,3 +123,27 @@ describe("EmbedBridge", () => {
     }
   });
 });
+
+describe("the message list a game relies on (VIK-132)", () => {
+  it("is pinned: a message may be added, never renamed or removed (change this list and docs/embed.md together)", async () => {
+    const { EMBED_FROM_PARENT, EMBED_TO_PARENT } = await import("./embed-bridge.ts");
+    expect([...EMBED_TO_PARENT]).toEqual(["audio_locked", "audio_unlocked", "speech_started", "speech_finished", "speech_interrupted"]);
+    expect([...EMBED_FROM_PARENT]).toEqual(["unlock", "audio_status", "human_utterance"]);
+  });
+
+  it("every one is documented in docs/embed.md", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const { EMBED_FROM_PARENT, EMBED_TO_PARENT } = await import("./embed-bridge.ts");
+    const doc = await readFile(new URL("../../../docs/embed.md", import.meta.url), "utf8");
+    for (const type of [...EMBED_TO_PARENT, ...EMBED_FROM_PARENT]) expect(doc, type).toContain(type);
+  });
+
+  it("the page accepts every listed message from the host, with extra fields a later minor version may add, and drops an unknown type", () => {
+    const { bridge, parent } = setup();
+    const from = (data: unknown) => bridge.handle({ origin: "https://game.example", source: parent, data });
+    expect(from({ type: "unlock", future_field: 1 })).toBe(true);
+    expect(from({ type: "audio_status", future_field: 1 })).toBe(true);
+    expect(from({ type: "human_utterance", seat_id: "seat-1", text: "hi", future_field: 1 })).toBe(true);
+    expect(from({ type: "something_new" })).toBe(false);
+  });
+});

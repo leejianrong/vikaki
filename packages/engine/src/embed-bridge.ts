@@ -19,6 +19,13 @@ export type ToParent = { type: "audio_locked" } | { type: "audio_unlocked" } | S
 /** What the host may say. `unlock` after a click on the host page; `audio_status` asks the page to say where it stands (a host that attached its listener late). */
 export type FromParent = { type: "unlock" } | { type: "audio_status" } | ({ type: "human_utterance" } & HumanSpeech);
 
+/**
+ * The messages a game may rely on (VIK-132, docs/embed.md "Stability"). Within a major version they only grow: a type is never renamed or
+ * removed and a field never changes meaning. `satisfies` makes the compiler fail if a union gains a type this list lacks, and a test pins it.
+ */
+export const EMBED_TO_PARENT = ["audio_locked", "audio_unlocked", "speech_started", "speech_finished", "speech_interrupted"] as const satisfies readonly ToParent["type"][];
+export const EMBED_FROM_PARENT = ["unlock", "audio_status", "human_utterance"] as const satisfies readonly FromParent["type"][];
+
 /** What a human said for a seat, as the host's recogniser heard it (VIK-69, ADR-0024). `final: false` is a partial transcript. */
 export interface HumanSpeech {
   seat_id: string;

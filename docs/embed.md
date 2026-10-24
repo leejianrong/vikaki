@@ -6,6 +6,15 @@ For a game that frames `/avatar` in an `<iframe>` so its players have faces and 
 
 Each section below says which card added it. Pin to the commit named on that card.
 
+## Stability: what a game can rely on (VIK-132)
+
+The embed surface is the URL parameters in the table below and the `postMessage` messages in "Sound" and "A human's speech" (`audio_locked`, `audio_unlocked`, `unlock`, `audio_status`, `speech_started`, `speech_finished`, `speech_interrupted`, `human_utterance`) with their fields.
+
+- **Additive only within a major version.** A new message, a new optional field or a new URL parameter may appear in any release. A message type is never renamed or removed, a field never changes meaning, and a parameter's default does not change. A change that would break a game waits for the next major version (`protocol_version` 2) and is announced in the release notes first.
+- **So ignore what you do not know.** Your listener should skip a `type` it does not recognise and a field it did not expect; the page does the same for your messages (an unknown `type` is dropped, extra fields on a known one are fine).
+- **How a game checks the version.** Pin the image tag (`ghcr.io/leejianrong/vikaki:0.1`), and have your game server, which is a driver, read `protocol_version` from the hub's `welcome` (every message carries it; it is `1` today) and refuse to start a game on a number it does not know. The embedded page and the hub are one build, so the page's messages follow the hub's version; there is no separate embed version to keep in step.
+- **Pinned by tests.** `EMBED_TO_PARENT` and `EMBED_FROM_PARENT` in `packages/engine/src/embed-bridge.ts` list the messages and a unit test fails if one is renamed or removed, or if one is missing from this file. Changing the list means changing this section too.
+
 ## The URL
 
 ```html
