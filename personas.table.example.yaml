@@ -15,3 +15,7 @@ personas:
     avatar: packages/engine/public/avatars/cactusboy.vrm
     voice: bf_emma
     style: cheerful, fearless, loves a gamble
+  desk:                                                    # the commentator (VIK-110): a voice for `--commentary`, never a seat; keep it last so `?seats=N` takes the players first
+    avatar: packages/engine/public/avatars/cookieman.vrm
+    voice: bm_lewis
+    style: a warm, quick sports commentator who loves a good bluff and never takes sides

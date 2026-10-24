@@ -37,6 +37,7 @@ class Table:
     small_blind: int = 1
     big_blind: int = 2
     max_tokens: int = 300
+    commentary_model: str | None = None  # the commentator's model (VIK-110); without one it uses the reaction model, else the first seat's
     reaction_model: str | None = None  # a cheap model for listeners' silent reactions; without one they follow a fixed table (MirrorReactor)
     problems: list[str] = field(default_factory=list)
 
@@ -91,6 +92,10 @@ def load_table(path: str, *, default_model: str | None = None) -> Table:
             if not isinstance(data[key], int) or isinstance(data[key], bool) or data[key] <= 0:
                 raise TableError(f"`{key}` must be a positive whole number")
             setattr(table, key, data[key])
+    if data.get("commentary_model") is not None:
+        if not isinstance(data["commentary_model"], str) or not data["commentary_model"].strip():
+            raise TableError("`commentary_model` must be a model id")
+        table.commentary_model = data["commentary_model"].strip()
     if data.get("reaction_model") is not None:
         if not isinstance(data["reaction_model"], str) or not data["reaction_model"].strip():
             raise TableError("`reaction_model` must be a model id")
