@@ -24,7 +24,8 @@ import { Sfx } from "./sfx.ts";
 import { TableProps } from "./table-props.ts";
 import { buildTable, medianHeight, ovalSeats, seatLookYaw, type SeatSpot } from "./table3d.ts";
 import { buildDen, type Den } from "./den.ts";
-import { LookAround } from "./look-around.ts";
+import { Glancer, type Glance } from "./look-around.ts";
+import { FidgetScheduler, type FidgetKind } from "./fidgets.ts";
 import { mulberry32 } from "./behaviour.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
@@ -65,7 +66,7 @@ const embedAudio = mountEmbedAudio({ session, embed: embedOpts, params }); // em
 /** The beats that are one seat's move, and how long the table keeps looking at the player who made it (ms). */
 const ACTIONS = new Set(["fold", "check", "call", "raise"]);
 const ACTOR_GAZE_MS = 2200;
-const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>(), thought: false, glances: new Set<string>() });
+const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>(), thought: false, glances: new Set<string>(), fidgets: new Set<string>() });
 
 try {
   const res = await fetch(`${baseUrl}personas.json`);
@@ -336,7 +337,7 @@ try {
     sfx,
     acted: [],
     listen: { mode: "all" },
-    holdGlance: (i, name) => looks[i]?.freeze(name) ?? false,
+    holdGlance: (i, name) => glancers[i]?.freeze(name) ?? false,
     holdAct: (i, act, phase) => puppets[i]?.arms.hold(act as Act | undefined, phase),
     resetPeaks: () => {
       api.table!.seats.forEach((r) => (r.peak = freshPeak()));
@@ -381,6 +382,9 @@ try {
   // Playback (VIK-135): every state is kept so a spectator can step back; stepping back snaps, with no motion and no sound.
   const history = new StateHistory<Parameters<typeof cuesFor>[1]>();
   const transport = { available: false, paused: false };
+  /** What each seat's fidgets need to know of the table: cards in hand, chips in front, how restless the character is. */
+  const seatFacts: { cards: boolean; chips: boolean; fidgety: number }[] = [];
+  const row_fidget: (FidgetKind | undefined)[] = [];
   const show = (state: Parameters<typeof cuesFor>[1], o: { snap?: boolean; silent?: boolean } = {}) => {
     const moved = !o.silent && state.event && ACTIONS.has(state.event.kind) && state.event.seat_id !== undefined ? seats.findIndex((s) => s.seat === state.event!.seat_id) : -1;
     if (moved >= 0) {
@@ -406,6 +410,10 @@ try {
     topBar?.setState(state);
     if (barWasHidden) gridDirty = true; // the grid's tiles start below the bar, which has just appeared
     props?.setState(state, o.snap);
+    state.seats.forEach((st) => {
+      const i = seats.findIndex((x) => x.seat === st.seat_id);
+      if (i >= 0) seatFacts[i] = { cards: !st.folded && (st.cards?.length ?? 0) > 0, chips: st.stack > 0, fidgety: st.fidgety ?? 0.5 };
+    });
     if (sfx && !o.silent && JSON.stringify(state) !== JSON.stringify(lastState)) sfx.play(cuesFor(lastState, state, seats.map((x) => x.seat)));
     lastState = state;
   };
@@ -584,16 +592,29 @@ try {
   api.ready = true;
   say(`vikaki${who} · connecting`);
 
-  /** Each seat's glances round the room (VIK-102); `?fidget=off` leaves the seats looking ahead, `?fidget=fast` shortens the waits for a test. */
+  /** Each seat's fidgets (VIK-102, VIK-103): the scheduler picks and times them, the page plays the ones it can. `?fidget=off` leaves the seats still, `?fidget=fast` shortens the waits for a test. */
   const fidgetParam = params.get("fidget");
-  const looks = spots && den && fidgetParam !== "off" ? spots.map((spot, i) => new LookAround(mulberry32(seed + 101 * (i + 1)), den!.lookTargets, spot, frames[i]!.head, fidgetParam === "fast" ? 0.1 : 1)) : [];
+  const fidgetPace = fidgetParam === "fast" ? 0.1 : 1;
+  const glancers = spots && den && fidgetParam !== "off" ? spots.map((spot, i) => new Glancer(mulberry32(seed + 101 * (i + 1)), den!.lookTargets, spot, frames[i]!.head)) : [];
+  const schedulers = glancers.map((g, i) => new FidgetScheduler(mulberry32(seed + 211 * (i + 1)), { enabled: new Set<FidgetKind>(g.any ? ["look"] : []), arms: puppets[i]!.canAct }, 0.5, fidgetPace));
+  const gazes: (Glance | undefined)[] = [];
   const clock = new Clock();
   renderer.setAnimationLoop(() => {
     const dt = clock.getDelta();
     const voice: VisemeWeights = session.lipsync?.weights ?? {};
     props?.update(dt); // chips thrown in, cards pushed away (VIK-113)
     puppets.forEach((p, i) => {
-      const glance = looks[i]?.update(dt, { allowed: talker !== i && (focused === undefined || focused === i), thinking: thinker === i });
+      let glance: Glance | undefined;
+      const sched = schedulers[i];
+      if (sched) {
+        const facts = seatFacts[i] ?? { cards: false, chips: false, fidgety: 0.5 };
+        sched.fidgety = facts.fidgety;
+        const step = sched.update(dt, { allowed: talker !== i && (focused === undefined || focused === i) && !p.busy, thinking: thinker === i, cards: facts.cards, chips: facts.chips });
+        if (step.started?.kind === "look") gazes[i] = glancers[i]!.begin();
+        if (step.active !== "look") gazes[i] = undefined;
+        glance = glancers[i]!.held ?? gazes[i];
+        row_fidget[i] = step.active;
+      }
       p.reaction.glance(glance);
       p.update(dt, i === speaking ? voice : {});
       symbols[i]!.update(dt, p.emotion.pose);
@@ -602,6 +623,8 @@ try {
       row.symbol = p.emotion.pose.symbol ?? null;
       row.look = p.reaction.looking;
       row.glance = glance?.target;
+      row.fidget = row_fidget[i];
+      if (row.fidget) row.peak.fidgets.add(row.fidget);
       if (glance) row.peak.glances.add(glance.target);
       row.yaw = p.head.yaw;
       row.pitch = p.head.pitch;

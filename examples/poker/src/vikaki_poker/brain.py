@@ -36,6 +36,10 @@ class Traits:
             if f.name != "quirk" and (isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= 1):
                 raise ValueError(f"trait {f.name} must be a number from 0 to 1, got {v!r}")
 
+    def fidgety(self) -> float:
+        """How much the seat's body moves at the table, from 0 to 1, for the page's fidgets (VIK-103): an emotional, talkative character is restless, a calm, quiet one sits still."""
+        return round(0.7 * self.emotional + 0.3 * self.talkative, 2)
+
     @classmethod
     def from_dict(cls, data: dict) -> "Traits":
         known = {f.name for f in fields(cls)}

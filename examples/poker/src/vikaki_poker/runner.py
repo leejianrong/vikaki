@@ -162,11 +162,11 @@ def _decide_reactions(reactor: Reactor, pool: ThreadPoolExecutor, speaker: str, 
     return [(listener, pool.submit(one, listener)) for listener in listeners]
 
 
-def _show(voice: Voice, hand: Hand, show_cards: bool, **beat: Any) -> None:
+def _show(voice: Voice, hand: Hand, show_cards: bool, fidgety: dict[str, float] | None = None, **beat: Any) -> None:
     """Tell the overlay how the table stands (and the beat just played: `event`, `hand_no`, `winners`). A voice with no `table_state` shows none."""
     send = getattr(voice, "table_state", None)
     if send is not None:
-        send(table_state(hand, show_cards=show_cards, **beat))
+        send(table_state(hand, show_cards=show_cards, fidgety=fidgety, **beat))
 
 
 def _think(voice: Voice, seat: str, text: str, aloud: bool = False) -> None:
@@ -223,13 +223,14 @@ def play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list
 
 def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: list[tuple[str, ...]], out: Callable[[str], None], reactor: Reactor | None, pool: ThreadPoolExecutor, show_cards: bool, governor: Governor, hand_no: int, pace: Pace, monologue: Monologue) -> HandResult:
     result = HandResult(hand)
+    fidgety = {seat_id: a.traits.fidgety() for seat_id, a in agents.items()}  # how much each body moves, for the page (VIK-103)
     names = {seat_id: a.persona for seat_id, a in agents.items()}  # the characters' names, so a seat reads "ben raised" and not "seat-2 raised"
 
     def note(line: str) -> None:
         result.log.append(line)
         out(line)
 
-    _show(voice, hand, show_cards, event=new_hand_event(hand_no + 1, new_hand_detail(hand, names)), hand_no=hand_no + 1)
+    _show(voice, hand, show_cards, fidgety, event=new_hand_event(hand_no + 1, new_hand_detail(hand, names)), hand_no=hand_no + 1)
     pace.wait("new_hand")
     while not hand.complete:
         if hand.awaiting:  # a staged hand: the street, the showdown or the payout is a beat of its own
@@ -241,7 +242,7 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
                 event, winners = showdown_event(), None
             else:
                 event, winners = win_event(hand, names)
-            _show(voice, hand, show_cards, event=event, winners=winners)
+            _show(voice, hand, show_cards, fidgety, event=event, winners=winners)
             pace.wait(event["kind"])
             continue
         legal = hand.legal()
@@ -281,7 +282,7 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
             decision.note = f"{decision.note}; engine refused ({err}), played {fallback}".strip("; ")
             moved = f"{seat} {fallback}"
         beat = action_event(hand.events[seen], names)
-        _show(voice, hand, show_cards, event=beat)
+        _show(voice, hand, show_cards, fidgety, event=beat)
         note(f"[{street}] {moved}" + (f"  ({decision.note})" if decision.note else ""))
         weight = weight_of(beat["kind"], beat.get("amount"), pot_before, bool(hand.events[seen].get("all_in")))
         if reactor:  # `--no-reactions` keeps the listeners still

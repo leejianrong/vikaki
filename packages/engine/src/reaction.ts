@@ -45,6 +45,11 @@ export class ReactionMotion {
   private glanceYaw = { now: 0, to: 0 };
   private glancePitch = { now: 0, to: 0 };
 
+  /** A nod, shake or tilt is under way. */
+  get active(): boolean {
+    return this.motions.length > 0;
+  }
+
   play(gesture: Gesture): void {
     this.motions.push(...PARTS[gesture].map((m) => ({ ...m })));
   }

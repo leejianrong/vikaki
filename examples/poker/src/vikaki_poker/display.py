@@ -37,9 +37,10 @@ def _last_action(hand: Hand, seat_id: str) -> str | None:
     return None
 
 
-def table_state(hand: Hand, *, show_cards: bool = False, event: dict[str, Any] | None = None, hand_no: int | None = None, winners: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def table_state(hand: Hand, *, show_cards: bool = False, event: dict[str, Any] | None = None, hand_no: int | None = None, winners: list[dict[str, Any]] | None = None, fidgety: dict[str, float] | None = None) -> dict[str, Any]:
     """The keyword arguments of `VikakiClient.table_state` for this moment of `hand`. `event` is the beat just played (VIK-113), `hand_no` which hand this
-    is and `winners` who took the pot, once it has been paid (VIK-94): all for the page to show, and none of them about the cards."""
+    is and `winners` who took the pot, once it has been paid (VIK-94): all for the page to show, and none of them about the cards. `fidgety` is how much each
+    seat's body moves (VIK-103), from its traits."""
     done = hand.complete
     street = ("showdown" if hand.showdown else "complete") if done else "showdown" if hand.showdown else hand.street
     seats = []
@@ -59,6 +60,8 @@ def table_state(hand: Hand, *, show_cards: bool = False, event: dict[str, Any] |
             seat["hand"] = hand_name(list(p.hole), list(hand.board))
             if p.seat_id in chances:
                 seat["win"] = round(chances[p.seat_id], 4)
+        if fidgety and p.seat_id in fidgety:
+            seat["fidgety"] = fidgety[p.seat_id]
         last = _last_action(hand, p.seat_id)
         if last:
             seat["action"] = last

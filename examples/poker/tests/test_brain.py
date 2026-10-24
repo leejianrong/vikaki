@@ -131,3 +131,10 @@ def test_a_bluff_is_told_to_the_performer_but_a_proper_move_is_not():
     proper = briefing(view, performer_facts(view), history_text(h.events, names), [], names, MOVE)
     bluff = briefing(view, performer_facts(view), history_text(h.events, names), [], names, replace(MOVE, bluffing=True))
     assert "bluffing" not in proper and "You are bluffing here" in bluff and "do not say you are bluffing" in bluff
+
+
+def test_an_emotional_talkative_character_is_restless_and_a_calm_quiet_one_is_not():
+    assert Traits(emotional=1, talkative=1).fidgety() == 1
+    assert Traits(emotional=0, talkative=0).fidgety() == 0
+    assert Traits().fidgety() == 0.5
+    assert Traits(emotional=0.9, talkative=0.1).fidgety() > Traits(emotional=0.1, talkative=0.9).fidgety()  # feeling counts for more than chatter
