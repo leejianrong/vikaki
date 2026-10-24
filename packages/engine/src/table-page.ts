@@ -28,6 +28,7 @@ import { Glancer, type Glance } from "./look-around.ts";
 import { FidgetScheduler, type FidgetKind } from "./fidgets.ts";
 import { PEEK_HEAD, peekPhase } from "./peek.ts";
 import { restackReach } from "./restack.ts";
+import { extraPose, isExtra, type ExtraKind } from "./extras.ts";
 import { mulberry32 } from "./behaviour.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
@@ -339,6 +340,7 @@ try {
     sfx,
     acted: [],
     listen: { mode: "all" },
+    holdExtra: (i, kind, phase) => void (heldExtra[i] = kind ? { kind: kind as ExtraKind, phase } : undefined),
     holdRestack: (i, phase) => void (heldRestack[i] = phase),
     holdPeek: (i, amount) => void (heldPeek[i] = amount),
     holdGlance: (i, name) => glancers[i]?.freeze(name) ?? false,
@@ -600,13 +602,16 @@ try {
   const fidgetParam = params.get("fidget");
   const fidgetPace = fidgetParam === "fast" ? 0.1 : 1;
   const glancers = spots && den && fidgetParam !== "off" ? spots.map((spot, i) => new Glancer(mulberry32(seed + 101 * (i + 1)), den!.lookTargets, spot, frames[i]!.head)) : [];
-  const schedulers = glancers.map((g, i) => new FidgetScheduler(mulberry32(seed + 211 * (i + 1)), { enabled: new Set<FidgetKind>([...(g.any ? (["look"] as const) : []), ...(props ? (["peek", "restack"] as const) : [])]), arms: puppets[i]!.canAct }, 0.5, fidgetPace));
+  const schedulers = glancers.map((g, i) => new FidgetScheduler(mulberry32(seed + 211 * (i + 1)), { enabled: new Set<FidgetKind>([...(g.any ? (["look"] as const) : []), ...(props ? (["peek", "restack"] as const) : []), "tap", "lean", "stretch", "scratch"]), arms: puppets[i]!.canAct }, 0.5, fidgetPace));
   const gazes: (Glance | undefined)[] = [];
   /** A peek in progress per seat: the seconds so far and its length; and how far the cards are lifted now (eased, so a seat that must stop puts them down gently). */
   const peeking: ({ t: number; seconds: number } | undefined)[] = [];
   const lifted: number[] = [];
   const heldPeek: (number | undefined)[] = [];
   const heldRestack: (number | undefined)[] = [];
+  /** An idle extra in progress per seat (VIK-106), run to its end faster when cut short, as a restack is. */
+  const extras: ({ kind: ExtraKind; t: number; seconds: number } | undefined)[] = [];
+  const heldExtra: ({ kind: ExtraKind; phase: number } | undefined)[] = [];
   /** A restack in progress per seat (VIK-105): it runs to its end even when the seat must stop, faster, so a lifted chip does not jump back. */
   const restacking: ({ t: number; seconds: number } | undefined)[] = [];
   const clock = new Clock();
@@ -626,6 +631,7 @@ try {
         if (step.started?.kind === "peek") peeking[i] = { t: 0, seconds: step.started.seconds };
         if (step.active !== "peek") peeking[i] = undefined;
         if (step.started?.kind === "restack") restacking[i] = { t: 0, seconds: step.started.seconds };
+        if (isExtra(step.started?.kind)) extras[i] = { kind: step.started.kind, t: 0, seconds: step.started.seconds };
         const pk = peeking[i];
         let target = 0;
         const held = heldPeek[i];
@@ -657,6 +663,24 @@ try {
           p.arms.reach(0);
           if (gazes[i]?.target === "chips") gazes[i] = undefined;
         }
+        const he = heldExtra[i];
+        const ex = he ? { kind: he.kind, t: he.phase, seconds: 1 } : extras[i];
+        if (ex) {
+          if (!he) ex.t += dt * (step.active === ex.kind ? 1 : 3);
+          const ph = ex.t / ex.seconds;
+          if (ph >= 1) extras[i] = undefined;
+          else {
+            const pose = extraPose(ex.kind, ph);
+            p.arms.extra(p.canAct ? pose.arms : undefined);
+            p.lean(pose.lean);
+            if (!gazes[i] || gazes[i]!.target === "extra") gazes[i] = { target: "extra", yaw: pose.head.yaw, pitch: pose.head.pitch };
+          }
+        }
+        if (!extras[i] && !he) {
+          p.arms.extra(undefined);
+          p.lean(0);
+          if (gazes[i]?.target === "extra") gazes[i] = undefined;
+        }
         lifted[i] = (lifted[i] ?? 0) + (target - (lifted[i] ?? 0)) * (1 - Math.exp(-Math.min(dt, 0.05) / 0.08));
         props?.setPeek(i, lifted[i]! < 0.01 ? 0 : lifted[i]!);
         glance = glancers[i]!.held ?? gazes[i];
@@ -672,7 +696,7 @@ try {
       row.glance = glance?.target;
       row.fidget = row_fidget[i];
       if (row.fidget) row.peak.fidgets.add(row.fidget);
-      if (glance && glance.target !== "peek" && glance.target !== "chips") row.peak.glances.add(glance.target);
+      if (glance && glance.target !== "peek" && glance.target !== "chips" && glance.target !== "extra") row.peak.glances.add(glance.target);
       row.yaw = p.head.yaw;
       row.pitch = p.head.pitch;
       row.roll = p.head.roll;

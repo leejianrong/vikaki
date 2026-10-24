@@ -34,6 +34,8 @@ export interface AvatarRenderer {
   canAct?(): boolean;
   /** Move the arms from their seated pose by these changes to the seat-pose numbers (`forward`, `down`, `elbow`); all zero is the seated pose. */
   setArmOffsets?(offsets: ArmOffsets): void;
+  /** Lean the body back, from 0 (upright) to 1 (as far as it goes), for a lean or a stretch (VIK-106). A model with no spine leaves it out. */
+  setLean?(amount: number): void;
   /** Hide or show the head, for a camera at this avatar's eyes (VIK-99). */
   setHeadHidden?(hidden: boolean): void;
 }
