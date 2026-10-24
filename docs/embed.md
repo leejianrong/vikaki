@@ -6,6 +6,8 @@ For a game that frames `/avatar` in an `<iframe>` so its players have faces and 
 
 Each section below says which card added it. Pin to the commit named on that card.
 
+Your game draws its own panels, dials and captions around the frame: there is no generic overlay message to ask the page to draw them ([ADR-0045](adr/0045-games-draw-their-own-panels-around-the-avatar-page.md)). Use `names=1` and `captions=1` if the page's own plates and transcript are enough, and the speech events below to follow who is speaking.
+
 ## Stability: what a game can rely on (VIK-132)
 
 The embed surface is the URL parameters in the table below and the `postMessage` messages in "Sound" and "A human's speech" (`audio_locked`, `audio_unlocked`, `unlock`, `audio_status`, `speech_started`, `speech_finished`, `speech_interrupted`, `human_utterance`) with their fields.
