@@ -19,4 +19,4 @@ VIK-102 made a seat glance round the room on its own timer. The cards after it (
 
 ## Not done
 
-Only `look` is played so far. Peek (VIK-104), restack (VIK-105) and the idle extras (VIK-106) switch themselves on in the scheduler's `enabled` set as they land.
+Only `look` was played at first; peek is played now (ADR-0036). Restack (VIK-105) and the idle extras (VIK-106) switch themselves on in the scheduler's `enabled` set as they land.

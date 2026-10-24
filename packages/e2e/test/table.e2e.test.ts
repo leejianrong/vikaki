@@ -271,6 +271,16 @@ describe("the table page", () => {
     await page.waitForFunction(() => window.__vikaki!.table!.seats[1]!.pitch < -0.1 && window.__vikaki!.table!.seats[0]!.yaw > 0.15, null, { timeout: 30_000 });
   });
 
+  it("has a seat with cards peek at them: the cards lift, the head dips, and a seat without cards does not (VIK-104)", { timeout: 120_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table&fidget=fast");
+    const seats = ["seat-1", "seat-2", "seat-3"].map((seat_id, i) => ({ seat_id, stack: 90, cards: i === 2 ? [] : ["back", "back"] }));
+    d1.ws.send(JSON.stringify({ protocol_version: 1, type: "table_state", street: "flop", pot: 6, seats }));
+    await page.evaluate(() => window.__vikaki!.table!.resetPeaks());
+    await page.waitForFunction(() => window.__vikaki!.table!.seats[0]!.peak.fidgets.has("peek"), null, { timeout: 90_000 });
+    await page.waitForFunction(() => (window.__vikaki!.table!.props!.peeked[0] ?? 0) > 0.5 || (window.__vikaki!.table!.props!.peeked[1] ?? 0) > 0.5, null, { timeout: 60_000 });
+    expect(await page.evaluate(() => window.__vikaki!.table!.seats[2]!.peak.fidgets.has("peek")), "no cards, no peek").toBe(false);
+  });
+
   it("seats every avatar with the thighs running under the table, not away from it (VIK-81)", { timeout: 90_000 }, async () => {
     const { page } = await setup("seats=3&view=table", undefined, false);
     const reach = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.kneeReach));

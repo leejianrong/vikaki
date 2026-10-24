@@ -26,6 +26,7 @@ import { buildTable, medianHeight, ovalSeats, seatLookYaw, type SeatSpot } from 
 import { buildDen, type Den } from "./den.ts";
 import { Glancer, type Glance } from "./look-around.ts";
 import { FidgetScheduler, type FidgetKind } from "./fidgets.ts";
+import { PEEK_HEAD, peekPhase } from "./peek.ts";
 import { mulberry32 } from "./behaviour.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
@@ -337,6 +338,7 @@ try {
     sfx,
     acted: [],
     listen: { mode: "all" },
+    holdPeek: (i, amount) => void (heldPeek[i] = amount),
     holdGlance: (i, name) => glancers[i]?.freeze(name) ?? false,
     holdAct: (i, act, phase) => puppets[i]?.arms.hold(act as Act | undefined, phase),
     resetPeaks: () => {
@@ -596,8 +598,12 @@ try {
   const fidgetParam = params.get("fidget");
   const fidgetPace = fidgetParam === "fast" ? 0.1 : 1;
   const glancers = spots && den && fidgetParam !== "off" ? spots.map((spot, i) => new Glancer(mulberry32(seed + 101 * (i + 1)), den!.lookTargets, spot, frames[i]!.head)) : [];
-  const schedulers = glancers.map((g, i) => new FidgetScheduler(mulberry32(seed + 211 * (i + 1)), { enabled: new Set<FidgetKind>(g.any ? ["look"] : []), arms: puppets[i]!.canAct }, 0.5, fidgetPace));
+  const schedulers = glancers.map((g, i) => new FidgetScheduler(mulberry32(seed + 211 * (i + 1)), { enabled: new Set<FidgetKind>([...(g.any ? (["look"] as const) : []), ...(props ? (["peek"] as const) : [])]), arms: puppets[i]!.canAct }, 0.5, fidgetPace));
   const gazes: (Glance | undefined)[] = [];
+  /** A peek in progress per seat: the seconds so far and its length; and how far the cards are lifted now (eased, so a seat that must stop puts them down gently). */
+  const peeking: ({ t: number; seconds: number } | undefined)[] = [];
+  const lifted: number[] = [];
+  const heldPeek: (number | undefined)[] = [];
   const clock = new Clock();
   renderer.setAnimationLoop(() => {
     const dt = clock.getDelta();
@@ -609,9 +615,25 @@ try {
       if (sched) {
         const facts = seatFacts[i] ?? { cards: false, chips: false, fidgety: 0.5 };
         sched.fidgety = facts.fidgety;
-        const step = sched.update(dt, { allowed: talker !== i && (focused === undefined || focused === i) && !p.busy, thinking: thinker === i, cards: facts.cards, chips: facts.chips });
+        const step = sched.update(dt, { allowed: talker !== i && (focused === undefined || focused === i) && !p.busy, thinking: thinker === i, cards: facts.cards && lastState?.street !== "showdown", chips: facts.chips });
         if (step.started?.kind === "look") gazes[i] = glancers[i]!.begin();
         if (step.active !== "look") gazes[i] = undefined;
+        if (step.started?.kind === "peek") peeking[i] = { t: 0, seconds: step.started.seconds };
+        if (step.active !== "peek") peeking[i] = undefined;
+        const pk = peeking[i];
+        let target = 0;
+        const held = heldPeek[i];
+        if (held !== undefined) {
+          target = held;
+          gazes[i] = { target: "peek", yaw: 0, pitch: PEEK_HEAD * Math.min(1, held * 1.5) };
+        } else if (pk) {
+          pk.t += dt;
+          const ph = peekPhase(pk.t / pk.seconds);
+          target = ph.cards;
+          gazes[i] = { target: "peek", yaw: 0, pitch: PEEK_HEAD * ph.head }; // the head dips to the cards and lifts again
+        } else if (gazes[i]?.target === "peek") gazes[i] = undefined;
+        lifted[i] = (lifted[i] ?? 0) + (target - (lifted[i] ?? 0)) * (1 - Math.exp(-Math.min(dt, 0.05) / 0.08));
+        props?.setPeek(i, lifted[i]! < 0.01 ? 0 : lifted[i]!);
         glance = glancers[i]!.held ?? gazes[i];
         row_fidget[i] = step.active;
       }
@@ -625,7 +647,7 @@ try {
       row.glance = glance?.target;
       row.fidget = row_fidget[i];
       if (row.fidget) row.peak.fidgets.add(row.fidget);
-      if (glance) row.peak.glances.add(glance.target);
+      if (glance && glance.target !== "peek") row.peak.glances.add(glance.target);
       row.yaw = p.head.yaw;
       row.pitch = p.head.pitch;
       row.roll = p.head.roll;
