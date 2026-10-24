@@ -4,6 +4,7 @@ import type { MessageOf } from "@vikaki/protocol";
 import { currentDeck, drawClassicFace } from "./card-art.ts";
 import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Sprite, SpriteMaterial, type Texture, Vector3 } from "three";
 import { peekPlacement } from "./peek.ts";
+import { restackSpots } from "./restack.ts";
 import { cardFace, SUIT_PATHS } from "./table.ts";
 import { type Hold, middlePot, type Place, type Plan, planMotion } from "./table-motion.ts";
 import type { SeatSpot } from "./table3d.ts";
@@ -233,10 +234,12 @@ export class TableProps {
   private shown: State | undefined;
   private reduced = false;
   private readonly peeks: number[] = [];
+  private readonly restacks: number[] = [];
+  private chipInputs: { state: State; hold?: Hold } | undefined;
   /** In the air now, for tests. */
   readonly motion = { flights: 0 };
   /** What is drawn now, for tests. */
-  readonly drawn = { /** How far each seat's cards are lifted in a peek (VIK-104). */ peeked: [] as number[], boardCards: 0, seatCards: [] as number[], chips: 0, dealer: undefined as string | undefined, /** The words on the pot's label, or undefined with no pot. */ pot: undefined as string | undefined, /** True when the hands on the table are shown face up (a showdown), false while they are face down. */ handsFaceUp: false, /** Cards lit up as the five that make the winning hand. */ highlighted: 0 };
+  readonly drawn = { /** Whether each seat's chips are being riffled (VIK-105). */ restacking: [] as boolean[], /** How far each seat's cards are lifted in a peek (VIK-104). */ peeked: [] as number[], boardCards: 0, seatCards: [] as number[], chips: 0, dealer: undefined as string | undefined, /** The words on the pot's label, or undefined with no pot. */ pot: undefined as string | undefined, /** True when the hands on the table are shown face up (a showdown), false while they are face down. */ handsFaceUp: false, /** Cards lit up as the five that make the winning hand. */ highlighted: 0 };
 
   constructor(
     private readonly tableY: number,
@@ -278,6 +281,48 @@ export class TableProps {
     this.current = state;
     this.draw(state, plan?.hold);
     if (plan) this.launch(plan.flights, plan.mucks, plan);
+  }
+
+  /** Place every chip: each seat's stack and bet, and the pot's middle. Apart from `draw` so a restack can lay them out again each frame. */
+  private layoutChips(state: State, hold?: Hold): void {
+    this.chipInputs = { state, hold };
+    const y = this.tableY;
+    const piles: ChipSpot[][] = [[], [], [], []];
+    const put = (amount: number, cx: number, cz: number, across: { x: number; z: number }, seat?: number) => {
+      const spots = chipPile(amount, cx, cz, across, y);
+      const phase = seat === undefined ? 0 : (this.restacks[seat] ?? 0);
+      for (const s of phase > 0 ? restackSpots(spots, phase, across) : spots) piles[s.kind]!.push(s);
+    };
+    for (const row of state.seats) {
+      const i = this.seatIds.indexOf(row.seat_id);
+      if (i < 0) continue;
+      const slots = seatSlots(this.spots[i]!);
+      const stack = hold?.stack.get(i) ?? row.stack;
+      const bet = hold?.bet.get(i) ?? row.bet ?? 0;
+      put(stack, slots.stack.x, slots.stack.z, slots.across, i);
+      if (bet) put(bet, slots.bet.x, slots.bet.z, slots.across);
+    }
+    const middle = hold?.middle ?? middlePot(state); // the pot counts the bets still in front of the players: draw only what is in the middle
+    if (middle) put(middle, POT_AT.x, POT_AT.z, { x: 1, z: 0 });
+    const m = new Matrix4();
+    let total = 0;
+    this.chips.forEach((mesh, kind) => {
+      const list = piles[kind]!.slice(0, CHIP_CAPACITY);
+      list.forEach((s, n) => mesh.setMatrixAt(n, m.makeTranslation(s.x, s.y, s.z)));
+      mesh.count = list.length;
+      mesh.instanceMatrix.needsUpdate = true;
+      total += list.length;
+    });
+    this.drawn.chips = total;
+  }
+
+  /** Riffle a seat's chips as in a restack (VIK-105): `phase` from 0 to 1 through it, 0 for none. Only the picture changes: the stack is as it was. */
+  setRestack(seat: number, phase: number): void {
+    const p = Math.min(1, Math.max(0, phase));
+    if ((this.restacks[seat] ?? 0) === p) return;
+    this.restacks[seat] = p;
+    this.drawn.restacking[seat] = p > 0;
+    if (this.chipInputs) this.layoutChips(this.chipInputs.state, this.chipInputs.hold);
   }
 
   /** Lift a seat's face-down cards as in a peek (VIK-104): 0 lies flat, 1 is the full tilt. Redrawn cards keep it. Ignored once the hands are face up. */
@@ -459,10 +504,6 @@ export class TableProps {
 
     this.drawn.seatCards = this.seatIds.map(() => 0);
 
-    const piles: ChipSpot[][] = [[], [], [], []];
-    const put = (amount: number, cx: number, cz: number, across: { x: number; z: number }) => {
-      for (const s of chipPile(amount, cx, cz, across, y)) piles[s.kind]!.push(s);
-    };
     this.drawn.dealer = undefined;
     this.button.visible = false;
     for (const row of state.seats) {
@@ -480,10 +521,6 @@ export class TableProps {
         });
         this.drawn.seatCards[i] = row.cards?.length ?? 0;
       }
-      const stack = hold?.stack.get(i) ?? row.stack;
-      const bet = hold?.bet.get(i) ?? row.bet ?? 0;
-      put(stack, slots.stack.x, slots.stack.z, slots.across);
-      if (bet) put(bet, slots.bet.x, slots.bet.z, slots.across);
       if (state.dealer === row.seat_id) {
         this.button.position.set(slots.button.x, y + 0.005, slots.button.z);
         this.buttonFace.map ??= buttonTexture();
@@ -493,8 +530,7 @@ export class TableProps {
       }
     }
     this.drawn.highlighted = highlighted;
-    const middle = hold?.middle ?? middlePot(state); // the pot counts the bets still in front of the players: draw only what is in the middle
-    if (middle) put(middle, POT_AT.x, POT_AT.z, { x: 1, z: 0 });
+    this.layoutChips(state, hold);
     this.drawn.pot = state.pot ? `Pot: ${state.pot.toLocaleString("en-US")}` : undefined;
     if (this.drawn.pot !== this.potText) {
       this.potText = this.drawn.pot ?? "";
@@ -505,15 +541,5 @@ export class TableProps {
     }
     this.potLabel.visible = Boolean(state.pot);
     this.potLabel.position.set(POT_AT.x, y + 0.07, POT_AT.z + 0.17); // in front of the chips, below the board
-    const m = new Matrix4();
-    let total = 0;
-    this.chips.forEach((mesh, kind) => {
-      const list = piles[kind]!.slice(0, CHIP_CAPACITY);
-      list.forEach((s, n) => mesh.setMatrixAt(n, m.makeTranslation(s.x, s.y, s.z)));
-      mesh.count = list.length;
-      mesh.instanceMatrix.needsUpdate = true;
-      total += list.length;
-    });
-    this.drawn.chips = total;
   }
 }

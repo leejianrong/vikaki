@@ -48,8 +48,17 @@ export function armOffsets(act: Act, phase: number): ArmOffsets {
   return { left: REST, right: scale({ forward: 0.35, down: -0.6, elbow: -0.6 }, k) };
 }
 
+/** The left hand's reach to the chips (VIK-105) added to `offsets`: forward and down to the stack beside it, the elbow in and working. */
+export function withReach(offsets: ArmOffsets, amount: number, wiggle: number): ArmOffsets {
+  if (amount <= 0) return offsets;
+  const l = offsets.left;
+  return { ...offsets, left: { forward: l.forward + 0.28 * amount, down: l.down + 0.1 * amount, elbow: l.elbow - 0.35 * amount + wiggle * amount } };
+}
+
 /** The act in progress. Frames longer than `MAX_STEP` advance it by that much only, as in `Gestures`. */
 export class ArmActs {
+  private reaching = 0;
+  private wiggle = 0;
   private act: Act | undefined;
   private age = 0;
   private held: { act: Act; phase: number } | undefined;
@@ -64,11 +73,24 @@ export class ArmActs {
     this.held = act ? { act, phase } : undefined;
   }
 
+  /**
+   * Reach the left hand toward the stack of chips beside it, by `amount` from 0 to 1 (VIK-105), working at them by `wiggle` (radians of the elbow). It layers
+   * on top of an act in progress, which is the right hand's and both hands'.
+   */
+  reach(amount: number, wiggle = 0): void {
+    this.reaching = amount;
+    this.wiggle = wiggle;
+  }
+
   get playing(): Act | undefined {
     return this.act;
   }
 
   update(rawDt: number): ArmOffsets {
+    return withReach(this.acted(rawDt), this.reaching, this.wiggle);
+  }
+
+  private acted(rawDt: number): ArmOffsets {
     if (this.held) return armOffsets(this.held.act, this.held.phase);
     if (!this.act) return NO_OFFSETS;
     this.age += Math.min(Math.max(0, rawDt), 0.05);
