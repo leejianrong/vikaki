@@ -3,6 +3,7 @@
 # Two images from one file (docs/docker.md):
 #   docker build --target vikaki -t vikaki .          page, hub and speech (the fake test voice), small
 #   docker build --target vikaki-render -t vikaki-render .   adds Chromium, for `stream` and `serve --headless`
+#   docker build --target vikaki-kokoro -t vikaki-kokoro .    adds the real voice (Kokoro and its model), about 1 GB more
 
 ARG NODE_VERSION=24
 FROM node:${NODE_VERSION}-bookworm-slim AS base
@@ -60,4 +61,15 @@ USER root
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright VIKAKI_IMAGE=vikaki-render
 RUN cd /app/packages/render && pnpm exec playwright-core install --with-deps chromium \
  && rm -rf /var/lib/apt/lists/* /opt/ms-playwright/chromium_headless_shell-* /opt/ms-playwright/ffmpeg-*
+USER node
+
+# ---- the same as the small image, with the real voice ----
+# The voice is installed the way `make install-voice` does it (scripts/install-voice.mjs: kokoro-js with its native runtime, then the
+# model, which is loaded and made to speak once, so a build that cannot speak fails here and not at the first line). The model is in the
+# image, so the first start needs no network and no download. Nothing of this reaches the workspace (ADR-0010).
+FROM vikaki AS vikaki-kokoro
+USER root
+ENV VIKAKI_IMAGE=vikaki-kokoro
+COPY scripts/install-voice.mjs /app/scripts/install-voice.mjs
+RUN cd /app && node scripts/install-voice.mjs && chmod -R a+rX /app/.vikaki
 USER node

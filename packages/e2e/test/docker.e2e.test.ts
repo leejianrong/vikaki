@@ -204,3 +204,19 @@ describe.skipIf(!enabled)("the compose example (examples/compose)", () => {
     expect(published).not.toMatch(/0\.0\.0\.0:/);
   });
 });
+
+// The real voice in a container (VIK-130). The build installs Kokoro and its model and makes it speak once; this checks a running container does too.
+describe.skipIf(!enabled)("the image with the real voice (target vikaki-kokoro)", () => {
+  it("speaks one line with Kokoro, with no download at start", { timeout: 40 * 60_000 }, async () => {
+    await docker("build", "--target", "vikaki-kokoro", "-t", "vikaki-kokoro:test", ".");
+    const c = await start("vikaki-kokoro:test");
+    const seconds = await healthy(c.id, c.startedAt);
+    expect(seconds).toBeLessThan(30);
+    const { started, finished } = await say(c.port, "Hello from inside the container.");
+    expect(started.utterance_id).toBe(finished.utterance_id);
+    const logs = (await run("docker", ["logs", c.id])).stdout;
+    expect(logs).toMatch(/speech: kokoro/);
+    expect(logs).toMatch(/first audio made \d+ ms after the text arrived/);
+    expect(logs).not.toMatch(/test voice|steady "aah"|fake/i);
+  });
+});

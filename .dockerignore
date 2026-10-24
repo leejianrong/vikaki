@@ -9,6 +9,7 @@ packages/e2e/artifacts
 docs
 spikes
 scripts
+!scripts/install-voice.mjs
 *.log
 .DS_Store
 .env
