@@ -7,7 +7,7 @@ describe("the den (VIK-101)", () => {
   it("merges into one geometry with a colour on every vertex, so the whole room is one draw call", () => {
     const g = merged(parts.map((p) => ({ ...p, geometry: p.geometry.clone() })));
     expect(g.attributes.color!.count).toBe(g.attributes.position!.count);
-    expect(g.index!.count / 3, "triangles in the room").toBeLessThan(9000);
+    expect(g.index!.count / 3, "triangles in the room").toBeLessThan(3500);
   });
 
   it("has what a living room has: a window, shelves, pictures, a clock, plants, an armchair and a sofa", () => {

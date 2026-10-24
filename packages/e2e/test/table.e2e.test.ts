@@ -246,7 +246,7 @@ describe("the table page", () => {
     const { page } = await setup("seats=3&view=table", undefined, false);
     const den = await page.evaluate(() => window.__vikaki!.table!.den);
     expect(den!.targets).toEqual(expect.arrayContaining(["window", "bookcase", "clock", "armchair", "sofa", "lamp"]));
-    expect(den!.triangles).toBeLessThan(9000);
+    expect(den!.triangles).toBeLessThan(3500);
     const bare = await setup("seats=3&view=table&den=off", undefined, false);
     expect(await bare.page.evaluate(() => window.__vikaki!.table!.den)).toBeUndefined();
   });
