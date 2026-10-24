@@ -19,6 +19,16 @@ docker run --rm -p 127.0.0.1:8787:8787 ghcr.io/leejianrong/vikaki:0.1
 
 What each image does and how to configure it: [docker.md](docker.md).
 
+## The Python client
+
+`vikaki-client` has the same version as the image: tag `v0.1.0` releases image `0.1.0` and `vikaki-client 0.1.0` (the workflow refuses a tag that disagrees with `clients/python/pyproject.toml`; `vikaki_client.__version__` reads the installed metadata, so the wheel cannot disagree either). Every run, a dry run too, builds the wheel and the source distribution, installs the wheel into a clean environment and checks it imports, says the right version, and carries the protocol schema. On a tag, both files are attached to the GitHub release, so a game can depend on a URL instead of a git commit:
+
+```bash
+pip install https://github.com/leejianrong/vikaki/releases/download/v0.1.0/vikaki_client-0.1.0-py3-none-any.whl
+```
+
+**PyPI is off until you opt in** (it needs an account step that only you can do, and an upload cannot be taken back). To turn it on: on pypi.org add a *pending publisher* for the project `vikaki-client` (owner `leejianrong`, repository `vikaki`, workflow `release.yml`, environment `pypi`), create the `pypi` environment in the repository settings (optionally with a required reviewer), and set the repository variable `PUBLISH_TO_PYPI` to `true`. No token is stored anywhere: the upload uses trusted publishing. The `pypi` job runs last, after the GitHub release exists. Which hub versions the client speaks to is in [the client's README](../clients/python/README.md#which-hub-it-speaks-to).
+
 ## Checking where an image came from
 
 Each published image is signed with `cosign` without a key: the signature is made with the release workflow's own identity (GitHub's OIDC token) and recorded in the public Rekor log, so there is no signing key to trust or lose. Each image also carries its SBOM (SPDX, made by `syft`) as a signed attestation, and the SBOM files are attached to the GitHub release.

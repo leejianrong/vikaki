@@ -13,13 +13,14 @@ from typing import Any, AsyncIterable, AsyncIterator, Awaitable, Callable, Itera
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed, WebSocketException
 
+from ._version import __version__
 from .errors import HubError, InvalidMessage
 from .messages import make
 
 log = logging.getLogger("vikaki_client")
 
 DEFAULT_URL = "ws://127.0.0.1:8787/ws"
-CLIENT_NAME = "vikaki-client-python/0.1"
+CLIENT_NAME = "vikaki-client-python/" + ".".join(__version__.split(".")[:2])  # major.minor, e.g. vikaki-client-python/0.1
 _EVENT_BACKLOG = 1000
 _OUTCOME_BACKLOG = 1000
 

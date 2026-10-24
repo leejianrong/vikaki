@@ -6,13 +6,25 @@ It connects to a running `vikaki serve`; it does not start the hub, speak, or dr
 
 ## Install
 
-From this repo's git URL (it is not on PyPI yet):
+Each release of Vikaki ships the client with the **same version as the image**: `vikaki-client 0.1.x` goes with `ghcr.io/leejianrong/vikaki:0.1` (and its `0.1.x` tags). Take either one:
 
 ```bash
-pip install "git+https://github.com/leejianrong/vikaki.git#subdirectory=clients/python"
+# the wheel attached to the GitHub release (works as soon as the release exists)
+pip install https://github.com/leejianrong/vikaki/releases/download/v0.1.0/vikaki_client-0.1.0-py3-none-any.whl
+
+# from PyPI, once the project publishes there (docs/release.md says whether it does)
+pip install vikaki-client==0.1.0
 ```
 
+Both are the same build from the same tag. Neither has a git dependency, so a game that depends on the client can itself be published. Before the first release, install from this repo: `pip install "git+https://github.com/leejianrong/vikaki.git#subdirectory=clients/python"`.
+
 Python 3.10 or newer. Dependencies: `websockets` (BSD-3-Clause) and `jsonschema` (MIT).
+
+## Which hub it speaks to
+
+The client speaks `protocol_version` 1 ([protocol.md](../../docs/protocol.md)) and `vikaki_client.PROTOCOL_VERSION` says so. The protocol only grows by adding, so **any hub that says `protocol_version` 1 works with any client of the 0.x line**: a newer hub's new messages and fields are ignored, and a newer client sends nothing an older hub rejects, with one exception: a feature that needs a newer hub (for example a message type added in 0.3) is rejected with an `error` by an older one. Run the client and the hub from the same release (`0.1.x` with `ghcr.io/leejianrong/vikaki:0.1`) when you can. A hub that answers a different `protocol_version` is refused with `unsupported_protocol_version`; that would be a major release, announced in the release notes.
+
+`vikaki_client.__version__` is the installed version (read from the package metadata, so it cannot disagree with the wheel).
 
 ## Use
 
