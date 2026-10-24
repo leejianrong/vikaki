@@ -6,6 +6,9 @@ const MAX_STEP = 0.05;
 /** Time constant of the head turning toward whoever is speaking, in seconds. Slower than a feeling: a glance, not a flick. */
 const LOOK_TAU = 0.3;
 
+/** Time constant of a glance round the room (VIK-102): quicker than the turn toward a speaker, since it is a flick of the head. */
+const GLANCE_TAU = 0.2;
+
 interface Motion {
   /** Seconds since the gesture began; negative until a delayed part starts. */
   age: number;
@@ -39,6 +42,8 @@ export class ReactionMotion {
   private motions: Motion[] = [];
   private gaze = 0;
   private target = 0;
+  private glanceYaw = { now: 0, to: 0 };
+  private glancePitch = { now: 0, to: 0 };
 
   play(gesture: Gesture): void {
     this.motions.push(...PARTS[gesture].map((m) => ({ ...m })));
@@ -47,6 +52,12 @@ export class ReactionMotion {
   /** Turn the head toward `yaw` (radians, positive toward the avatar's left on screen's right) and hold it; 0 looks straight ahead. */
   look(yaw: number): void {
     this.target = yaw;
+  }
+
+  /** Glance at something in the room (VIK-102): turn the head by `yaw` and `pitch` on top of everything else, or with nothing look back. Held until changed. */
+  glance(to?: { yaw: number; pitch: number }): void {
+    this.glanceYaw.to = to?.yaw ?? 0;
+    this.glancePitch.to = to?.pitch ?? 0;
   }
 
   /** Where the head is turned now, eased toward the last `look`. */
@@ -69,6 +80,10 @@ export class ReactionMotion {
     this.motions = this.motions.filter((m) => m.age < m.duration);
     this.gaze += (this.target - this.gaze) * (1 - Math.exp(-dt / LOOK_TAU));
     if (Math.abs(this.target - this.gaze) < 1e-4) this.gaze = this.target;
-    return { pitch: pitch + 0, yaw: yaw + this.gaze + 0, roll: roll + 0 };
+    for (const g of [this.glanceYaw, this.glancePitch]) {
+      g.now += (g.to - g.now) * (1 - Math.exp(-dt / GLANCE_TAU));
+      if (Math.abs(g.to - g.now) < 1e-4) g.now = g.to;
+    }
+    return { pitch: pitch + this.glancePitch.now, yaw: yaw + this.gaze + this.glanceYaw.now, roll };
   }
 }

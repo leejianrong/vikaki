@@ -194,16 +194,19 @@ export function denParts(): { parts: Part[]; lookTargets: LookTarget[] } {
   look("armchair", -2.55, 0.6, -1.35);
   seating(0, 4.3, Math.PI, 2.2, WARM.sofa, WARM.sofaDark);
   look("sofa", 0, 0.6, 4.3);
-  // Over the sofa, a long picture and two small ones; a picture on each side wall.
-  parts.push(box(1.2, 0.5, 0.04, WARM.trim, [0, 1.6, ROOM.front - 0.025]));
-  parts.push(box(1.1, 0.4, 0.04, 0xf2c98a, [0, 1.6, ROOM.front - 0.04]));
-  for (const x of [-1.1, 1.1]) {
-    parts.push(box(0.4, 0.4, 0.04, WARM.trim, [x, 1.55, ROOM.front - 0.025]));
-    parts.push(box(0.32, 0.32, 0.04, x < 0 ? 0xa6dcf2 : 0xf2b8a0, [x, 1.55, ROOM.front - 0.04]));
-  }
+  // Over the sofa, a long picture and two small ones. They are flat planes facing in, not boxes: the wide shot's camera can sit behind this wall,
+  // and a solid frame between it and the table would hide the table. A plane seen from behind is not drawn.
+  const framed = (w: number, h: number, inside: number, x: number, y: number) => {
+    parts.push(wall(w, h, WARM.trim, [x, y, ROOM.front - 0.01], Math.PI));
+    parts.push(wall(w - 0.1, h - 0.1, inside, [x, y, ROOM.front - 0.02], Math.PI));
+  };
+  framed(1.2, 0.5, 0xf2c98a, 0, 1.6);
+  framed(0.4, 0.4, 0xa6dcf2, -1.1, 1.55);
+  framed(0.4, 0.4, 0xf2b8a0, 1.1, 1.55);
+  look("front pictures", 0, 1.6, ROOM.front - 0.05);
   for (const side of [-1, 1]) {
-    parts.push(box(0.04, 0.55, 0.8, WARM.trim, [side * (ROOM.side - 0.025), 1.7, 1.0]));
-    parts.push(box(0.04, 0.45, 0.7, side < 0 ? 0x8fc7a2 : 0xe98c5c, [side * (ROOM.side - 0.04), 1.7, 1.0]));
+    parts.push(wall(0.8, 0.55, WARM.trim, [side * (ROOM.side - 0.01), 1.7, 1.0], -side * (Math.PI / 2)));
+    parts.push(wall(0.7, 0.45, side < 0 ? 0x8fc7a2 : 0xe98c5c, [side * (ROOM.side - 0.02), 1.7, 1.0], -side * (Math.PI / 2)));
   }
 
   return { parts, lookTargets: looks };

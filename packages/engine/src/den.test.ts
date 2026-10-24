@@ -24,4 +24,15 @@ describe("the den (VIK-101)", () => {
       expect(t.position.y, t.name).toBeLessThan(ROOM.height);
     }
   });
+
+  it("hangs nothing solid on the front or side walls: the wide shot's camera can sit behind them, and a frame there would hide the table", () => {
+    for (const [i, p] of parts.entries()) {
+      p.geometry.computeBoundingBox();
+      const b = p.geometry.boundingBox!;
+      const flat = p.geometry.index!.count === 6; // a plane: seen from behind it is not drawn
+      const nearFront = b.max.z > ROOM.front - 0.3 && b.min.z > 0 && b.max.y > 1; // above the sofa
+      const nearSide = Math.max(Math.abs(b.min.x), Math.abs(b.max.x)) > ROOM.side - 0.3 && b.max.y > 1;
+      if (nearFront || nearSide) expect(flat, `part ${i} is a solid on a wall the camera may look through`).toBe(true);
+    }
+  });
 });

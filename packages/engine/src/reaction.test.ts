@@ -53,4 +53,20 @@ describe("ReactionMotion", () => {
     r.update(5); // the page stalled for five seconds
     expect(run(r, 0.6).some((s) => s.roll > 0.05)).toBe(true);
   });
+
+  it("glances at the room on top of the turn toward a speaker, quicker than that turn, and looks back (VIK-102)", () => {
+    const r = new ReactionMotion();
+    r.glance({ yaw: 0.5, pitch: -0.2 });
+    const out = run(r, 2);
+    expect(out[10]!.yaw).toBeGreaterThan(0.2); // within a fraction of a second
+    expect(out.at(-1)!.yaw).toBeCloseTo(0.5, 2);
+    expect(out.at(-1)!.pitch).toBeCloseTo(-0.2, 2);
+    r.look(0.3); // and a speaker turns it further
+    expect(run(r, 2).at(-1)!.yaw).toBeCloseTo(0.8, 2);
+    r.glance();
+    r.look(0);
+    const end = run(r, 2).at(-1)!;
+    expect(end.yaw).toBeCloseTo(0, 2);
+    expect(end.pitch).toBeCloseTo(0, 2);
+  });
 });
