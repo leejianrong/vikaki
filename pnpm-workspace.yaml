@@ -2,3 +2,8 @@ packages:
   - packages/*
 allowBuilds:
   esbuild: true
+# Transitive dependencies of the MCP SDK with advisories (2026-10-24, `pnpm audit --prod`): take the patched versions until the SDK does.
+overrides:
+  ip-address: ">=10.7.4"
+  body-parser: ">=2.4.0"
+  fast-uri: ">=3.1.9"
