@@ -41,6 +41,7 @@ class EngineBot:
     samples: int = 150
     seed: int = 0
     bluff: float = 0.0  # the seat's bluff trait; 0 plays the proper route only
+    solver: bool = False  # answer short-stack push/fold and the heads-up river from the solvers (VIK-123)
     _rng: random.Random = field(init=False)
 
     def __post_init__(self) -> None:
@@ -48,7 +49,8 @@ class EngineBot:
 
     def decide(self, view: dict, talk: list | None = None, events: list | None = None, names: dict | None = None) -> Decision:
         events = events or []
-        move = engine_decide(view, events, big_blind=big_blind_of(events), rng=self._rng, samples=self.samples)
+        extra = {"solver": True} if self.solver else {}
+        move = engine_decide(view, events, big_blind=big_blind_of(events), rng=self._rng, samples=self.samples, **extra)
         move = take_route(move, self.bluff, self._rng)
         return Decision(move.kind, move.amount)
 

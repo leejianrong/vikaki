@@ -22,7 +22,7 @@ from vikaki_poker.advisor import AdvisorBot, CallingStation, EngineBot, RandomBo
 
 
 def make(kind: str, seat: str, seed: int, samples: int):
-    return {"engine": lambda: EngineBot(seat, seed=seed, samples=samples), "bluffer": lambda: EngineBot(seat, seed=seed, samples=samples, bluff=float(os.environ.get("BLUFF", "1"))), "advisor": lambda: AdvisorBot(seat, samples=samples), "station": lambda: CallingStation(seat), "random": lambda: RandomBot(seat, seed=seed)}[kind]()
+    return {"engine": lambda: EngineBot(seat, seed=seed, samples=samples), "solver": lambda: EngineBot(seat, seed=seed, samples=samples, solver=True), "bluffer": lambda: EngineBot(seat, seed=seed, samples=samples, bluff=float(os.environ.get("BLUFF", "1"))), "advisor": lambda: AdvisorBot(seat, samples=samples), "station": lambda: CallingStation(seat), "random": lambda: RandomBot(seat, seed=seed)}[kind]()
 
 
 def play(args: tuple[list[str], int, int, int, int, int, dict]) -> list[list[float]]:
