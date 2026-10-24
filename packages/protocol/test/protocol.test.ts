@@ -194,6 +194,14 @@ describe("table_state", () => {
   });
 });
 
+describe("the commentary kind (VIK-109)", () => {
+  it("is a kind of utterance, so a commentator's line passes like any other", () => {
+    const line = (kind: string) => ({ protocol_version: 1, type: "utterance", seat_id: "c", utterance_id: "u1", text: "And that is a raise.", kind });
+    expect(parseMessage(line("commentary"))).toMatchObject({ ok: true, message: { kind: "commentary" } });
+    expect(parseMessage(line("sports")).ok).toBe(false);
+  });
+});
+
 describe("audience requests and the rebuy policy (VIK-108)", () => {
   it("takes a rebuy request for a seat from a viewer and nobody else", () => {
     expect(parseMessage({ protocol_version: 1, type: "audience_request", kind: "rebuy", seat_id: "a" })).toMatchObject({ ok: true, message: { kind: "rebuy", seat_id: "a" } });

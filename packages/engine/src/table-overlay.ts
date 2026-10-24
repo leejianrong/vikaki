@@ -83,6 +83,9 @@ export class TableOverlay {
   private readonly info = el("section", { className: "table-info", ariaLabel: "Table", hidden: true });
   private readonly plates: HTMLElement[];
   private readonly log = el("div", { className: "transcript", role: "log", ariaLabel: "Transcript" });
+  /** The commentator's strip (VIK-109): the last two lines, apart from the chat. */
+  private readonly commentary = el("div", { className: "commentary", role: "log", ariaLabel: "Commentary" });
+  private commentaryLines: TranscriptLine[] = [];
   private readonly bubbles: HTMLElement[];
   private readonly marks: HTMLElement[];
   private readonly beat = el("div", { className: "beat", role: "status", ariaLabel: "Last move", hidden: true });
@@ -123,7 +126,7 @@ export class TableOverlay {
       m.style.setProperty("--seat-colour", seatColour(i));
       return m;
     });
-    this.root.append(this.info, ...this.plates, ...this.bubbles, ...this.marks, this.beat, this.log, this.povCaption);
+    this.root.append(this.info, ...this.plates, ...this.bubbles, ...this.marks, this.beat, this.log, this.commentary, this.povCaption);
     parent.append(this.root);
     this.draw();
   }
@@ -247,6 +250,12 @@ export class TableOverlay {
     this.log.replaceChildren(...this.lines.map((l) => el("p", {}, el("b", { textContent: lineLabel(l, name) }), l.text)));
     const said = this.lines.find((l) => l.id === line.id);
     this.showBubble(line.seat, said?.text ?? "", said?.to ? name(said.to) : undefined);
+  }
+
+  /** A line from the commentator (VIK-109), shown in its own strip as far as it has arrived; the strip keeps the last two lines. */
+  addCommentary(line: { id: string; seat: string; text?: string; delta?: string }): void {
+    this.commentaryLines = addToTranscript(this.commentaryLines, line, 2);
+    this.commentary.replaceChildren(...this.commentaryLines.map((l) => el("p", {}, el("b", { textContent: "Commentary" }), l.text)));
   }
 
   /** A small mark over a seat that has a private thought (VIK-93): on when one arrives, off when that seat's next turn begins. */

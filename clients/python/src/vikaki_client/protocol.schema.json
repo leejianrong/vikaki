@@ -177,7 +177,8 @@
           "enum": [
             "banter",
             "clue",
-            "table_talk"
+            "table_talk",
+            "commentary"
           ]
         },
         "to": {

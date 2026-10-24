@@ -7,7 +7,8 @@ export const PROTOCOL_VERSION = 1;
 export const EMOTIONS = ["neutral", "happy", "smug", "worried", "surprised", "sad", "angry"] as const;
 export type Emotion = (typeof EMOTIONS)[number];
 
-export const UTTERANCE_KINDS = ["banter", "clue", "table_talk"] as const;
+/** `commentary` (VIK-109) is a commentator's line: heard and captioned in its own strip, and no avatar speaks it. */
+export const UTTERANCE_KINDS = ["banter", "clue", "table_talk", "commentary"] as const;
 /** What a seat can do with its head when it reacts without speaking. */
 export const GESTURES = ["nod", "shake", "tilt"] as const;
 export type Gesture = (typeof GESTURES)[number];
