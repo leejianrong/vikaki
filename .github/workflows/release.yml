@@ -215,9 +215,41 @@ jobs:
           path: "*.spdx.json"
           if-no-files-found: error
 
+  # The Python client (VIK-129): the same version as the image, built on every run (a dry run too) and checked by installing the wheel into a clean
+  # environment. On a tag it is attached to the GitHub release; the `pypi` job below publishes it to PyPI only when the project has opted in.
+  python:
+    needs: plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - name: Build the wheel and the source distribution
+        working-directory: clients/python
+        run: uv build
+      - name: The wheel installs on its own, says the planned version, and carries the protocol schema
+        env:
+          PUBLISH: ${{ needs.plan.outputs.publish }}
+          PLANNED: ${{ needs.plan.outputs.python_version }}
+        run: |
+          # A dry run uses a stand-in tag, so it compares with pyproject.toml; a real tag must equal the plan (the plan job already checked pyproject).
+          want="$PLANNED"
+          if [ "$PUBLISH" != true ]; then want=$(node -e 'import("./scripts/release-plan.mjs").then((m) => console.log(m.pyprojectVersion(require("fs").readFileSync("clients/python/pyproject.toml", "utf8"))))'); fi
+          uv venv "$RUNNER_TEMP/clean"
+          uv pip install --python "$RUNNER_TEMP/clean/bin/python" clients/python/dist/*.whl
+          "$RUNNER_TEMP/clean/bin/python" -I -c "import sys, vikaki_client as v; want, = sys.argv[1:]; assert v.__version__ == want, (v.__version__, want); v.validate(v.make('hello', role='viewer')); print('vikaki-client', v.__version__, 'speaks protocol', v.PROTOCOL_VERSION)" "$want"
+          ls clients/python/dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: python-dist
+          path: clients/python/dist/*
+          if-no-files-found: error
+
   # The GitHub release (VIK-125): the notes file, and the SBOMs. Runs only on a tag, after the images are signed.
   github-release:
-    needs: [plan, sign]
+    needs: [plan, sign, python]
     if: needs.plan.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -239,3 +271,22 @@ jobs:
           mapfile -t files < <(find dist -type f | sort)
           printf 'attaching %s\n' "${files[@]}"
           gh release create "$TAG" "${args[@]}" "${files[@]}"
+
+  # PyPI (VIK-129), after the release exists, because a PyPI upload cannot be taken back. Off until the project opts in: set the repository variable
+  # PUBLISH_TO_PYPI to true after adding this repository and workflow as a trusted publisher of `vikaki-client` on PyPI (docs/release.md). No token is stored.
+  pypi:
+    needs: [plan, python, github-release]
+    if: needs.plan.outputs.publish == 'true' && vars.PUBLISH_TO_PYPI == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: python-dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: dist

@@ -21,6 +21,8 @@ CI builds the image to test it and throws it away, so a project that wants Vikak
 - **Signed, keyless, by digest (VIK-133).** After the push, a `sign` job signs each image's digest with `cosign sign` using the workflow's GitHub OIDC identity (no key to store; recorded in Rekor), makes an SPDX SBOM of each image with `syft` and attaches it as a signed attestation (`cosign attest --type spdxjson`). The verifier checks the identity is this repo's `release.yml` on a `v*` tag. The SBOM files are kept for the release. Only that job may ask for an identity token.
 - **The GitHub release is made by the same run (VIK-125).** After signing, a `github-release` job creates the release from `docs/releases/<tag>.md` with the SBOMs (and the Python wheel, VIK-129) attached. The notes file must exist before the tag is accepted. The job is the only one with `contents: write`.
 
+- **The client is released from the same tag (VIK-129).** Its version is read from the package metadata (`pyproject.toml` is the only place it is written). Each run builds the wheel and sdist and installs the wheel into a clean environment; a tag attaches them to the GitHub release. PyPI is a separate, last job, behind the repository variable `PUBLISH_TO_PYPI`, using trusted publishing (no stored token), because the PyPI project and publisher have to be set up by the owner and an upload is permanent. Compatibility is stated by `protocol_version` (the client README): any hub of protocol 1 works with any 0.x client.
+
 ## Rejected
 
 - **Publish `main` as `:edge`.** Not asked for, and an unreleased image is what a game should not depend on.

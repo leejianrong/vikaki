@@ -48,7 +48,7 @@ describe(".github/workflows/release.yml", () => {
     expect(text).toMatch(/^permissions:\n  contents: read\n/m); // the default for the whole file is read-only
   });
 
-  it("signs and releases only on a tag, and only the signing job may ask for an identity token", () => {
+  it("signs and releases only on a tag, and only the signing and PyPI jobs may ask for an identity token", () => {
     const job = (name: string) => {
       const start = text.indexOf(`\n  ${name}:\n`);
       expect(start, `job ${name}`).toBeGreaterThan(0);
@@ -56,12 +56,21 @@ describe(".github/workflows/release.yml", () => {
       const next = rest.slice(1).search(/\n  [a-z-]+:\n/);
       return next < 0 ? rest : rest.slice(0, next + 1);
     };
-    for (const name of ["sign", "github-release"]) expect(job(name), name).toMatch(/if: needs\.plan\.outputs\.publish == 'true'/);
+    for (const name of ["sign", "github-release", "pypi"]) expect(job(name), name).toMatch(/if: needs\.plan\.outputs\.publish == 'true'/);
     expect(job("sign")).toContain("id-token: write");
-    expect(text.match(/id-token: write/g)).toHaveLength(1);
+    expect(text.match(/id-token: write/g)).toHaveLength(2); // sign, and pypi (trusted publishing)
+    expect(job("pypi")).toContain("id-token: write");
     expect(job("github-release")).toContain("contents: write");
     expect(text.match(/contents: write/g)).toHaveLength(1);
-    expect(job("github-release")).toMatch(/needs: \[plan, sign\]/); // never a release for images that are not signed
+    expect(job("github-release")).toMatch(/needs: \[plan, sign, python\]/); // never a release for images that are not signed or a client that did not build
+  });
+
+  it("publishes to PyPI only on a tag, only when the project opted in, and only after the GitHub release exists", () => {
+    const start = text.indexOf("\n  pypi:\n");
+    const pypi = text.slice(start);
+    expect(pypi).toMatch(/vars\.PUBLISH_TO_PYPI == 'true'/);
+    expect(pypi).toMatch(/needs: \[plan, python, github-release\]/);
+    expect(text).not.toMatch(/PYPI_API_TOKEN|password: \$\{\{ secrets\.PYPI/); // trusted publishing: no stored token
   });
 
   it("signs both images by digest, never by a movable tag, and attaches an SBOM to each", () => {
