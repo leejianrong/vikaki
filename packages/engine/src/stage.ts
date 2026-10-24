@@ -100,6 +100,11 @@ export class Puppet {
     return this.reaction.active || this.arms.playing !== undefined;
   }
 
+  /** Lean the body back by `amount` from 0 to 1 (VIK-106). */
+  lean(amount: number): void {
+    this.avatar.setLean?.(amount);
+  }
+
   triggerBlink(): void {
     this.blinker.trigger();
   }

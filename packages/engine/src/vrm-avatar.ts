@@ -3,6 +3,7 @@ import { VRM, VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 import { Box3, Vector3, type Mesh, type Object3D, type SkinnedMesh } from "three";
 import { VISEMES, type AvatarFraming, type HeadPose, type SceneAvatar, type SeatPose, type VisemeWeights } from "./renderer.ts";
 import type { ArmOffsets } from "./arm-act.ts";
+import { LEAN_BACK } from "./extras.ts";
 import { applySeat, DEFAULT_SEAT_POSE, handHeight, kneeReach, poseArm, type BoneOf } from "./seat-pose.ts";
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -118,6 +119,17 @@ export class VrmAvatar implements SceneAvatar {
       const d = o[side];
       poseArm(this.bone, side, { forward: base.forward + d.forward, down: base.down + d.down, elbow: base.elbow + d.elbow });
     }
+  }
+
+  /** Lean back by tipping the spine and chest (VIK-106); the arms are children of the chest, so the hands come with it. */
+  setLean(amount: number): void {
+    const a = -LEAN_BACK * Math.min(1, Math.max(0, amount));
+    const chest = this.bone("chest");
+    const spine = this.bone("spine");
+    if (chest && spine) {
+      spine.rotation.x = a * 0.5;
+      chest.rotation.x = a * 0.5;
+    } else if (spine ?? chest) (spine ?? chest)!.rotation.x = a;
   }
 
   seat(pose?: SeatPose): boolean {

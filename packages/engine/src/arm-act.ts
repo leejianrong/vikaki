@@ -55,10 +55,18 @@ export function withReach(offsets: ArmOffsets, amount: number, wiggle: number): 
   return { ...offsets, left: { forward: l.forward + 0.28 * amount, down: l.down + 0.1 * amount, elbow: l.elbow - 0.35 * amount + wiggle * amount } };
 }
 
+/** Two sets of arm offsets added. */
+export function addArms(a: ArmOffsets, b: ArmOffsets | undefined): ArmOffsets {
+  if (!b) return a;
+  const add = (x: ArmOffset, y: ArmOffset): ArmOffset => ({ forward: x.forward + y.forward, down: x.down + y.down, elbow: x.elbow + y.elbow });
+  return { left: add(a.left, b.left), right: add(a.right, b.right) };
+}
+
 /** The act in progress. Frames longer than `MAX_STEP` advance it by that much only, as in `Gestures`. */
 export class ArmActs {
   private reaching = 0;
   private wiggle = 0;
+  private layered: ArmOffsets | undefined;
   private act: Act | undefined;
   private age = 0;
   private held: { act: Act; phase: number } | undefined;
@@ -82,12 +90,17 @@ export class ArmActs {
     this.wiggle = wiggle;
   }
 
+  /** Layer the arms of an idle extra (VIK-106), a tap, stretch or scratch, on top of everything else; undefined lets go. */
+  extra(offsets: ArmOffsets | undefined): void {
+    this.layered = offsets;
+  }
+
   get playing(): Act | undefined {
     return this.act;
   }
 
   update(rawDt: number): ArmOffsets {
-    return withReach(this.acted(rawDt), this.reaching, this.wiggle);
+    return addArms(withReach(this.acted(rawDt), this.reaching, this.wiggle), this.layered);
   }
 
   private acted(rawDt: number): ArmOffsets {

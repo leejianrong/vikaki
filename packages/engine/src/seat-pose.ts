@@ -2,7 +2,7 @@ import { Euler, Quaternion, Vector3, type Object3D } from "three";
 import type { SeatPose } from "./renderer.ts";
 
 type Side = "left" | "right";
-type BoneName = `${Side}UpperArm` | `${Side}LowerArm` | `${Side}UpperLeg` | `${Side}LowerLeg` | `${Side}Hand` | "hips";
+type BoneName = `${Side}UpperArm` | `${Side}LowerArm` | `${Side}UpperLeg` | `${Side}LowerLeg` | `${Side}Hand` | "hips" | "spine" | "chest";
 /** Looks a humanoid bone up by name, or returns null when the model has none (ADR-0019). */
 export type BoneOf = (name: BoneName) => Object3D | null;
 

@@ -290,6 +290,14 @@ describe("the table page", () => {
     expect(await page.evaluate(() => window.__vikaki!.table!.seats[2]!.peak.fidgets.has("restack")), "no chips, no restack").toBe(false);
   });
 
+  it("has a restless seat lean, stretch, tap or scratch now and then (VIK-106)", { timeout: 150_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=3&view=table&fidget=fast");
+    const seats = ["seat-1", "seat-2", "seat-3"].map((seat_id) => ({ seat_id, stack: 63, cards: ["back", "back"], fidgety: 1 }));
+    d1.ws.send(JSON.stringify({ protocol_version: 1, type: "table_state", street: "flop", pot: 6, seats }));
+    await page.evaluate(() => window.__vikaki!.table!.resetPeaks());
+    await page.waitForFunction(() => window.__vikaki!.table!.seats.some((s) => ["lean", "stretch", "tap", "scratch"].some((k) => s.peak.fidgets.has(k))), null, { timeout: 120_000 });
+  });
+
   it("seats every avatar with the thighs running under the table, not away from it (VIK-81)", { timeout: 90_000 }, async () => {
     const { page } = await setup("seats=3&view=table", undefined, false);
     const reach = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.kneeReach));
