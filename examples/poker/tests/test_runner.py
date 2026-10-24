@@ -702,3 +702,20 @@ def test_the_six_seat_example_table_loads_with_its_personas_and_plays_a_hand(cap
     assert main(["play", "--table", TABLE6, "--fake-llm", "--no-hub", "--hands", "2", "--no-reactions", "--seed", "4"]) == 0
     out = capsys.readouterr().out
     assert "hand 2" in out and "fifi" in out
+
+
+def test_a_move_on_the_bluff_route_is_marked_in_the_log_so_a_run_can_be_checked_for_how_the_models_took_it():
+    class Bluffer:
+        persona = "bluffer"
+        usage = None
+        traits = Traits()
+
+        def decide(self, view, talk=None, events=None, names=None):
+            kinds = view["legal"]["kinds"]
+            return Decision("check" if "check" in kinds else "call", bluffing=view["to_act"] == "a")
+
+    agents = {s: Bluffer() for s in "ab"}
+    lines: list[str] = []
+    play_hand(Hand([("a", 50), ("b", 50)], 0, 1, 2, seed=4), agents, RecordingVoice(), [], out=lines.append)  # type: ignore[arg-type]
+    assert any("a call [bluff route]" in line or "a check [bluff route]" in line for line in lines)
+    assert not any("b call [bluff route]" in line or "b check [bluff route]" in line for line in lines)

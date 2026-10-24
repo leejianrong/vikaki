@@ -326,7 +326,7 @@ def _play_hand(hand: Hand, agents: dict[str, SeatAgent], voice: Voice, talk: lis
         beat = action_event(hand.events[seen], names)
         state = _show(voice, hand, show_cards, fidgety, rebuy, busted, event=beat)
         _comment(voice, commentator, beat, dict(state, hand_no=hand_no + 1), pot_before, names, note)
-        note(f"[{street}] {moved}" + (f"  ({decision.note})" if decision.note else ""))
+        note(f"[{street}] {moved}" + (" [bluff route]" if decision.bluffing else "") + (f"  ({decision.note})" if decision.note else ""))
         weight = weight_of(beat["kind"], beat.get("amount"), pot_before, bool(hand.events[seen].get("all_in")))
         if reactor:  # `--no-reactions` keeps the listeners still
             _react_to_move(voice, hand, seat, beat["kind"], weight, bool(hand.events[seen].get("all_in")), hand_no)
