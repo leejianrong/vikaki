@@ -16,6 +16,7 @@ const avatars = fileURLToPath(new URL("../../engine/public/avatars/", import.met
 
 let browser: Browser;
 let server: RunningServer | undefined;
+const STRICT_TIMING = !process.env.CI;
 const pages: Page[] = [];
 const drivers: SeatDriver[] = [];
 
@@ -228,6 +229,17 @@ describe("the table page", () => {
     expect(spoke, "who spoke, in order: ada, ben, cy, ada, ben, ada, ben, ada, ben").toEqual([0, 1, 2, 0, 1, 0, 1, 0, 1]);
     expect(thought, "every seat that has a thinking beat was asked to think (the drawn dots are checked by the thinking-turn test: a 250 ms beat can fall between two frames)").toEqual([0, 1, 2]);
     expect(out).toContain("hand over");
+  });
+
+  it("keeps the room inside its draw budget: calls and triangles per frame, and the frame time off CI (VIK-107)", { timeout: 90_000 }, async () => {
+    const { page } = await setup("seats=3&view=table", undefined, false);
+    await page.waitForFunction(() => (window.__vikaki!.table!.render?.calls ?? 0) > 0, null, { timeout: 30_000 });
+    await page.waitForTimeout(1500); // let the smoothed frame time settle (time, not an event: the budget below is off CI only)
+    const r = await page.evaluate(() => window.__vikaki!.table!.render!);
+    // Measured at 12 calls and 20.8k triangles with three seats; the budget is about twice that. Raise it on purpose, with a reason, when the room gets furnished (docs/testing.md).
+    expect(r.calls, "draw calls in one frame").toBeLessThanOrEqual(30);
+    expect(r.triangles, "triangles in one frame").toBeLessThanOrEqual(45_000);
+    if (STRICT_TIMING) expect(r.frameMs, "smoothed frame time on the software renderer, ms").toBeLessThan(120); // measured about 50
   });
 
   it("seats every avatar with the thighs running under the table, not away from it (VIK-81)", { timeout: 90_000 }, async () => {
