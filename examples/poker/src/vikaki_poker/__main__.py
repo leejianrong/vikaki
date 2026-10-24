@@ -12,6 +12,7 @@ from .stats import style_lines, style_stats
 from .monologue import MODES, Monologue
 from .pace import PACES, Pace
 from .llm import KEY_ENV, FakeLlm, Llm, LlmError, OpenRouterLlm, Usage, load_dotenv
+from .commentary import DESK, Commentator
 from .rebuy import POLICIES, Rebuys
 from .transport import Transport
 from .runner import HubVoice, PrintVoice, Voice, play_session
@@ -39,6 +40,8 @@ def _parser() -> argparse.ArgumentParser:
     play.add_argument("--no-hub", action="store_true", help="print the lines instead of speaking them")
     play.add_argument("--fake-llm", action="store_true", help=f"no model calls: a scripted stand-in (no {KEY_ENV} needed)")
     play.add_argument("--solver", action="store_true", help="answer a short stack's push/fold and a heads-up river from the solved charts and the river solver (VIK-123) where they cover the spot, instead of the engine's own arithmetic")
+    play.add_argument("--commentary", action="store_true", help="a commentator with a voice of its own calls the action between the players' lines, on a budget (VIK-110); needs the persona `desk` on the hub (the example personas files have it); with no model (--fake-llm) it says each beat plainly")
+    play.add_argument("--commentary-budget", type=int, default=3, help="the most lines the commentator says a hand, one kept for the result (default 3)")
     play.add_argument("--no-reactions", action="store_true", help="the seats that are listening stay still (no silent reactions)")
     play.add_argument("--show-cards", action="store_true", help="show every live hand face up on the page (the default: the table page is a spectator's view, with each seat's hand and chance to win)")
     play.add_argument("--pace", choices=sorted(PACES, key=PACES.get), help="how long each beat of a hand stays on screen: slow, normal (about 1.75 s an action, 2.5 s a street), fast, or off (default: normal; off with --no-hub)")
@@ -95,6 +98,10 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
         return 2
     agents = build_agents(table, llm, solver=args.solver)
     reactor = None if args.no_reactions else build_reactor(table, None if args.fake_llm else llm)
+    commentator = None
+    if args.commentary:  # no model with --fake-llm: the template says each beat plainly, so a demo costs nothing
+        model = table.commentary_model or table.reaction_model or next(iter(table.seats)).model
+        commentator = Commentator(None if args.fake_llm else llm, model, budget=args.commentary_budget)
     seed = args.seed if args.seed is not None else random.SystemRandom().randrange(1, 1_000_000)
     print(f"seed {seed} (repeat this deal with --seed {seed})")
     for i, agent in enumerate(agents.values()):
@@ -107,13 +114,13 @@ def main(argv: Sequence[str] | None = None, *, llm: Llm | None = None, voice: Vo
             voice = PrintVoice()
         else:
             try:
-                voice = HubVoice(args.url, table.personas(), token=args.token, transport=transport, rebuys=rebuys)
+                voice = HubVoice(args.url, table.personas(), token=args.token, transport=transport, rebuys=rebuys, commentator=("commentator", DESK) if args.commentary else None)
             except Exception as err:  # connect_failed, driver_busy, unknown_persona: say so plainly
                 code = getattr(err, "code", type(err).__name__)
                 print(f"vikaki_poker: could not join the table at {args.url} ({code}). Is `pnpm serve --personas personas.table.example.yaml` running?", file=sys.stderr)
                 return 1
     try:
-        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=rebuys, rebuy_wait=15.0, pace=Pace(PACES[args.pace or ("off" if args.no_hub else "normal")], gate=transport.gate), monologue=Monologue(args.monologue))
+        session = play_session(agents, voice, hands=args.hands, stack=table.stack, small_blind=table.small_blind, big_blind=table.big_blind, seed=seed, reactor=reactor, show_cards=not args.hide_cards, rebuy=rebuys, rebuy_wait=15.0, commentator=commentator, pace=Pace(PACES[args.pace or ("off" if args.no_hub else "normal")], gate=transport.gate), monologue=Monologue(args.monologue))
     finally:
         if own_voice and hasattr(voice, "close"):
             try:
