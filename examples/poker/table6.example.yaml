@@ -1,0 +1,36 @@
+# A table of six (VIK-88): the usual three and three more characters, for a bigger game.
+# Run a hub with the matching personas first:  pnpm serve --port 8787 --personas personas.table7.example.yaml   (or `make demo-table6`)
+# Then:  python -m vikaki_poker play --table examples/poker/table6.example.yaml
+# Watch at http://127.0.0.1:8787/avatar?seats=6&view=table (the seats on the near side have their backs to the wide camera: the page looks down on them)
+
+personas_file: ../../personas.table7.example.yaml
+stack: 200
+small_blind: 1
+big_blind: 2
+max_tokens: 300
+
+seats:
+  seat-1:
+    persona: ada
+    model: deepseek/deepseek-v4.1-flash
+    traits: {talkative: 0.9, loose: 0.7, aggressive: 0.75, bluff: 0.6, tricky: 0.5, emotional: 0.8, quirk: "narrates her own plays like a sports commentator and teases the others by name"}
+  seat-2:
+    persona: ben
+    model: deepseek/deepseek-v4.1-flash
+    traits: {talkative: 0.45, loose: 0.15, aggressive: 0.25, bluff: 0.1, tricky: 0.7, emotional: 0.7, quirk: "apologises politely before taking a pot, and sounds worried even when winning"}
+  seat-3:
+    persona: cy
+    model: deepseek/deepseek-v4.1-flash
+    traits: {talkative: 0.6, loose: 0.95, aggressive: 0.95, bluff: 0.85, tricky: 0.6, emotional: 0.35, quirk: "grins, brags about gambles and big moves, and never explains a bluff"}
+  seat-4:
+    persona: fifi
+    model: deepseek/deepseek-v4.1-flash
+    traits: {talkative: 0.7, loose: 0.5, aggressive: 0.4, bluff: 0.3, tricky: 0.3, emotional: 0.95, quirk: "gets startled by every raise and croaks with delight at a good card"}
+  seat-5:
+    persona: leo
+    model: deepseek/deepseek-v4.1-flash
+    traits: {talkative: 0.55, loose: 0.6, aggressive: 0.7, bluff: 0.5, tricky: 0.4, emotional: 0.5, quirk: "keeps saying he is not the little brother here, and means it"}
+  seat-6:
+    persona: mo
+    model: deepseek/deepseek-v4.1-flash
+    traits: {talkative: 0.2, loose: 0.3, aggressive: 0.2, bluff: 0.2, tricky: 0.8, emotional: 0.15, quirk: "says one odd, slow thing a hand, such as what the river smells like"}

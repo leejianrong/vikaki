@@ -1,0 +1,33 @@
+# Seven seats for a bigger table (VIK-88), for `pnpm serve --personas personas.table7.example.yaml`.
+# Watch at http://127.0.0.1:8787/avatar?seats=6&view=table (six seats; `seats=7` adds wim). The first three are the usual table's.
+# `pose` tunes how a character sits (ADR-0019): its arms (`forward`, `down`, `elbow`) and how far the hips drop.
+personas:
+  ada:
+    avatar: packages/engine/public/avatars/cookieman.vrm
+    voice: af_heart
+    emotion: happy
+    style: warm, quick-witted, a little teasing
+  ben:
+    avatar: packages/engine/public/avatars/snowy.vrm
+    voice: am_adam
+    style: careful, a worrier, always polite
+  cy:
+    avatar: packages/engine/public/avatars/cactusboy.vrm
+    voice: bf_emma
+    style: cheerful, fearless, loves a gamble
+  fifi:
+    avatar: packages/engine/public/avatars/froggy.vrm
+    voice: af_bella
+    style: bubbly, easily startled, croaks when she is happy
+  leo:
+    avatar: packages/engine/public/avatars/lilbro.vrm
+    voice: am_michael
+    style: the little brother, cocky, wants to be taken seriously
+  mo:
+    avatar: packages/engine/public/avatars/mushy.vrm
+    voice: bm_george
+    style: slow and dreamy, says one odd thing at a time
+  wim:
+    avatar: packages/engine/public/avatars/wambo.vrm
+    voice: af_nicole
+    style: loud, friendly, loses count of the chips

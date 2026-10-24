@@ -350,6 +350,26 @@ describe("the table page", () => {
     expect(await page.getByRole("log", { name: "Chat" }).getByText("What a move").count(), "and it is not in the chat").toBe(0);
   });
 
+  it("seats six round the oval, looks down on them from higher, and gives each a small plate by its head that does not sit on another (VIK-88)", { timeout: 150_000 }, async () => {
+    const { page, drivers: [d1] } = await setup("seats=6&view=table", { width: 1280, height: 720 });
+    const seats = Array.from({ length: 6 }, (_, i) => ({ seat_id: `seat-${i + 1}`, stack: 100 + i, cards: ["back", "back"], ...(i === 4 ? { bet: 10 } : {}) }));
+    d1.ws.send(JSON.stringify({ protocol_version: 1, type: "table_state", street: "flop", pot: 12, board: ["As", "Kd", "7h"], seats }));
+    await page.waitForFunction(() => window.__vikaki!.table!.props!.seatCards.length === 6 && window.__vikaki!.table!.props!.seatCards.every((n) => n === 2), null, { timeout: 60_000 });
+    const t = await page.evaluate(() => ({ seats: window.__vikaki!.table!.seats.length, view: window.__vikaki!.table!.view, z: window.__vikaki!.table!.seats.map((s) => s.x), cam: window.__vikaki!.table!.camera!.position, chips: window.__vikaki!.table!.props!.chips }));
+    expect(t.seats).toBe(6);
+    expect(t.view).toBe("table");
+    expect(t.cam[1], "the wide camera is up over the near seats").toBeGreaterThan(2.5);
+    expect(t.chips).toBeGreaterThan(0);
+    const boxes = await page.locator(".seat-plate").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ l: r.left, t: r.top, r: r.right, b: r.bottom })));
+    expect(boxes).toHaveLength(6);
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i]!;
+      const b = boxes[j]!;
+      const overlap = a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+      expect(overlap, `plates ${i} and ${j} overlap`).toBe(false);
+    }
+  });
+
   it("seats every avatar with the thighs running under the table, not away from it (VIK-81)", { timeout: 90_000 }, async () => {
     const { page } = await setup("seats=3&view=table", undefined, false);
     const reach = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => s.kneeReach));

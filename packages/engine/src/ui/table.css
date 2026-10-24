@@ -68,6 +68,9 @@
 }
 .seat-plate[aria-current="true"] { border-color: var(--md-sys-color-primary); background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
 .seat-plate.folded { opacity: 0.55; }
+.table-overlay.crowded .seat-plate { min-width: 0; padding: 3px 8px; gap: 0; border-radius: var(--shape-m); }
+.table-overlay.crowded .seat-plate .name { font-size: 0.75rem; line-height: 1rem; }
+.table-overlay.crowded .seat-plate .money { font-size: 0.6875rem; line-height: 0.875rem; }
 .seat-plate .name { font: 500 0.875rem/1.25rem var(--md-ref-typeface-brand); }
 .seat-plate .money { font: 400 0.75rem/1rem var(--md-ref-typeface-plain); color: var(--md-sys-color-on-surface-variant); }
 .seat-plate[aria-current="true"] .money { color: inherit; }

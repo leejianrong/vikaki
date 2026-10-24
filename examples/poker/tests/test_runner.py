@@ -18,6 +18,7 @@ from vikaki_poker.table import TableError, build_agents, load_table
 
 HERE = os.path.dirname(__file__)
 TABLE = os.path.join(HERE, "..", "table.example.yaml")
+TABLE6 = os.path.join(HERE, "..", "table6.example.yaml")
 
 
 class RecordingVoice:
@@ -692,3 +693,12 @@ def test_the_command_line_takes_rebuy_ask_auto_never_and_still_the_old_no_rebuy(
     capsys.readouterr()
     with pytest.raises(SystemExit):
         main(["play", "--table", TABLE, "--fake-llm", "--no-hub", "--rebuy", "sometimes"])
+
+
+def test_the_six_seat_example_table_loads_with_its_personas_and_plays_a_hand(capsys):
+    table = load_table(TABLE6)
+    assert [s.persona for s in table.seats] == ["ada", "ben", "cy", "fifi", "leo", "mo"]
+    assert len({s.persona for s in table.seats}) == 6
+    assert main(["play", "--table", TABLE6, "--fake-llm", "--no-hub", "--hands", "2", "--no-reactions", "--seed", "4"]) == 0
+    out = capsys.readouterr().out
+    assert "hand 2" in out and "fifi" in out

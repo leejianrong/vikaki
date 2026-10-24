@@ -10,7 +10,7 @@ import { SpeechPlayer, type LiveState } from "./speech-player.ts";
 import { createStage, Puppet } from "./stage.ts";
 import { EmotionSymbols } from "./symbols.ts";
 import { TableOverlay } from "./table-overlay.ts";
-import { CameraRig, parseShot, shotFor, type Shot, type ShotName } from "./cameras.ts";
+import { CameraRig, crowded, parseShot, shotFor, type Shot, type ShotName } from "./cameras.ts";
 import { parseDeck, setDeck } from "./card-art.ts";
 import { Director, type Cue } from "./director.ts";
 import { gridInterval, gridLayout, type Tile } from "./pov-grid.ts";
@@ -244,10 +244,13 @@ try {
     const shot = director.cue(cue, now());
     if (shot) cutTo(shot);
   };
+  const manySeats = spots !== undefined && crowded(spots); // seats on the near side (VIK-88)
+  overlay.setCrowded(manySeats);
   const placeOverlay = () =>
     overlay.place(
       frames.map((f) => ((new Vector3(f.head.x, f.head.y, f.head.z).project(camera).x + 1) / 2) * canvas.clientWidth),
       frames.map((f) => ((1 - new Vector3(f.head.x, f.top, f.head.z).project(camera).y) / 2) * canvas.clientHeight),
+      manySeats ? frames.map((f) => ((1 - new Vector3(f.head.x, f.head.y, f.head.z).project(camera).y) / 2) * canvas.clientHeight + 12) : undefined,
     );
   const applyShot = (s: Shot) => {
     camera.position.set(s.position.x, s.position.y, s.position.z);
