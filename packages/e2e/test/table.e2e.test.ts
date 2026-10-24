@@ -43,7 +43,7 @@ async function setup(query = "seats=3", viewport = { width: 960, height: 540 }, 
   server = await startServer({ staticDir, personas: await loadPersonas(join(dir, "personas.yaml")), speech: { tts: fake } });
   const page = await browser.newPage({ viewport });
   pages.push(page);
-  await page.goto(`${server.url}?${query}${query.includes("director=") ? "" : "&director=off"}&seed=3`); // the camera director is off unless a test asks for it: it would move the camera under every other test
+  await page.goto(`${server.url}?${query}${query.includes("director=") ? "" : "&director=off"}${query.includes("fidget=") ? "" : "&fidget=off"}&seed=3`); // the camera director is off unless a test asks for it: it would move the camera under every other test
   await page.waitForFunction(() => window.__vikaki?.ready === true && window.__vikaki.live?.state === "connected" && window.__vikaki.live.soundBlocked === false, null, { timeout: 40_000 });
   const ds = withDrivers ? await Promise.all(SEATS.map((s) => SeatDriver.connect(server!.wsUrl, s))) : [];
   drivers.push(...ds);
@@ -249,6 +249,26 @@ describe("the table page", () => {
     expect(den!.triangles).toBeLessThan(3500);
     const bare = await setup("seats=3&view=table&den=off", undefined, false);
     expect(await bare.page.evaluate(() => window.__vikaki!.table!.den)).toBeUndefined();
+  });
+
+  it("has an idle seat glance at things in the den and look back, and no seat while it speaks (VIK-102)", { timeout: 120_000 }, async () => {
+    const { page } = await setup("seats=3&view=table&fidget=fast", undefined, false);
+    await page.evaluate(() => window.__vikaki!.table!.resetPeaks());
+    await page.waitForFunction(() => window.__vikaki!.table!.seats.every((s) => s.peak.glances.size > 0), null, { timeout: 60_000 });
+    const seats = await page.evaluate(() => window.__vikaki!.table!.seats.map((s) => ({ glances: [...s.peak.glances], span: s.peak.yawMax - s.peak.yawMin })));
+    const names = await page.evaluate(() => window.__vikaki!.table!.den!.targets);
+    for (const s of seats) {
+      for (const g of s.glances) expect(names).toContain(g);
+    }
+    expect(Math.max(...seats.map((s) => s.span)), "a head turned to the side (the middle seat's targets can be straight ahead)").toBeGreaterThan(0.1);
+  });
+
+  it("turns a seat's head toward the thing it is held on: up at the lamp, to the side at a plant (VIK-102)", { timeout: 90_000 }, async () => {
+    const { page } = await setup("seats=3&view=table&fidget=on", undefined, false);
+    expect(await page.evaluate(() => window.__vikaki!.table!.holdGlance(1, "lamp"))).toBe(true);
+    expect(await page.evaluate(() => window.__vikaki!.table!.holdGlance(0, "plant right"))).toBe(true);
+    expect(await page.evaluate(() => window.__vikaki!.table!.holdGlance(1, "window")), "the window is behind the seat").toBe(false);
+    await page.waitForFunction(() => window.__vikaki!.table!.seats[1]!.pitch < -0.1 && window.__vikaki!.table!.seats[0]!.yaw > 0.15, null, { timeout: 30_000 });
   });
 
   it("seats every avatar with the thighs running under the table, not away from it (VIK-81)", { timeout: 90_000 }, async () => {

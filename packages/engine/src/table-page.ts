@@ -24,6 +24,8 @@ import { Sfx } from "./sfx.ts";
 import { TableProps } from "./table-props.ts";
 import { buildTable, medianHeight, ovalSeats, seatLookYaw, type SeatSpot } from "./table3d.ts";
 import { buildDen, type Den } from "./den.ts";
+import { LookAround } from "./look-around.ts";
+import { mulberry32 } from "./behaviour.ts";
 import { frameRow, layoutRow, lookYaw, parseSeats, seatFor } from "./table.ts";
 import { VrmAvatar } from "./vrm-avatar.ts";
 import { makeTransparent, parseEmbed } from "./embed.ts";
@@ -63,7 +65,7 @@ const embedAudio = mountEmbedAudio({ session, embed: embedOpts, params }); // em
 /** The beats that are one seat's move, and how long the table keeps looking at the player who made it (ms). */
 const ACTIONS = new Set(["fold", "check", "call", "raise"]);
 const ACTOR_GAZE_MS = 2200;
-const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>(), thought: false });
+const freshPeak = () => ({ yawMin: 0, yawMax: 0, mouth: 0, symbols: new Set<string>(), thought: false, glances: new Set<string>() });
 
 try {
   const res = await fetch(`${baseUrl}personas.json`);
@@ -334,6 +336,7 @@ try {
     sfx,
     acted: [],
     listen: { mode: "all" },
+    holdGlance: (i, name) => looks[i]?.freeze(name) ?? false,
     holdAct: (i, act, phase) => puppets[i]?.arms.hold(act as Act | undefined, phase),
     resetPeaks: () => {
       api.table!.seats.forEach((r) => (r.peak = freshPeak()));
@@ -581,18 +584,25 @@ try {
   api.ready = true;
   say(`vikaki${who} · connecting`);
 
+  /** Each seat's glances round the room (VIK-102); `?fidget=off` leaves the seats looking ahead, `?fidget=fast` shortens the waits for a test. */
+  const fidgetParam = params.get("fidget");
+  const looks = spots && den && fidgetParam !== "off" ? spots.map((spot, i) => new LookAround(mulberry32(seed + 101 * (i + 1)), den!.lookTargets, spot, frames[i]!.head, fidgetParam === "fast" ? 0.1 : 1)) : [];
   const clock = new Clock();
   renderer.setAnimationLoop(() => {
     const dt = clock.getDelta();
     const voice: VisemeWeights = session.lipsync?.weights ?? {};
     props?.update(dt); // chips thrown in, cards pushed away (VIK-113)
     puppets.forEach((p, i) => {
+      const glance = looks[i]?.update(dt, { allowed: talker !== i && (focused === undefined || focused === i), thinking: thinker === i });
+      p.reaction.glance(glance);
       p.update(dt, i === speaking ? voice : {});
       symbols[i]!.update(dt, p.emotion.pose);
       const row = api.table!.seats[i]!;
       row.visemes = p.visemes;
       row.symbol = p.emotion.pose.symbol ?? null;
       row.look = p.reaction.looking;
+      row.glance = glance?.target;
+      if (glance) row.peak.glances.add(glance.target);
       row.yaw = p.head.yaw;
       row.pitch = p.head.pitch;
       row.roll = p.head.roll;
