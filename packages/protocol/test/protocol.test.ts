@@ -208,6 +208,11 @@ describe("table_state spectator fields (VIK-83)", () => {
     }
   });
 
+  it("lets a seat say how much its body moves, from 0 to 1 (VIK-103), and refuses the rest", () => {
+    expect(parseMessage(seat({ fidgety: 0.8 }))).toMatchObject({ ok: true, message: { seats: [{ fidgety: 0.8 }] } });
+    for (const bad of [{ fidgety: -0.1 }, { fidgety: 1.1 }, { fidgety: "lots" }]) expect(parseMessage(seat(bad)).ok, JSON.stringify(bad)).toBe(false);
+  });
+
   it("stays optional: an older game that sends none of them still works", () => {
     expect(parseMessage(seat({})).ok).toBe(true);
   });

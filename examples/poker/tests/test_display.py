@@ -155,3 +155,11 @@ def test_a_staged_showdown_turns_the_hands_over_while_the_pot_is_still_on_the_ta
     h.advance()
     s = table_state(h)
     assert s["street"] == "showdown" and s["pot"] == 0  # paid
+
+
+def test_a_seat_carries_how_much_its_body_moves_when_the_game_says_so_and_nothing_when_it_does_not():
+    h = fresh()
+    assert all("fidgety" not in x for x in table_state(h)["seats"])
+    s = table_state(h, fidgety={"a": 0.9, "c": 0.1})
+    assert (seat(s, "a")["fidgety"], seat(s, "c")["fidgety"]) == (0.9, 0.1)
+    assert "fidgety" not in seat(s, "b")

@@ -157,6 +157,8 @@ export const TableState = z
           hand: z.string().min(1).max(60).optional(),
           win: z.number().min(0).max(1).optional(),
           action: z.string().min(1).max(40).optional(),
+          /** How much the seat's body moves while it waits (VIK-103), from 0 (still) to 1 (restless): the page schedules its fidgets by it. Absent is middling. */
+          fidgety: z.number().min(0).max(1).optional(),
         }),
       )
       .max(16),

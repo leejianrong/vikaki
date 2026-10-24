@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mulberry32 } from "./behaviour.ts";
 import type { LookTarget } from "./den.ts";
-import { chooseGlance, glanceAt, LookAround, type Glance } from "./look-around.ts";
+import { chooseGlance, glanceAt, Glancer, type Glance } from "./look-around.ts";
 import type { SeatSpot } from "./table3d.ts";
 
 const spot: SeatSpot = { x: 0, z: -1.1, facing: 0 }; // on the far side, facing the camera (+z)
@@ -45,45 +45,26 @@ describe("chooseGlance", () => {
   });
 });
 
-describe("LookAround", () => {
-  const run = (look: LookAround, seconds: number, ctx = { allowed: true, thinking: false }) => {
-    const seen: (string | undefined)[] = [];
-    for (let t = 0; t < seconds; t += 0.05) seen.push(look.update(0.05, ctx)?.target);
-    return seen;
-  };
-  const make = (seed = 3, pace = 1) => new LookAround(mulberry32(seed), TARGETS, spot, head, pace);
+describe("Glancer", () => {
+  const make = (seed = 3) => new Glancer(mulberry32(seed), TARGETS, spot, head);
 
-  it("glances now and then, for about a second, and looks back", () => {
-    const seen = run(make(), 60);
-    const glances = seen.filter((s) => s !== undefined);
-    expect(glances.length).toBeGreaterThan(20); // a second or so, several times
-    expect(seen.some((s) => s === undefined)).toBe(true);
-    expect(new Set(glances).size).toBeGreaterThan(1);
+  it("knows which targets are in reach, and a seat with none has no look", () => {
+    expect(make().any).toBe(true);
+    expect(new Glancer(mulberry32(1), [at("clock", 0.8, 2.1, -2.4)], spot, head).any).toBe(false);
   });
-  it("never glances while it may not (speaking, or looking at the speaker)", () => {
-    expect(run(make(3, 0.1), 60, { allowed: false, thinking: false }).every((s) => s === undefined)).toBe(true);
-  });
-  it("glances more often while thinking", () => {
-    const count = (thinking: boolean) => {
-      const look = make(11);
-      const seen = run(look, 120, { allowed: true, thinking });
-      return seen.filter((s, i) => s !== undefined && seen[i - 1] === undefined).length;
-    };
-    expect(count(true)).toBeGreaterThan(count(false) * 1.5);
-  });
-  it("lets go the moment it may no longer glance", () => {
-    const look = make(3, 0.05);
-    let held = false;
-    for (let t = 0; t < 30 && !held; t += 0.05) held = look.update(0.05, { allowed: true, thinking: false }) !== undefined;
-    expect(held).toBe(true);
-    expect(look.update(0.05, { allowed: false, thinking: false })).toBeUndefined();
+  it("picks varied things, never one of the last two", () => {
+    const g = make();
+    const picks = Array.from({ length: 30 }, () => g.begin()!.target);
+    expect(new Set(picks).size).toBe(2); // the sofa and the lamp: the plant and armchair are too far round, the clock behind
+    for (let i = 1; i < picks.length; i++) expect(picks[i]).not.toBe(picks[i - 1]); // with two in reach, they alternate
   });
   it("can be held on a thing for a picture, and let go", () => {
-    const look = make();
-    expect(look.freeze("sofa")).toBe(true);
-    expect(look.update(0.05, { allowed: false, thinking: false })?.target).toBe("sofa");
-    expect(look.freeze("clock"), "the clock is behind the seat").toBe(false);
-    look.freeze(undefined);
-    expect(look.update(0.05, { allowed: true, thinking: false })).toBeUndefined();
+    const g = make();
+    expect(g.freeze("sofa")).toBe(true);
+    expect(g.begin()?.target).toBe("sofa");
+    expect(g.held?.target).toBe("sofa");
+    expect(g.freeze("clock"), "the clock is behind the seat").toBe(false);
+    g.freeze(undefined);
+    expect(g.held).toBeUndefined();
   });
 });

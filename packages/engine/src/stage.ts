@@ -90,6 +90,16 @@ export class Puppet {
     return "nod";
   }
 
+  /** The avatar's arms reach and bend, so a decision (and a reaching fidget) can use them. */
+  get canAct(): boolean {
+    return this.avatar.canAct?.() ?? false;
+  }
+
+  /** A gesture or a decision is being played: a fidget waits (VIK-103). */
+  get busy(): boolean {
+    return this.reaction.active || this.arms.playing !== undefined;
+  }
+
   triggerBlink(): void {
     this.blinker.trigger();
   }
