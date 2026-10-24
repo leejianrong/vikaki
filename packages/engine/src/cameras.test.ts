@@ -1,6 +1,6 @@
 import { PerspectiveCamera, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { CameraRig, ease, parseShot, shotFor, type Shot, type ShotContext, type ShotName } from "./cameras.ts";
+import { CameraRig, crowded, ease, parseShot, shotFor, type Shot, type ShotContext, type ShotName } from "./cameras.ts";
 import { ovalSeats, TABLE_A, TABLE_B } from "./table3d.ts";
 
 const spots = ovalSeats(3);
@@ -147,4 +147,49 @@ describe("CameraRig", () => {
     expect(ease(0.1)).toBeLessThan(0.1);
     expect(ease(0.9)).toBeGreaterThan(0.9);
   });
+});
+
+describe("a table of six or seven (VIK-88)", () => {
+  const many = (n: number) => {
+    const sp = ovalSeats(n);
+    const hs = sp.map((s) => ({ x: s.x, y: 1.0, z: s.z }));
+    return { sp, hs, ctx: (aspect: number): ShotContext => ({ tableY: 0.7, spots: sp, heads: hs, tops: hs.map(() => 1.4), eyes: hs.map((h) => ({ ...h, y: 1.1 })), aspect, fov: 38 }) };
+  };
+
+  it("puts seats on the near side from five up, and not before", () => {
+    expect(crowded(ovalSeats(3))).toBe(false);
+    expect(crowded(ovalSeats(4))).toBe(false);
+    for (const n of [5, 6, 7, 8]) expect(crowded(ovalSeats(n)), `${n} seats`).toBe(true);
+  });
+
+  for (const n of [5, 6, 7, 8]) {
+    it(`looks down over the near seats' heads at ${n} seats, so none of them hides the middle of the table, with every head and the board in view`, () => {
+      const { sp, hs, ctx: c } = many(n);
+      for (const aspect of [1, 1.6, 2]) {
+        const shot = shotFor("wide", c(aspect));
+        const cam = camera(shot, aspect);
+        for (const h of hs) expect(inView(cam, h), `${n} seats, aspect ${aspect}, head at ${h.x.toFixed(2)},${h.z.toFixed(2)}`).toBe(true);
+        for (const x of [-0.5, 0, 0.5]) expect(inView(cam, { x, y: 0.7, z: -0.14 })).toBe(true);
+        for (const [i, s] of sp.entries()) {
+          if (s.z < 0.3 || Math.abs(s.x) > 0.6) continue; // the ones the line passes near (the camera is on the middle line)
+          // the line from the camera to the middle of the table, where it passes this near seat, is above the seat's head
+          const k = s.z / shot.position.z;
+          const lineY = 0.7 + (shot.position.y - 0.7) * k;
+          expect(lineY, `near seat ${i} of ${n}`).toBeGreaterThan(1.4);
+        }
+      }
+    });
+
+    it(`keeps every close-up and the board shot clear of the other heads at ${n} seats`, () => {
+      const { hs, ctx: c } = many(n);
+      for (let i = 0; i < n; i++) {
+        const shot = shotFor(`seat:${i}`, c(1.6));
+        for (const [j, h] of hs.entries()) if (j !== i) expect(Math.hypot(shot.position.x - h.x, shot.position.y - h.y, shot.position.z - h.z), `close-up ${i} against head ${j}`).toBeGreaterThan(0.5);
+        expect(inView(camera(shot, 1.6), hs[i]!), `own head ${i}`).toBe(true);
+      }
+      const board = shotFor("board", c(1.6));
+      for (const h of hs) expect(Math.hypot(board.position.x - h.x, board.position.z - h.z), "the board camera is not in anyone's head").toBeGreaterThan(0.6);
+      for (const x of [-0.5, 0, 0.5]) expect(inView(camera(board, 1.6), { x, y: 0.7, z: -0.14 })).toBe(true);
+    });
+  }
 });

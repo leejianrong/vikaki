@@ -41,6 +41,14 @@ export function parseShot(value: string | null | undefined, seats: number): Shot
 
 const tanHalf = (fovDegrees: number) => Math.tan((fovDegrees * Math.PI) / 360);
 
+/**
+ * A table of five or more has seats on the near side (VIK-88), their backs to the wide camera: a camera over the near rail has their heads between it and
+ * the table. For such a table the wide shot looks down from higher and further back, and the board shot comes from over the table.
+ */
+export function crowded(spots: { z: number }[]): boolean {
+  return spots.some((s) => s.z > 0.3);
+}
+
 export function shotFor(name: ShotName, c: ShotContext): Shot {
   const reach = Math.max(...c.spots.map((s) => Math.abs(s.x)), TABLE_A) + 0.38;
   if (name === "overhead") {
@@ -48,9 +56,17 @@ export function shotFor(name: ShotName, c: ShotContext): Shot {
     const height = Math.max(2.2, reach / (tanHalf(c.fov) * Math.max(c.aspect, 0.1)), (TABLE_B + 0.7) / tanHalf(c.fov));
     return { position: { x: 0, y: c.tableY + height, z: 0.05 }, target: { x: 0, y: c.tableY, z: 0 }, fov: c.fov };
   }
+  if (name === "board" && crowded(c.spots)) {
+    return { position: { x: 0, y: c.tableY + 1.45, z: 0.25 }, target: { x: 0, y: c.tableY, z: -0.14 }, fov: c.fov };
+  }
   if (name === "board") {
     // Low over the near rail, close on the middle of the felt: the five board cards, the pot and the chips fill the picture.
     return { position: { x: 0, y: c.tableY + 0.75, z: 1.35 }, target: { x: 0, y: c.tableY, z: -0.05 }, fov: c.fov };
+  }
+  if ((name === "wide" || name === "grid") && crowded(c.spots)) {
+    // Looking down at about 40 degrees from far enough back for the whole oval, so the line to the middle of the table clears the near seats' heads.
+    const back = Math.max(4.0, reach / (tanHalf(c.fov) * Math.max(c.aspect, 0.1)));
+    return { position: { x: 0, y: c.tableY + 0.85 * back, z: back }, target: { x: 0, y: c.tableY + 0.1, z: -0.1 }, fov: c.fov };
   }
   if (name === "wide" || name === "grid") {
     // A three-quarter view over the near rail: faces stay readable, the cards and chips show, and the seats at the two ends fit.
@@ -65,10 +81,11 @@ export function shotFor(name: ShotName, c: ShotContext): Shot {
   // heights from the chest to the top of the frame, whatever the avatar's size.
   const h = Math.max(0.08, c.tops[i]! - head.y);
   const visible = 4.2 * h;
-  const dist = Math.max(0.7, visible / (2 * tanHalf(c.fov)));
+  const close = crowded(c.spots); // a crowded table: nearer and a little higher, so the camera is not squeezed against the seat across from this one (VIK-88)
+  const dist = Math.max(0.7, (visible / (2 * tanHalf(c.fov))) * (close ? 0.75 : 1));
   const aim = head.y + 0.3 * h;
   return {
-    position: { x: head.x + Math.sin(facing) * dist, y: aim + 0.04, z: head.z + Math.cos(facing) * dist },
+    position: { x: head.x + Math.sin(facing) * dist, y: aim + (close ? 0.3 : 0.04), z: head.z + Math.cos(facing) * dist },
     target: { x: head.x, y: aim, z: head.z },
     fov: c.fov,
   };

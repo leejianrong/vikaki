@@ -45,6 +45,10 @@ demo-table: build ## Serve a table of three avatars (the real voice if installed
 	@echo "Open http://127.0.0.1:8787/ (every demo is a link there) and, in another terminal, run: make table-hand"
 	@$(CLI) serve --port 8787 --personas $(CURDIR)/personas.table.example.yaml
 
+demo-table6: build ## Serve a table of seven avatars for a six-seat game; then run `make poker POKER_ARGS="--table table6.example.yaml"` in another terminal
+	@echo "Open http://127.0.0.1:8787/avatar?seats=6&view=table and, in another terminal, run: make poker POKER_ARGS=\"--table table6.example.yaml\""
+	@$(CLI) serve --port 8787 --personas $(CURDIR)/personas.table7.example.yaml
+
 demo-embed: build ## See the embed work: a stand-in game page frames the duet layout; type a line for either seat, press Start sound, press Cancel
 	@$(CLI) embed-demo --open
 

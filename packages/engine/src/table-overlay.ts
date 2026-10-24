@@ -132,9 +132,16 @@ export class TableOverlay {
   }
 
   /** Put each seat's plate under its avatar: `xs` are the avatars' centres in pixels from the left edge. `tops`, when known, are the pixels from the top edge of the heads: a bubble sits just above. */
-  place(xs: number[], tops?: number[]): void {
+  /** A crowded table (VIK-88): the name plates are small and sit by each head, since a row along the bottom would pile up the near seats on the far ones. */
+  setCrowded(on: boolean): void {
+    this.root.classList.toggle("crowded", on);
+    if (!on) this.plates.forEach((p) => Object.assign(p.style, { top: "", bottom: "" }));
+  }
+
+  place(xs: number[], tops?: number[], plateTops?: number[]): void {
     this.plates.forEach((p, i) => {
       if (xs[i] !== undefined) p.style.left = `${Math.round(xs[i]!)}px`;
+      if (plateTops?.[i] !== undefined) Object.assign(p.style, { top: `${Math.round(plateTops[i]!)}px`, bottom: "auto" });
     });
     this.marks.forEach((m, i) => {
       if (xs[i] !== undefined) m.style.left = `${Math.round(xs[i]!)}px`;

@@ -18,6 +18,14 @@ const [vw, vh] = (process.env.VIEWPORT ?? "1280x720").split("x").map(Number);
 
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--autoplay-policy=no-user-gesture-required"] });
 const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+ws.on("message", (m) => {
+  try {
+    const msg = JSON.parse(String(m));
+    if (msg.type === "error") console.error("hub error:", msg.code, msg.message);
+  } catch {
+    /* audio frames are binary */
+  }
+});
 try {
   const page = await browser.newPage({ viewport: { width: vw, height: vh }, deviceScaleFactor: Number(process.env.DPR ?? 1) });
   page.on("console", (m) => m.type() === "error" && console.error("page error:", m.text()));
