@@ -2,7 +2,8 @@
 // what the game sent and holds no game logic. The layout and the chip counting are pure (and tested); `TableProps` is the three.js part.
 import type { MessageOf } from "@vikaki/protocol";
 import { currentDeck, drawClassicFace } from "./card-art.ts";
-import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Sprite, SpriteMaterial, type Texture, Vector3 } from "three";
+import { CanvasTexture, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Sprite, SpriteMaterial, type Texture, Vector3 } from "three";
+import { peekPlacement } from "./peek.ts";
 import { cardFace, SUIT_PATHS } from "./table.ts";
 import { type Hold, middlePot, type Place, type Plan, planMotion } from "./table-motion.ts";
 import type { SeatSpot } from "./table3d.ts";
@@ -231,10 +232,11 @@ export class TableProps {
   private current: State | undefined;
   private shown: State | undefined;
   private reduced = false;
+  private readonly peeks: number[] = [];
   /** In the air now, for tests. */
   readonly motion = { flights: 0 };
   /** What is drawn now, for tests. */
-  readonly drawn = { boardCards: 0, seatCards: [] as number[], chips: 0, dealer: undefined as string | undefined, /** The words on the pot's label, or undefined with no pot. */ pot: undefined as string | undefined, /** True when the hands on the table are shown face up (a showdown), false while they are face down. */ handsFaceUp: false, /** Cards lit up as the five that make the winning hand. */ highlighted: 0 };
+  readonly drawn = { /** How far each seat's cards are lifted in a peek (VIK-104). */ peeked: [] as number[], boardCards: 0, seatCards: [] as number[], chips: 0, dealer: undefined as string | undefined, /** The words on the pot's label, or undefined with no pot. */ pot: undefined as string | undefined, /** True when the hands on the table are shown face up (a showdown), false while they are face down. */ handsFaceUp: false, /** Cards lit up as the five that make the winning hand. */ highlighted: 0 };
 
   constructor(
     private readonly tableY: number,
@@ -276,6 +278,30 @@ export class TableProps {
     this.current = state;
     this.draw(state, plan?.hold);
     if (plan) this.launch(plan.flights, plan.mucks, plan);
+  }
+
+  /** Lift a seat's face-down cards as in a peek (VIK-104): 0 lies flat, 1 is the full tilt. Redrawn cards keep it. Ignored once the hands are face up. */
+  setPeek(seat: number, amount: number): void {
+    const a = Math.min(1, Math.max(0, amount));
+    if ((this.peeks[seat] ?? 0) === a) return;
+    this.peeks[seat] = a;
+    this.drawn.peeked[seat] = a;
+    for (const m of this.cards.children) if ((m.userData.hole as { seat: number } | undefined)?.seat === seat) this.pose(m as Mesh);
+  }
+
+  /** Put a hole card where it lies, lifted by its seat's peek. */
+  private pose(m: Mesh): void {
+    const { seat, pos, quat } = m.userData.hole as { seat: number; pos: Vector3; quat: Quaternion };
+    const amount = this.drawn.handsFaceUp ? 0 : (this.peeks[seat] ?? 0);
+    m.position.copy(pos);
+    m.quaternion.copy(quat);
+    if (amount <= 0) return;
+    const spot = this.spots[seat]!;
+    const fx = Math.sin(spot.facing);
+    const fz = Math.cos(spot.facing);
+    const { alpha, up, along } = peekPlacement(amount, HOLE_CARD.h);
+    m.position.set(pos.x + fx * along, pos.y + up, pos.z + fz * along);
+    m.quaternion.premultiply(new Quaternion().setFromAxisAngle(new Vector3(fz, 0, -fx), alpha)); // about the line across the seat: the near edge comes up
   }
 
   /** Move what is in the air. Call it every frame with the seconds since the last. When the last lands, the real piles are drawn. */
@@ -397,7 +423,7 @@ export class TableProps {
     const y = this.tableY;
     this.cards.clear();
     /** `lean` raises the card's far edge toward the camera (negative x rotation from flat); `yaw` turns it about its own middle. */
-    const card = (name: string, x: number, z: number, lift: number, lean: number, size: { h: number }, yaw = 0, geometry = this.holeGeometry, tone?: "lit" | "dim") => {
+    const card = (name: string, x: number, z: number, lift: number, lean: number, size: { h: number }, yaw = 0, geometry = this.holeGeometry, tone?: "lit" | "dim", seat?: number) => {
       const m = new Mesh(geometry, new MeshBasicMaterial({ map: cardTexture(name), color: tone === "dim" ? 0x8c8c8c : 0xffffff }));
       if (tone === "lit") {
         const glow = new Mesh(new PlaneGeometry((geometry.parameters.width as number) + 0.018, (geometry.parameters.height as number) + 0.018), new MeshBasicMaterial({ color: 0xffc83d }));
@@ -409,6 +435,10 @@ export class TableProps {
       m.rotation.order = "YXZ";
       m.rotation.set(-Math.PI / 2 + lean, yaw, 0);
       m.position.set(x, y + 0.004 + lift + Math.sin(lean) * (size.h / 2), z);
+      if (seat !== undefined) {
+        m.userData.hole = { seat, pos: m.position.clone(), quat: m.quaternion.clone() }; // where it lies, for a peek to lift it from
+        this.pose(m);
+      }
       this.cards.add(m);
     };
     const board = state.board ?? [];
@@ -446,7 +476,7 @@ export class TableProps {
           const shown = this.drawn.handsFaceUp ? c : "back";
           const on = winning.has(row.seat_id) && lit.has(c);
           if (on) highlighted++;
-          card(shown, p.x, p.z, 0.001 * k + (on ? 0.03 : 0), 0.12, HOLE_CARD, k === 0 ? 0.08 : -0.08, this.holeGeometry, lit.size > 0 && this.drawn.handsFaceUp ? (on ? "lit" : "dim") : undefined);
+          card(shown, p.x, p.z, 0.001 * k + (on ? 0.03 : 0), 0.12, HOLE_CARD, k === 0 ? 0.08 : -0.08, this.holeGeometry, lit.size > 0 && this.drawn.handsFaceUp ? (on ? "lit" : "dim") : undefined, i);
         });
         this.drawn.seatCards[i] = row.cards?.length ?? 0;
       }
