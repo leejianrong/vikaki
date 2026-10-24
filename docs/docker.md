@@ -57,7 +57,7 @@ A name with a port (`vikaki:8787`) matches that port only; a bare name (`vikaki`
 
 - Runs as the unprivileged user `node` (uid 1000), exposes only `8787`, and has a health check (the avatar page answers) that passes about 5 seconds after start on the development machine (the test requires under 10).
 - `ENTRYPOINT` is the `vikaki` command, so `docker run vikaki say ...` and `docker run vikaki-render stream ...` work; the default `CMD` is `serve --host 0.0.0.0 --port 8787`.
-- `/data` is a folder owned by the server's user for what you bring: `-v $PWD:/data` with `--personas /data/personas.yaml`, `--event-log /data/run.jsonl`, `--debug-dir /data/debug`. The example personas file and its avatars are at `/app/personas.example.yaml`.
+- `/data` is a folder owned by the server's user for what you bring: `-v $PWD:/data` with `--personas /data/personas.yaml`, `--event-log /data/run.jsonl`, `--debug-dir /data/debug`. The example personas file is at `/app/personas.example.yaml` (an example, not a promise) and the bundled avatars are at `/app/avatars/` (a promise: [personas.md](personas.md#what-a-game-can-rely-on-vik-131)).
 - The small image has no browser. `serve --headless` there says so and points to `vikaki-render`.
 - Chromium in the render image runs with software WebGL (no GPU). Under CPU limits the page can freeze for most of a second at the first speech (see [observability.md](observability.md)); for a GPU, run a GPU-enabled runtime and add `--gpu`, or use audio-only pages for seats nobody needs to see ([personas.md](personas.md)).
 
