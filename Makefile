@@ -16,9 +16,10 @@ install-voice: ## Install the real voice (Kokoro, about 410 MB) into .vikaki/voi
 install-renderer: ## Install the browser for headless rendering (Chromium, about 170 MB), for `vikaki stream` and `serve --headless`
 	pnpm exec playwright install chromium
 
-docker-build: ## Build both Docker images (vikaki, and vikaki-render with a browser)
+docker-build: ## Build the Docker images (vikaki; vikaki-render with a browser; vikaki-kokoro with the real voice, about 1.3 GB)
 	docker build --target vikaki -t vikaki .
 	docker build --target vikaki-render -t vikaki-render .
+	docker build --target vikaki-kokoro -t vikaki-kokoro .
 
 docker-test: ## Build the images, start containers and check them (health, non-root, a driver speaks, the feed); takes minutes
 	VIKAKI_DOCKER_TESTS=1 pnpm --filter @vikaki/e2e exec vitest run docker

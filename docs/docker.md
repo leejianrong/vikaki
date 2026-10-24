@@ -1,10 +1,11 @@
 # Docker
 
-Two images are built from one `Dockerfile`:
+Three images are built from one `Dockerfile`:
 
 | Image (target) | Has | Size | Use it for |
 | --- | --- | --- | --- |
 | `vikaki` | the avatar page, hub, speech (the fake test voice), CLI, MCP | about 560 MB (most of it the Node base image) | a hub for drivers and browsers; audio-only seats |
+| `vikaki-kokoro` | the small image plus the real voice: Kokoro, its native runtime and its model | about 1.3 GB (the model is about 330 MB of it, baked in) | a game that wants speech people can listen to; no download at start |
 | `vikaki-render` | the above plus Chromium and its libraries | about 1.6 GB | `vikaki stream` (the MJPEG feed) and `serve --headless` with no GPU |
 
 ```bash
@@ -63,10 +64,19 @@ A complete, runnable wiring of a game beside the hub (a stand-in game, loopback 
 - The small image has no browser. `serve --headless` there says so and points to `vikaki-render`.
 - Chromium in the render image runs with software WebGL (no GPU). Under CPU limits the page can freeze for most of a second at the first speech (see [observability.md](observability.md)); for a GPU, run a GPU-enabled runtime and add `--gpu`, or use audio-only pages for seats nobody needs to see ([personas.md](personas.md)).
 
-## Not in the image
+## The real voice
 
-**The real voice.** Kokoro is about 410 MB with its runtime and is an optional install ([ADR-0010](adr/0010-kokoro-for-local-tts.md)), so the images speak with the steady "aah" test tone and say so on start. Packaging the real voice (and checking that its native runtime works in the image) is not done; run the voice on the host or extend the image yourself.
+`vikaki-kokoro` speaks with Kokoro ([ADR-0010](adr/0010-kokoro-for-local-tts.md): Apache-2.0, run locally on the CPU). It is the small image plus what `make install-voice` installs: `kokoro-js` with its native ONNX runtime, and the model (full precision, about 330 MB). The build loads the model and makes it speak once, so an image whose native runtime does not work in the container is never produced. The model is **in the image**, so the first start needs no network and no download: the hub is healthy in about 5 seconds and the first line comes a second or so after its text (about 0.9 s to first audio on the development machine, CPU only).
+
+```bash
+docker build --target vikaki-kokoro -t vikaki-kokoro .
+docker run --rm -p 127.0.0.1:8787:8787 vikaki-kokoro        # "speech: kokoro" in its first lines; VIKAKI_TTS=auto picks it
+```
+
+Costs: the image is about 1.3 GB (the small one is about 400 MB), and speech is CPU-bound: a busy host, or a CPU limit, slows the first audio (see [observability.md](observability.md)). No GPU support. `VIKAKI_TTS=fake` still gives the test tone when you want a fast, silent-ish test run, and the voice id comes from the personas file (`voice: af_heart`) or `--voice`.
+
+The small image still speaks only with the test tone and says so on start.
 
 ## Tests
 
-`make docker-test` builds both images, starts containers and checks: non-root user, only the documented port, healthy within 10 seconds, the avatar page served, a driver outside the container makes it speak, a browser origin from another site is refused, the environment-variable settings, a listed Host name, a mounted personas file, the compose example (a game and the hub, brought up with `docker compose`), and (render image) a line is drawn by the hidden page with no GPU and `ffprobe` on the feed sees an MJPEG stream at the size asked for. CI runs them in `.github/workflows/docker.yml` when the image or the code it runs changes, and nightly.
+`make docker-test` builds both images, starts containers and checks: non-root user, only the documented port, healthy within 10 seconds, the avatar page served, a driver outside the container makes it speak (and in the Kokoro image, with the real voice), a browser origin from another site is refused, the environment-variable settings, a listed Host name, a mounted personas file, the compose example (a game and the hub, brought up with `docker compose`), and (render image) a line is drawn by the hidden page with no GPU and `ffprobe` on the feed sees an MJPEG stream at the size asked for. CI runs them in `.github/workflows/docker.yml` when the image or the code it runs changes, and nightly.
