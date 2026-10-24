@@ -18,9 +18,13 @@ CI builds the image to test it and throws it away, so a project that wants Vikak
 - **Pinned actions.** Third-party actions are pinned to a commit; first-party ones to a major version.
 - **Not automatic.** Nobody tags by script. A person pushes the tag; the workflow does the rest. The first image push creates a private GHCR package: making it public is a one-time click ([release.md](../release.md)).
 
+- **Signed, keyless, by digest (VIK-133).** After the push, a `sign` job signs each image's digest with `cosign sign` using the workflow's GitHub OIDC identity (no key to store; recorded in Rekor), makes an SPDX SBOM of each image with `syft` and attaches it as a signed attestation (`cosign attest --type spdxjson`). The verifier checks the identity is this repo's `release.yml` on a `v*` tag. The SBOM files are kept for the release. Only that job may ask for an identity token.
+- **The GitHub release is made by the same run (VIK-125).** After signing, a `github-release` job creates the release from `docs/releases/<tag>.md` with the SBOMs (and the Python wheel, VIK-129) attached. The notes file must exist before the tag is accepted. The job is the only one with `contents: write`.
+
 ## Rejected
 
 - **Publish `main` as `:edge`.** Not asked for, and an unreleased image is what a game should not depend on.
+- **A signing key in a repository secret.** Something to rotate and leak; keyless needs nothing stored.
 - **semantic-release or release-please.** A changelog automation is out of scope for the cards, and a two-person project can write its notes.
 - **docker/metadata-action for the tags.** It cannot be run or tested locally; the 30 lines of `release-plan.mjs` can.
 - **arm64 for the voice image.** See above; add it when asked.

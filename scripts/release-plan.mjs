@@ -54,7 +54,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     }
     console.log(JSON.stringify(plan, null, 2));
     if (flag("--github-output") && process.env.GITHUB_OUTPUT) {
-      const lines = Object.entries({ version: plan.version, prerelease: plan.prerelease, python_version: plan.pythonVersion });
+      const lines = Object.entries({ image: plan.image, version: plan.version, prerelease: plan.prerelease, python_version: plan.pythonVersion });
       appendFileSync(process.env.GITHUB_OUTPUT, lines.map(([k, v]) => `${k}=${v}\n`).join("") + `image_tags<<EOF\n${plan.imageTags.join("\n")}\nEOF\nkokoro_tags<<EOF\n${plan.kokoroTags.join("\n")}\nEOF\n`);
     }
   } catch (err) {
