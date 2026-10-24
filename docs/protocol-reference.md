@@ -83,6 +83,7 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `board` | list of string | no | at most 10 items, each 1 to 8 characters |
 | `dealer` | string | no | 1 to 128 characters |
 | `turn` | string | no | 1 to 128 characters |
+| `rebuy` | one of `ask`, `auto`, `never` | no |  |
 | `hand_no` | integer | no | 1 to 9007199254740991 |
 | `event` | object | no |  |
 | `winners` | list of object | no | at most 16 items |
@@ -147,6 +148,14 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `session_id` | string | no | 1 to 128 characters |
 | `mode` | one of `seat`, `all`, `off` | yes |  |
 | `seat_id` | string | no | 1 to 128 characters |
+
+## `audience_request`
+
+| field | type | required | bounds |
+| --- | --- | --- | --- |
+| `session_id` | string | no | 1 to 128 characters |
+| `kind` | one of `rebuy` | yes |  |
+| `seat_id` | string | yes | 1 to 128 characters |
 
 ## `speech_started`
 

@@ -182,6 +182,37 @@ describe("what a seat driver may send", () => {
     expect(page.inbox.some((m) => m.type === "error")).toBe(false);
   });
 
+  it("passes a viewer's buy-back request to every driver only while the table asks for them (VIK-108)", async () => {
+    server = await startServer({ staticDir: dir });
+    const page = track(await Client.join(server.wsUrl, "viewer"));
+    await page.next();
+    const a = await seatDriver(server.wsUrl, { seat_id: "A", persona: "ada" });
+    const b = await seatDriver(server.wsUrl, { seat_id: "B", persona: "ben" });
+    const asked = (d: typeof a) => d.d.inbox.filter((m) => m.type === "audience_request").length;
+    // Messages on two connections have no order between them, so wait for the page to hear each state before it asks.
+    let states = 0;
+    const table = async (rebuy?: "ask" | "auto" | "never") => {
+      a.d.send(make("table_state", { seats: [{ seat_id: "A", stack: 0 }], ...(rebuy ? { rebuy } : {}) }));
+      const want = ++states;
+      await until(() => page.inbox.filter((m) => m.type === "table_state").length === want);
+    };
+    for (const policy of ["never", "auto", undefined] as const) {
+      await table(policy);
+      page.send(make("audience_request", { kind: "rebuy", seat_id: "A" }));
+    }
+    await table("ask");
+    page.send(make("audience_request", { kind: "rebuy", seat_id: "A" }));
+    await until(() => asked(a) === 1 && asked(b) === 1);
+    expect(a.d.inbox.find((m) => m.type === "audience_request")).toMatchObject({ kind: "rebuy", seat_id: "A" });
+    await table("never"); // the table stops asking
+    page.send(make("audience_request", { kind: "rebuy", seat_id: "A" }));
+    await table("ask");
+    page.send(make("audience_request", { kind: "rebuy", seat_id: "B" }));
+    await until(() => a.d.inbox.some((m) => m.type === "audience_request" && m.seat_id === "B"));
+    expect(asked(a), "only the two sent while the table asked").toBe(2);
+    expect(page.inbox.some((m) => m.type === "error")).toBe(false);
+  });
+
   it("gives a whole-table driver the human's speech for any seat", async () => {
     server = await startServer({ staticDir: dir });
     const page = track(await Client.join(server.wsUrl, "viewer"));

@@ -36,6 +36,10 @@ export class TablePanel {
   private readonly hearAll = el("input", { type: "checkbox", role: "switch", ariaLabel: "Hear every thought", checked: true });
   private listenState: { mode: "seat" | "all" | "off"; seat?: string } = { mode: "all" };
   private onListen: (mode: "seat" | "all" | "off", seat?: string) => void = () => {};
+  /** Buying back in (VIK-108): a button on the card of a seat that is out, while the table asks; it says "Asked" once pressed, until the seat is back. */
+  private readonly buyBack: HTMLButtonElement[];
+  private readonly asked = new Set<string>();
+  private onRebuy: (seat: string) => void = () => {};
   private readonly cards: HTMLElement[];
   private readonly chat = el("div", { className: "chat", role: "log", ariaLabel: "Chat", tabIndex: 0 });
   private lines: TranscriptLine[] = [];
@@ -48,6 +52,15 @@ export class TablePanel {
       const b = el("button", { type: "button", className: "listen-in", textContent: "Listen in", ariaLabel: `Listen in to ${label(s)}` });
       b.setAttribute("aria-pressed", "false");
       b.addEventListener("click", () => this.chooseSeat(s.seat));
+      return b;
+    });
+    this.buyBack = seats.map((s) => {
+      const b = el("button", { type: "button", className: "buy-back", textContent: "Buy back in", ariaLabel: `Buy ${label(s)} back in` });
+      b.addEventListener("click", () => {
+        this.asked.add(s.seat);
+        this.onRebuy(s.seat);
+        this.draw(this.last);
+      });
       return b;
     });
     this.floatSwitch.addEventListener("change", () => this.setFloat(this.floatSwitch.checked, true));
@@ -86,7 +99,15 @@ export class TablePanel {
     this.draw();
   }
 
+  /** What to do when "Buy back in" is pressed on a seat (VIK-108). */
+  setRebuyHandler(f: (seat: string) => void): void {
+    this.onRebuy = f;
+  }
+
+  private last: State | undefined;
+
   setState(state: State): void {
+    this.last = state;
     this.draw(state);
   }
 
@@ -278,6 +299,13 @@ export class TablePanel {
       }
       const notes = [row?.bet ? `Bet ${money(row.bet)}` : "", row?.folded ? "" : (row?.action ?? ""), row?.folded ? "Folded" : ""].filter(Boolean);
       if (notes.length) kids.push(el("p", { className: "note", textContent: notes.join(" · ") }));
+      if (st?.rebuy === "ask" && row?.out) {
+        const b = this.buyBack[i]!;
+        const asked = this.asked.has(s.seat);
+        b.disabled = asked;
+        b.textContent = asked ? "Asked" : "Buy back in";
+        kids.push(b);
+      } else this.asked.delete(s.seat); // back in, or the table stopped asking: it may be asked again next time
       kids.push(this.listenButtons[i]!);
       card.style.setProperty("--seat-colour", seatColour(i));
       card.replaceChildren(...kids);
