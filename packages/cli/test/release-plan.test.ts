@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -50,5 +50,22 @@ describe("what a version tag publishes (VIK-124)", () => {
 
   it("--check fails when the tag and the client disagree", () => {
     expect(() => execFileSync(process.execPath, [join(root, "scripts/release-plan.mjs"), "v9.9.9", "--check"], { stdio: "pipe" })).toThrow();
+  });
+
+  it("every release notes file is named for a valid tag, says the Python client's version and the protocol, and lists every embed message (VIK-125)", () => {
+    const dir = join(root, "docs/releases");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".md"));
+    expect(files.length).toBeGreaterThan(0);
+    const bridge = readFileSync(join(root, "packages/engine/src/embed-bridge.ts"), "utf8");
+    const messages = [...bridge.matchAll(/export const EMBED_(?:TO|FROM)_PARENT = \[([^\]]+)\]/g)].flatMap((m) => [...m[1]!.matchAll(/"([a-z_]+)"/g)].map((x) => x[1]!));
+    expect(messages.length).toBeGreaterThan(5);
+    for (const f of files) {
+      const tag = f.replace(/\.md$/, "");
+      const plan = planRelease(tag); // throws for a name that is not a tag
+      const text = readFileSync(join(dir, f), "utf8");
+      expect(text, `${f} names the client`).toContain(`vikaki-client ${plan.pythonVersion}`);
+      expect(text, `${f} states the protocol promise`).toMatch(/`protocol_version` is `1` and only grows by adding/);
+      for (const m of messages) expect(text, `${f} lists the embed message ${m}`).toContain(`\`${m}\``);
+    }
   });
 });

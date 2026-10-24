@@ -65,3 +65,18 @@ A tag that is not on `main`, is not shaped like a version, has no notes file, or
 ## What a dry run cannot show
 
 The login, the push, the tags that land in the registry and the package's visibility only happen on a real tag. The workflow's shape is checked by `actionlint`, by tests that pin its safety rules (`packages/cli/test/release-workflow.test.ts`) and by `scripts/release-plan.mjs`'s unit test; the amd64 image is built and started in every dry run, and the arm64 build runs under emulation there too.
+
+## Release checklist (v0.1.0 as the example)
+
+Nothing here has been done for v0.1.0: the tag is the maintainer's to push.
+
+- [ ] Every card of the release epic is merged and `main` CI is green (typecheck, unit, build; e2e and the Docker workflow too).
+- [ ] `docs/releases/v0.1.0.md` is read and correct (it becomes the GitHub release's text; the file name must be the tag).
+- [ ] `clients/python/pyproject.toml` says `0.1.0`.
+- [ ] A dry run of the Release workflow (Actions, Release, Run workflow) is green.
+- [ ] One-time: the GHCR package will be private after the first push: be ready to make it public (step 5 above).
+- [ ] Optional, one-time: the PyPI trusted publisher and `PUBLISH_TO_PYPI` (see "The Python client"). Leave it off to release the wheel on GitHub only.
+- [ ] Push the tag (the exact command is in "Cutting a release").
+- [ ] Watch the run: images pushed, signed, the SBOMs attached, the GitHub release created.
+- [ ] `cosign verify` and `docker run` the published tag from a clean machine (the commands above).
+- [ ] Tell the Wavelength team the tag, and pin their compose file to `0.1`.
