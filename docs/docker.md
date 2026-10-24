@@ -54,6 +54,8 @@ services:
 
 A name with a port (`vikaki:8787`) matches that port only; a bare name (`vikaki`) matches any port. No wildcards, no schemes, nothing is accepted by default, and every other name is still refused (403). The browser origin rule is separate and unchanged. The MJPEG feed of `stream` takes the same list. Listing a name opens no port to the network: publish the port to loopback only, as above, and keep the hub on a private compose network. See [ADR-0044](adr/0044-extra-host-names-are-an-explicit-list.md).
 
+Released images are on GHCR (`ghcr.io/leejianrong/vikaki`, tags in [release.md](release.md)).
+
 A complete, runnable wiring of a game beside the hub (a stand-in game, loopback ports, the settings above) is in [examples/compose](../examples/compose/README.md).
 
 ## What the image does
