@@ -24,8 +24,8 @@ docker-build: ## Build the Docker images (vikaki; vikaki-render with a browser; 
 docker-test: ## Build the images, start containers and check them (health, non-root, a driver speaks, the feed); takes minutes
 	VIKAKI_DOCKER_TESTS=1 pnpm --filter @vikaki/e2e exec vitest run docker
 
-lipsync-scorecard: build ## Score how the mouth follows eight recorded lines (needs Chromium; docs/observability.md)
-	pnpm exec tsx scripts/lipsync-scorecard.ts
+lipsync-scorecard: build ## Score how three mouths (audio, phoneme, hybrid) follow eight recorded lines (needs Chromium; docs/observability.md)
+	pnpm exec tsx scripts/lipsync-scorecard.ts --mode all
 
 doctor: ## Check that everything the demos need is in place
 	@( $(CLI) doctor ) || true  # the report is the output; `vikaki doctor` itself exits 1 on a problem, for scripts

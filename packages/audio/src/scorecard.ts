@@ -163,3 +163,39 @@ export function scoreLine(samples: Float32Array, rate: number, mouth: MouthTrack
     jitter: moved / (frames - 1),
   };
 }
+
+/** The mouth's five shapes (`aa ih ou ee oh`, in that order) at each frame, `t` in seconds from the start of the audio. */
+export interface ShapeTrack {
+  t: ArrayLike<number>;
+  shapes: ArrayLike<number>[];
+}
+
+/**
+ * How often the mouth made the shape of the vowel being spoken (VIK-51). For each vowel in `spans` (the phoneme track: `t` and `d` in ms) that
+ * lasts at least `minMs`, the shapes are averaged over the middle of it; the vowel is a hit when the strongest shape is the one `expected` names
+ * for it, and a miss when another is strongest or the mouth is all but shut. `expected` returns the index of a vowel's shape, or undefined for a
+ * sound that is not a vowel. The spans come from an estimate, so this is agreement with the phoneme track, not with the truth.
+ */
+export function vowelMatch(mouth: ShapeTrack, spans: { p: string; t: number; d: number }[], expected: (p: string) => number | undefined, minMs = 60): { hits: number; vowels: number } {
+  let hits = 0;
+  let vowels = 0;
+  for (const s of spans) {
+    const want = expected(s.p);
+    if (want === undefined || s.d < minMs) continue;
+    const from = (s.t + 0.2 * s.d) / 1000;
+    const to = (s.t + 0.8 * s.d) / 1000;
+    const sum = [0, 0, 0, 0, 0];
+    let n = 0;
+    for (let i = 0; i < mouth.t.length; i++) {
+      if (mouth.t[i]! < from || mouth.t[i]! > to) continue;
+      for (let k = 0; k < 5; k++) sum[k]! += mouth.shapes[i]![k] ?? 0;
+      n++;
+    }
+    if (n === 0) continue;
+    vowels++;
+    const mean = sum.map((v) => v / n);
+    const top = mean.indexOf(Math.max(...mean));
+    if (mean[top]! >= 0.08 && top === want) hits++;
+  }
+  return { hits, vowels };
+}

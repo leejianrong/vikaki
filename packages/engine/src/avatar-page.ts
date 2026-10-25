@@ -17,6 +17,7 @@ import type { VisemeWeights } from "./renderer.ts";
 import { makeTransparent, parseEmbed } from "./embed.ts";
 import { mountEmbedAudio } from "./embed-audio.ts";
 import { PhonemeTrack } from "./phoneme-track.ts";
+import { DEFAULT_ARTICULATION, DEFAULT_LEAD, DEFAULT_MOUTH_MODE, parseMouthMode, PhonemeMouth } from "./phoneme-mouth.ts";
 
 const params = new URLSearchParams(location.search);
 const embedOpts = parseEmbed(params);
@@ -45,6 +46,8 @@ declare global {
       applied: VisemeWeights;
       /** The phonemes of the lines heard, with when each is spoken, when the hub sends them (`--phonemes`, VIK-50). Empty otherwise. */
       phonemes?: PhonemeTrack;
+      /** Which mouth is on this page: `audio`, `phoneme` or `hybrid` (`?mouth=`). */
+      mouthMode?: "audio" | "phoneme" | "hybrid";
       /** What the page recorded on one clock: frames, events, speech pieces and audio. Only with the speech demo or `?timeline=1`. */
       timeline?: TimelineRecorder;
       /** The timeline dock (speech demo): which view is showing, switching it, and exporting what it shows. */
@@ -95,7 +98,14 @@ const persona = params.get("persona") ?? undefined;
 let avatarUrl = params.get("avatar") ?? `${baseUrl}avatars/cookieman.vrm`;
 const demo = params.get("demo") === "1";
 const seed = Number(params.get("seed") ?? Date.now());
-const session = new AudioSession(`${baseUrl}profiles/default.bin`);
+// The mouth follows the audio (`audio`), the phonemes the voice spoke (`phoneme`), or the phonemes' shapes opened by the audio's loudness (`hybrid`): VIK-51, ADR-0048.
+const phonemes = new PhonemeTrack();
+api.phonemes = phonemes;
+const mouthMode = parseMouthMode(params.get("mouth"), DEFAULT_MOUTH_MODE);
+api.mouthMode = mouthMode;
+const session = new AudioSession(`${baseUrl}profiles/default.bin`, {
+  wrapMouth: mouthMode === "audio" ? undefined : (d) => new PhonemeMouth(d, phonemes, { mode: mouthMode, articulation: Number(params.get("articulation") ?? DEFAULT_ARTICULATION), lead: Number(params.get("lead") ?? DEFAULT_LEAD) / 1000 }),
+});
 api.audio = { get state() { return session.state; }, get played() { return session.played; }, get time() { return session.time; } };
 const embedAudio = mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
 
@@ -186,8 +196,6 @@ try {
     const url = new URL("/ws", location.href);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     let lineOn = false; // a line is being heard: a silent reaction would talk over its feeling
-    const phonemes = new PhonemeTrack();
-    api.phonemes = phonemes;
     const player = new SpeechPlayer({
       url: url.href,
       persona,

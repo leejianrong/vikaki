@@ -36,6 +36,8 @@ import { makeTransparent, parseEmbed } from "./embed.ts";
 import { mountEmbedAudio } from "./embed-audio.ts";
 import { DUET_GLANCE, DUET_TURN, duetFrame, type Rect } from "./duet.ts";
 import { SpeakerLight } from "./duet-light.ts";
+import { PhonemeTrack } from "./phoneme-track.ts";
+import { DEFAULT_ARTICULATION, DEFAULT_LEAD, DEFAULT_MOUTH_MODE, parseMouthMode, PhonemeMouth } from "./phoneme-mouth.ts";
 
 const params = new URLSearchParams(location.search);
 const embedOpts = parseEmbed(params);
@@ -61,7 +63,12 @@ const baseUrl = import.meta.env.BASE_URL;
 const LOOKS = [`${baseUrl}avatars/cookieman.vrm`, `${baseUrl}avatars/snowy.vrm`];
 const GAP = 0.15; // metres between neighbours
 const seed = Number(params.get("seed") ?? Date.now());
-const session = new AudioSession(`${baseUrl}profiles/default.bin`);
+// The phoneme mouth (VIK-51, ADR-0048): with the hub's `--phonemes` a seat's mouth follows the phonemes it speaks; without, the audio mouth as before.
+const phonemes = new PhonemeTrack();
+const mouthMode = parseMouthMode(params.get("mouth"), DEFAULT_MOUTH_MODE);
+const session = new AudioSession(`${baseUrl}profiles/default.bin`, {
+  wrapMouth: mouthMode === "audio" ? undefined : (d) => new PhonemeMouth(d, phonemes, { mode: mouthMode, articulation: Number(params.get("articulation") ?? DEFAULT_ARTICULATION), lead: Number(params.get("lead") ?? DEFAULT_LEAD) / 1000 }),
+});
 api.audio = { get state() { return session.state; }, get played() { return session.played; }, get time() { return session.time; }, get voice() { return { ...session.voice, gain: session.busGain }; } };
 const embedAudio = mountEmbedAudio({ session, embed: embedOpts, params }); // embed mode only: the "click for sound" button and the messages to the host (VIK-66)
 
@@ -557,7 +564,14 @@ try {
       panel?.addText(line);
     },
     onLifecycle: (e) => embedAudio?.bridge.send(e), // embed mode: tell the framing page (ADR-0020), if it named itself
-    onReport: (what) => live.events.push(what),
+    onScheduled: (slice) => {
+      if (slice.phonemes) phonemes.add(slice.utteranceId, slice.startPerfMs, slice.phonemes);
+    },
+    onReport: (what) => {
+      live.events.push(what);
+      if (what.startsWith("interrupted:")) phonemes.clear(what.slice("interrupted:".length));
+      phonemes.prune(performance.now());
+    },
     onState: (state, soundBlocked) => {
       live.state = state;
       live.soundBlocked = soundBlocked;

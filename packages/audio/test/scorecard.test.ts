@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { decodeWav } from "../src/wav.ts";
-import { opennessOf, scoreLine, type MouthTrack } from "../src/scorecard.ts";
+import { opennessOf, scoreLine, vowelMatch, type MouthTrack } from "../src/scorecard.ts";
 
 const RATE = 16000;
 
@@ -135,5 +135,29 @@ describe("scoreLine on a real recording", () => {
     const stuck = scoreLine(samples, sampleRate, { t: [0, seconds], open: [0.8, 0.8] });
     expect(stuck.loudnessMatch).toBe(0);
     expect(stuck.silenceClosure).toBe(0);
+  });
+});
+
+describe("vowelMatch (VIK-51)", () => {
+  // shapes: aa ih ou ee oh. 100 frames a second for one second; the first 0.5 s is an "aa" mouth, the rest an "ou" mouth.
+  const t = Array.from({ length: 100 }, (_, i) => i / 100);
+  const shapes = t.map((x) => (x < 0.5 ? [0.9, 0, 0, 0, 0] : [0, 0, 0.8, 0, 0]));
+  const expected = (p: string) => ({ a: 0, u: 2 })[p as "a" | "u"];
+
+  it("counts a vowel as a hit when the mouth makes its shape, a miss when it makes another, and skips consonants and short sounds", () => {
+    const spans = [
+      { p: "a", t: 0, d: 400 }, // hit
+      { p: "u", t: 100, d: 300 }, // the mouth is "aa" there: miss
+      { p: "u", t: 550, d: 400 }, // hit
+      { p: "s", t: 0, d: 400 }, // not a vowel
+      { p: "a", t: 0, d: 40 }, // too short
+    ];
+    expect(vowelMatch({ t, shapes }, spans, expected)).toEqual({ hits: 2, vowels: 3 });
+  });
+
+  it("a shut mouth during a vowel is a miss, and a vowel with no frames is not counted", () => {
+    const shut = { t, shapes: t.map(() => [0, 0, 0, 0.02, 0]) };
+    expect(vowelMatch(shut, [{ p: "a", t: 0, d: 400 }], expected)).toEqual({ hits: 0, vowels: 1 });
+    expect(vowelMatch({ t: [], shapes: [] }, [{ p: "a", t: 0, d: 400 }], expected)).toEqual({ hits: 0, vowels: 0 });
   });
 });

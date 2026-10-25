@@ -7,6 +7,7 @@ interface Window {
     visemes: Record<string, number>;
     applied: Record<string, number>;
     timeline?: unknown;
+    mouthMode?: "audio" | "phoneme" | "hybrid";
     phonemes?: { size: number; all(): readonly { utteranceId: string; p: string; startMs: number; endMs: number; stress: number }[]; at(perfMs: number): { p: string } | undefined };
     timelineUi?: { mode(): string; select(m: string): void; exportPng(): string; exportJson(): string; exportLayout(): { width: number; height: number; gutter: number; lanes: { id: string; top: number; height: number }[] } };
     blink: number;
