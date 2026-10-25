@@ -39,3 +39,10 @@ Judge avatars by screenshot, not by name. "Teddy" (#011) was the first default a
 `@material/web` (Apache-2.0) and `@material/material-color-utilities` (Apache-2.0, dev only, used to generate `src/ui/theme.css`) are ordinary dependencies.
 
 The seated pose (ADR-0019) is tuned per avatar: Cookieman and Snowy have numbers, CactusBoy uses the defaults after a look from the side (`?cam=`), and Froggy, LilBro, Mushy and Wambo have not been seated yet: judge each from the side before putting it at the table.
+
+## Voice runtime components (not committed, installed on demand)
+
+| Component | Where it comes from | Licence | Note |
+| --- | --- | --- | --- |
+| `kokoro-js` and the Kokoro-82M model | `make install-voice`, the `vikaki-kokoro` image | Apache-2.0 | ADR-0010 |
+| `phonemizer` (wrapper) with eSpeak NG compiled to WebAssembly | a dependency of `kokoro-js` | wrapper Apache-2.0; **eSpeak NG GPL-3.0-or-later** | used for `--phonemes` (ADR-0047). Part of the optional install, never in the workspace. The `vikaki-kokoro` image therefore redistributes eSpeak NG under the GPL-3.0: see docs/tts.md. |

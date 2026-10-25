@@ -17,6 +17,16 @@ export interface ScheduledSlice {
   startPerfMs: number;
   samples: Float32Array;
   sampleRate: number;
+  /** The phonemes spoken in this slice and when, from the hub's `--phonemes` (VIK-50): milliseconds from the slice's start. */
+  phonemes?: WirePhoneme[];
+}
+
+/** A phoneme as the hub sends it on an audio slice. */
+export interface WirePhoneme {
+  p: string;
+  t: number;
+  d: number;
+  s?: 1 | 2;
 }
 
 export interface PlaybackEvents {
@@ -34,12 +44,13 @@ export interface AudioSlice {
   /** Which spoken piece of the utterance this slice is from, and that piece's text (first slice of the piece only). */
   sentenceIndex?: number;
   sentenceText?: string;
+  phonemes?: WirePhoneme[];
 }
 
 interface Entry {
   id: string;
   seatId?: string;
-  pending: { samples: Float32Array; rate: number; sentenceIndex?: number; sentenceText?: string }[];
+  pending: { samples: Float32Array; rate: number; sentenceIndex?: number; sentenceText?: string; phonemes?: WirePhoneme[] }[];
   final: boolean;
   handles: { stop(): void }[];
   firstStart?: number;
@@ -78,7 +89,7 @@ export class Playback {
       e = { id: slice.utteranceId, seatId: slice.seatId, pending: [], final: false, handles: [], reportedStart: false };
       this.queue.push(e);
     }
-    if (slice.samples.length > 0) e.pending.push({ samples: slice.samples, rate: slice.sampleRate, sentenceIndex: slice.sentenceIndex, sentenceText: slice.sentenceText });
+    if (slice.samples.length > 0) e.pending.push({ samples: slice.samples, rate: slice.sampleRate, sentenceIndex: slice.sentenceIndex, sentenceText: slice.sentenceText, phonemes: slice.phonemes });
     if (slice.final) e.final = true;
     this.tick();
   }
@@ -128,6 +139,7 @@ export class Playback {
           startPerfMs: out.perfMs ? out.perfMs(start) : start * 1000,
           samples: slice.samples,
           sampleRate: slice.rate,
+          ...(slice.phonemes ? { phonemes: slice.phonemes } : {}),
         });
         head.firstStart ??= start;
         this.cursor = start + slice.samples.length / slice.rate;

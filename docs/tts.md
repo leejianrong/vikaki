@@ -42,3 +42,9 @@ Without the real voice the demos play a steady "aah" and the avatar holds one op
 ## Long sentences and cancelling
 
 Kokoro cannot be interrupted part-way through a call, so a long sentence is made in pieces of about 70 characters, cut at punctuation where there is any, with the silence the engine pads each call with trimmed and a natural pause put back. A cancel then costs at most one piece (about 2 seconds of work) instead of the rest of the sentence. Details and measurements: [ADR-0013](adr/0013-tts-engines-run-in-a-worker-thread.md).
+
+## Phonemes and the eSpeak NG licence (VIK-50)
+
+`vikaki serve --phonemes` (or `VIKAKI_PHONEMES=1`) sends the phonemes each piece of speech was, with their times, on the audio, for pages that use them ([ADR-0047](adr/0047-phonemes-come-from-kokoros-own-phonemizer-and-are-timed-from-the-audio.md)). With Kokoro they come from the `phonemizer` package that `kokoro-js` already installs; the fake test voice (`--tts fake --phonemes`) makes pretend ones from letters.
+
+**Licence.** `phonemizer` is Apache-2.0 but bundles **eSpeak NG (GPL-3.0-or-later)** compiled to WebAssembly. Vikaki does not contain or link it: it is part of the optional Kokoro install, as it is for every `kokoro-js` user. The published `vikaki-kokoro` image contains that install, so distributing it distributes eSpeak NG under the GPL-3.0: its licence text and source are at https://github.com/espeak-ng/espeak-ng.

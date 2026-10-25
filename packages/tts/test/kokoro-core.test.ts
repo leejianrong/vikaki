@@ -1,7 +1,8 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { create } from "../src/kokoro-core.mjs";
 
@@ -134,5 +135,49 @@ describe("the Kokoro engine and long sentences", () => {
     const engine = await create({ importFrom: fake.href });
     for await (const _ of engine.synthesize({ text: "Hello there, friend." }));
     expect(await fake.calls()).toEqual(["Hello there, friend."]);
+  });
+});
+
+describe("phonemes from the Kokoro engine (VIK-50)", () => {
+  /** Put a stand-in `phonemizer` next to the fake kokoro-js, where the engine looks for the one kokoro-js comes with. */
+  async function withPhonemizer(href: string, body: string) {
+    const dir = join(fileURLToPath(href), "..", "node_modules", "phonemizer");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "package.json"), JSON.stringify({ name: "phonemizer", main: "index.cjs" }));
+    await writeFile(join(dir, "index.cjs"), body);
+  }
+  const say = async (engine: Awaited<ReturnType<typeof create>>, text: string, voice?: string) => {
+    const out = [];
+    for await (const c of engine.synthesize({ text, voice })) out.push(c);
+    return out;
+  };
+
+  it("asks the phonemizer for each piece, in the voice's language, and sends the phrases with the audio", async () => {
+    const fake = await fakeKokoro();
+    await withPhonemizer(fake.href, `exports.calls = []; exports.phonemize = async (text, lang) => { exports.calls.push([text, lang]); return ["a" + text.length, "b"]; };`);
+    const engine = await create({ importFrom: fake.href, phonemes: true });
+    const chunks = await say(engine, "Hello there.");
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]!.phonemes).toBe("a12, b");
+    const calls = createRequire(fake.href)("phonemizer").calls as [string, string][];
+    expect(calls.filter(([t]) => t !== "Ready.")).toEqual([["Hello there.", "en-us"]]);
+  });
+
+  it("is off unless asked for: no phonemizer is even loaded, and the chunks carry none", async () => {
+    const fake = await fakeKokoro();
+    await withPhonemizer(fake.href, `throw new Error("must not be loaded");`);
+    const chunks = await say(await create({ importFrom: fake.href }), "Hello there.");
+    expect(chunks[0]!.phonemes).toBeUndefined();
+  });
+
+  it("speaks on without phonemes when there is no phonemizer, or it fails", async () => {
+    const none = await fakeKokoro();
+    expect((await say(await create({ importFrom: none.href, phonemes: true }), "Hello."))[0]!.phonemes).toBeUndefined();
+    const broken = await fakeKokoro();
+    await withPhonemizer(broken.href, `exports.phonemize = async (t) => { if (t !== "Ready.") throw new Error("espeak died"); return ["x"]; };`);
+    const chunks = await say(await create({ importFrom: broken.href, phonemes: true }), "Hello.");
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]!.phonemes).toBeUndefined();
+    expect(chunks[0]!.samples.length).toBeGreaterThan(0);
   });
 });

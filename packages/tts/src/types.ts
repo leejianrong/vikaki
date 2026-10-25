@@ -2,6 +2,11 @@
 export interface AudioChunk {
   samples: Float32Array;
   sampleRate: number;
+  /**
+   * What the engine said in this audio, as IPA (words separated by spaces, a comma where a phrase ends), when it can say and was asked to
+   * (VIK-50). Only on a chunk that holds the whole piece of text it is for, so the audio can be aligned to it.
+   */
+  phonemes?: string;
 }
 
 export interface SynthesisRequest {

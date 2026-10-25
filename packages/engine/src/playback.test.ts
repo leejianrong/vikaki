@@ -56,6 +56,17 @@ describe("Playback: telling the timeline what was scheduled", () => {
     expect(seen[1]!.samples).toHaveLength(2000);
   });
 
+  it("hands a slice's phonemes through with it, and nothing when it has none (VIK-50)", () => {
+    const out = new FakeOutput();
+    const seen: ScheduledSlice[] = [];
+    const pb = new Playback(() => out, { started() {}, finished() {}, interrupted() {} }, { lookahead: 5, lead: 0.5, scheduled: (s) => seen.push(s) });
+    const slice = (extra: Partial<AudioSlice>): AudioSlice => ({ utteranceId: "a", samples: new Float32Array(1000), sampleRate: 1000, final: false, ...extra });
+    pb.push(slice({ phonemes: [{ p: "h", t: 0, d: 80 }] }));
+    pb.push(slice({}));
+    expect(seen[0]!.phonemes).toEqual([{ p: "h", t: 0, d: 80 }]);
+    expect("phonemes" in seen[1]!).toBe(false);
+  });
+
   it("assumes the output clock in seconds when it cannot say", () => {
     const out = new FakeOutput();
     const seen: ScheduledSlice[] = [];

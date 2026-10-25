@@ -64,7 +64,7 @@ function energy(samples: Float32Array, rate: number): Float32Array {
  * (a real gap between words if there is one). Good enough to follow along; replace it through `WordTimer` when a
  * source that knows the real durations is available.
  */
-export function estimateWordTimings(text: string, samples: Float32Array, rate: number, options: { distancePenalty?: number } = {}): WordTiming[] {
+export function estimateWordTimings(text: string, samples: Float32Array, rate: number, options: { distancePenalty?: number; weights?: number[] } = {}): WordTiming[] {
   const penalty = options.distancePenalty ?? DISTANCE_PENALTY;
   const words = text.split(/\s+/).filter(Boolean);
   if (words.length === 0) return [];
@@ -86,7 +86,8 @@ export function estimateWordTimings(text: string, samples: Float32Array, rate: n
   }
   const span = spanEnd - spanStart;
 
-  const slots = words.map((w) => syllables(w) + pauseAfter(w));
+  // `weights` lets a caller who knows better than the spelling say how much time each word needs (phoneme alignment, VIK-50).
+  const slots = words.map((w, i) => (options.weights?.[i] ?? syllables(w)) + pauseAfter(w));
   const total = slots.reduce((a, b) => a + b, 0);
   const edges: { end: number; gapEnd: number }[] = []; // where each word ends, and where the next begins
   let acc = 0;

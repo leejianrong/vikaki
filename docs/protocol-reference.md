@@ -195,6 +195,7 @@ Every message carries `protocol_version` (1) and `type`. A field marked `no` may
 | `sentence_index` | integer | no | 0 to 9007199254740991 |
 | `sentence_text` | string | no | at most 4000 characters |
 | `sentence_end` | boolean | no |  |
+| `phonemes` | list of object | no | at most 1024 items |
 
 ## `error`
 

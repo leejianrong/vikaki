@@ -301,6 +301,15 @@ export const AudioMessage = z.object({
   sentence_text: z.string().max(MAX_SENTENCE_TEXT).optional(),
   /** On an empty slice sent after a piece's last audio: that piece is complete, so its words can be timed now. */
   sentence_end: z.boolean().optional(),
+  /**
+   * The phonemes spoken in this piece of audio and when (VIK-50, ADR-0047), on the first slice of the piece, only when the hub was started with
+   * `--phonemes` and its engine can say. `p` is IPA, `t` and `d` are milliseconds from the start of that slice's audio and how long it lasts,
+   * `s` is stress (1 primary, 2 secondary). The times are worked out from the audio, so they are good to a few tens of milliseconds, not exact.
+   */
+  phonemes: z
+    .array(z.object({ p: z.string().min(1).max(8), t: z.number().int().min(0).max(120_000), d: z.number().int().min(1).max(120_000), s: z.union([z.literal(1), z.literal(2)]).optional() }))
+    .max(1024)
+    .optional(),
 });
 
 export const Message = z.discriminatedUnion("type", [
