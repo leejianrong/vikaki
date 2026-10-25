@@ -240,6 +240,7 @@ export class SpeechPlayer {
           final: m.final,
           sentenceIndex: m.sentence_index,
           sentenceText: m.sentence_text,
+          phonemes: m.phonemes,
         });
         for (const done of this.sentences.push({ utteranceId: m.utterance_id, sentenceIndex: m.sentence_index, sentenceText: m.sentence_text, sentenceEnd: m.sentence_end, samples, sampleRate: m.sample_rate, final: m.final })) this.o.onSentence?.(done);
         break;

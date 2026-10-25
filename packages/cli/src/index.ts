@@ -50,6 +50,7 @@ const USAGE = `usage: vikaki doctor            check that everything the demos n
   --frame-ancestors  origins whose pages may embed the avatar page in an iframe, comma-separated (default: localhost on any port; none: nobody) (or set VIKAKI_FRAME_ANCESTORS)
   --allow-host  extra Host names the hub answers, comma-separated (vikaki:8787, or a name for any port), for a hub behind a container network.
              Off by default: only 127.0.0.1, localhost and [::1] are answered, which is what stops DNS rebinding. (or set VIKAKI_ALLOWED_HOSTS)
+  --phonemes  send the phonemes the voice spoke, with their times, on the audio (VIK-50): for pages that use them. Off by default. (or set VIKAKI_PHONEMES=1)
   --headless  also open the avatar page in a hidden Chromium (one tab per persona), so lines are rendered with no one at a screen.
              Needs the optional browser: \`make install-renderer\`. --audio-only opens audio-only pages that draw nothing;
              --gpu uses the machine's GPU instead of software WebGL; --chrome (or VIKAKI_CHROME) names a browser to use.
@@ -85,19 +86,19 @@ function openBrowser(url: string): void {
 }
 
 /** Pick a speech engine, and say plainly what was chosen and why. */
-async function chooseTts(kind: string, voice: string | undefined): Promise<{ tts: Tts; voice?: string } | undefined> {
+async function chooseTts(kind: string, voice: string | undefined, phonemes = false): Promise<{ tts: Tts; voice?: string } | undefined> {
   if (kind === "none") return undefined;
-  if (kind === "fake") return { tts: new FakeTts() };
+  if (kind === "fake") return { tts: new FakeTts({ phonemes }) };
   const found = findVoice();
   if (!found && kind === "auto") {
     console.log("");
     console.log("  !! The real voice is not installed, so this will play a steady \"aah\" test tone, not speech.");
     console.log(`  !! Run \`${INSTALL_COMMAND}\` once (about 410 MB), then start again.`);
     console.log("");
-    return { tts: new FakeTts() };
+    return { tts: new FakeTts({ phonemes }) };
   }
   console.log("loading the voice (the first run downloads a model of about 330 MB)...");
-  const tts = await KokoroTts.create({ voice, importFrom: found?.entry });
+  const tts = await KokoroTts.create({ voice, importFrom: found?.entry, phonemes });
   return { tts, voice: voice ?? "af_heart" };
 }
 
@@ -168,6 +169,7 @@ async function serve(argv: string[]): Promise<void> {
       token: { type: "string" },
       "frame-ancestors": { type: "string" },
       "allow-host": { type: "string" },
+      phonemes: { type: "boolean", default: false },
       "debug-dir": { type: "string" },
       "event-log": { type: "string" },
       personas: { type: "string" },
@@ -224,7 +226,8 @@ async function serve(argv: string[]): Promise<void> {
   }
   const host = values.host!;
   const port = values.port !== undefined ? Number(values.port) : await findFreePort(8787, host);
-  const chosen = await chooseTts(ttsMode, values.voice).catch((err) => {
+  const phonemes = values.phonemes || ["1", "true", "on"].includes((env.VIKAKI_PHONEMES ?? "").toLowerCase());
+  const chosen = await chooseTts(ttsMode, values.voice, phonemes).catch((err) => {
     console.error(err instanceof Error ? err.message : err);
     process.exit(1);
   });
@@ -257,13 +260,14 @@ async function serve(argv: string[]): Promise<void> {
     frameAncestors,
     hub: { ...(token ? { token } : {}), ...(allowedHosts ? { allowedHosts } : {}), onEvent: eventLog?.record },
     speech: tts
-      ? { tts, defaultVoice: chosen?.voice, observer: recorder, onTiming: (t) => console.log(`  ${t.utterance_id}: first audio made ${t.firstAudioAt - t.textAt} ms after the text arrived`) }
+      ? { tts, defaultVoice: chosen?.voice, observer: recorder, phonemes, onTiming: (t) => console.log(`  ${t.utterance_id}: first audio made ${t.firstAudioAt - t.textAt} ms after the text arrived`) }
       : undefined,
   });
   const url = values["speech-demo"] ? `${server.url}?demo=speech&live=1` : values.demo ? `${server.url}?demo=1&live=1` : `${server.url}?live=1`;
   console.log(`vikaki serving ${url}`);
   console.log(`  all the demos, as links: ${server.url.replace(/\/avatar$/, "/")}`);
   console.log(`  drivers connect to ${server.wsUrl}${token ? " (token required)" : ""}; speech: ${tts ? tts.name : "off"}`);
+  if (phonemes && tts) console.log("  phonemes: sent with the audio (--phonemes)");
   console.log(`  framing: ${frameAncestors ? (frameAncestors.length ? frameAncestors.join(", ") : "no other page") : DEFAULT_FRAME_ANCESTORS.join(", ")} may embed the avatar page${frameAncestors ? "" : " (--frame-ancestors to change)"}`);
   let renderer: HeadlessRenderer | undefined;
   let stopCast: (() => Promise<void>) | undefined;

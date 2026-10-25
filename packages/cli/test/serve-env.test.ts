@@ -57,6 +57,17 @@ describe("vikaki serve reads its settings from VIKAKI_* variables (VIK-126)", ()
     expect(badFlag.err).toMatch(/--allow-host: "http:\/\/x" is not a host name/);
   }, 60_000);
 
+  it("--phonemes and VIKAKI_PHONEMES turn on the phonemes sent with the audio, and nothing else does (VIK-50)", async () => {
+    const off = await run([], { VIKAKI_TTS: "fake" }, framing);
+    expect(off.out).not.toContain("phonemes:");
+    const flag = await run(["--phonemes"], { VIKAKI_TTS: "fake" }, framing);
+    expect(flag.out).toContain("phonemes: sent with the audio");
+    const env = await run([], { VIKAKI_TTS: "fake", VIKAKI_PHONEMES: "1" }, framing);
+    expect(env.out).toContain("phonemes: sent with the audio");
+    const no = await run([], { VIKAKI_TTS: "none", VIKAKI_PHONEMES: "1" }, framing);
+    expect(no.out).not.toContain("phonemes:"); // speech is off: nothing to send
+  }, 60_000);
+
   it("a flag wins over its variable", async () => {
     const r = await run(["--tts", "fake", "--token", "flag", "--frame-ancestors", "none"], { VIKAKI_TTS: "none", VIKAKI_TOKEN: "env", VIKAKI_FRAME_ANCESTORS: "https://game.example" }, framing);
     expect(r.out).toMatch(/\(token required\); speech: (?!off)/);

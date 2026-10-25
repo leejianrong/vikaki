@@ -621,3 +621,37 @@ describe("viewers that show one persona", () => {
     expect((await readUntil(driver, (m) => m.type === "speech_finished")).map((m) => m.type)).toContain("speech_started");
   });
 });
+
+describe("phonemes on the audio (VIK-50)", () => {
+  const phonemesOf = (msgs: Msg[]) => audioOf(msgs).filter((m) => m.phonemes !== undefined);
+
+  it("with --phonemes, the first slice of a piece carries its phonemes, in order and inside the audio, and later slices carry none", async () => {
+    const { driver, viewer } = await setup({ tts: { phonemes: true }, speech: { phonemes: true, maxSliceSeconds: 0.5 } });
+    driver.send(utterance({ text: "Hello there, my friend." }));
+    const msgs = await readUntil(viewer, isFinal);
+    const withPhonemes = phonemesOf(msgs);
+    expect(withPhonemes).toHaveLength(1);
+    const audio = audioOf(msgs);
+    expect(audio.length).toBeGreaterThan(1); // the piece was cut into slices; only the first has them
+    expect(audio[0]).toBe(withPhonemes[0]);
+    const spans = withPhonemes[0]!.phonemes as { p: string; t: number; d: number; s?: number }[];
+    expect(spans.map((s) => s.p).join("")).toBe("hɛllothɛɹɛmifɹɪɛnd"); // one sound a letter, from FakeTts
+    for (let i = 1; i < spans.length; i++) expect(spans[i]!.t).toBeGreaterThanOrEqual(spans[i - 1]!.t + spans[i - 1]!.d);
+    const total = seconds(audio) * 1000;
+    expect(spans.at(-1)!.t + spans.at(-1)!.d).toBeLessThanOrEqual(total + 1);
+  });
+
+  it("without the flag, nothing extra is sent even if the engine says what it spoke", async () => {
+    const { driver, viewer } = await setup({ tts: { phonemes: true } });
+    driver.send(utterance({ text: "Hello there." }));
+    expect(phonemesOf(await readUntil(viewer, isFinal))).toHaveLength(0);
+  });
+
+  it("with the flag but an engine that cannot say, speech is as it was", async () => {
+    const { driver, viewer } = await setup({ speech: { phonemes: true } });
+    driver.send(utterance({ text: "Hello there." }));
+    const msgs = await readUntil(viewer, isFinal);
+    expect(phonemesOf(msgs)).toHaveLength(0);
+    expect(seconds(audioOf(msgs))).toBeGreaterThan(0.3);
+  });
+});

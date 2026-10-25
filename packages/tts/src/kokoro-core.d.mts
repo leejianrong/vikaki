@@ -5,5 +5,6 @@ export interface KokoroCoreOptions {
   model?: string;
   dtype?: string;
   voice?: string;
+  phonemes?: boolean;
 }
 export function create(options?: KokoroCoreOptions): Promise<{ name: string; voices: string[]; synthesize(request: SynthesisRequest): AsyncIterable<AudioChunk> }>;

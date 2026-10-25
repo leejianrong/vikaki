@@ -1,3 +1,4 @@
+import { alignPhonemes } from "@vikaki/audio";
 import { encodePcm16, make, MAX_SENTENCE_TEXT, type Message } from "@vikaki/protocol";
 import { SentenceChunker, type AudioChunk, type ChunkerOptions, type Tts } from "@vikaki/tts";
 import type { Hub } from "./hub.ts";
@@ -30,6 +31,8 @@ export interface SpeechOptions {
   /** Map a persona name to a voice id. By default the persona name itself is passed; engines ignore unknown voices. */
   voiceFor?: (persona: string | undefined) => string | undefined;
   chunker?: ChunkerOptions;
+  /** Send the phonemes an engine says it spoke, with their times, on the audio (VIK-50, ADR-0047). Off by default: pages that do not use them are sent nothing extra. */
+  phonemes?: boolean;
   /** The voice used when a persona names none. Only shown to clients; the engine decides what it means. */
   defaultVoice?: string;
   /** Called once per utterance when its first audio is ready. Used to measure time to first audio. */
@@ -311,6 +314,8 @@ export class SpeechEngine {
     const samples = u.filter ? u.filter.process(chunk.samples, chunk.sampleRate) : chunk.samples;
     const step = Math.max(1, Math.round(this.maxSlice * chunk.sampleRate));
     const sentence_index = u.sentences - 1;
+    // Times worked out from the audio as the engine made it, before any filter; they ride on the chunk's first slice, counted from its start.
+    const phonemes = this.o.phonemes && chunk.phonemes ? alignPhonemes(chunk.phonemes, chunk.samples, chunk.sampleRate) : [];
     for (let at = 0; at < samples.length; at += step) {
       const first = u.announced !== sentence_index;
       u.announced = sentence_index;
@@ -324,6 +329,7 @@ export class SpeechEngine {
           sample_rate: chunk.sampleRate,
           pcm: encodePcm16(samples.subarray(at, at + step)),
           final: false,
+          ...(at === 0 && phonemes.length > 0 ? { phonemes } : {}),
         }),
       );
     }

@@ -16,6 +16,7 @@ import type { TimelineUi } from "./timeline-ui.ts";
 import type { VisemeWeights } from "./renderer.ts";
 import { makeTransparent, parseEmbed } from "./embed.ts";
 import { mountEmbedAudio } from "./embed-audio.ts";
+import { PhonemeTrack } from "./phoneme-track.ts";
 
 const params = new URLSearchParams(location.search);
 const embedOpts = parseEmbed(params);
@@ -42,6 +43,8 @@ declare global {
       visemes: VisemeWeights;
       /** What the avatar actually displayed for each mouth shape on the last frame (see `appliedVisemes`). */
       applied: VisemeWeights;
+      /** The phonemes of the lines heard, with when each is spoken, when the hub sends them (`--phonemes`, VIK-50). Empty otherwise. */
+      phonemes?: PhonemeTrack;
       /** What the page recorded on one clock: frames, events, speech pieces and audio. Only with the speech demo or `?timeline=1`. */
       timeline?: TimelineRecorder;
       /** The timeline dock (speech demo): which view is showing, switching it, and exporting what it shows. */
@@ -183,6 +186,8 @@ try {
     const url = new URL("/ws", location.href);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     let lineOn = false; // a line is being heard: a silent reaction would talk over its feeling
+    const phonemes = new PhonemeTrack();
+    api.phonemes = phonemes;
     const player = new SpeechPlayer({
       url: url.href,
       persona,
@@ -206,8 +211,13 @@ try {
         live.events.push(what);
         const [kind, ...id] = what.split(":");
         timeline?.event(kind!, id.join(":"));
+        if (kind === "interrupted") phonemes.clear(id.join(":"));
+        phonemes.prune(performance.now());
       },
-      onScheduled: (slice) => timeline?.scheduled(slice),
+      onScheduled: (slice) => {
+        timeline?.scheduled(slice);
+        if (slice.phonemes) phonemes.add(slice.utteranceId, slice.startPerfMs, slice.phonemes);
+      },
       onSentence: (s) => timeline?.sentence(s.utteranceId, s.index, s.text, s.samples, s.sampleRate),
       onState: (state, soundBlocked) => {
         live.state = state;

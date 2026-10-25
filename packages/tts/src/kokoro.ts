@@ -10,6 +10,8 @@ export interface KokoroOptions {
   voice?: string;
   /** Where to import kokoro-js from. Defaults to the package name; tests can pass a file path. */
   importFrom?: string;
+  /** Also say which phonemes each piece of speech was (VIK-50): they come from the phonemizer that kokoro-js already installs, so this adds nothing to install. */
+  phonemes?: boolean;
   /** Run in this thread instead of a worker. Only for measuring and debugging: it holds the process during synthesis. */
   inProcess?: boolean;
 }
