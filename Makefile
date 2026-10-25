@@ -42,6 +42,9 @@ demo: build ## Build, serve and open the demo page to judge the avatar by eye
 demo-speech: install-voice build ## Install the real voice if needed, then open the speech demo
 	@$(CLI) serve --speech-demo --open
 
+demo-mouth: install-voice build ## Say something with the mouth that follows the voice's phonemes; the Mouth menu switches to the old audio mouth to compare
+	@$(CLI) serve --speech-demo --phonemes --open
+
 demo-table: build ## Serve a table of three avatars (the real voice if installed); then run `make table-hand` in another terminal to play a hand
 	@echo "Open http://127.0.0.1:8787/ (every demo is a link there) and, in another terminal, run: make table-hand"
 	@$(CLI) serve --port 8787 --personas $(CURDIR)/personas.table.example.yaml

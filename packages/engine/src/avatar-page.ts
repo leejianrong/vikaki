@@ -251,7 +251,7 @@ try {
         state: (state, info) => ui.onState(state, info),
         message: (message) => ui.onMessage(message),
       });
-      const ui = await mountSpeechDemo({ driver, timeline, unlockSound: unblock, soundBlocked: () => !session.running });
+      const ui = await mountSpeechDemo({ driver, timeline, unlockSound: unblock, soundBlocked: () => !session.running, mouthMode, phonemesSeen: () => phonemes.added });
       if (timeline) api.timelineUi = (await import("./timeline-ui.ts")).mountTimeline(timeline);
       driver.connect();
     }

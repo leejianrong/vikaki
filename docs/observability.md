@@ -147,7 +147,7 @@ Each sound's shape is in `phoneme-visemes.ts`: vowels pick one of the five VRM s
 
 ![The five vowel mouths on Cookieman: a, ɛ, ɪ, o, ʊ](img/phoneme-vowels.png)
 
-`make lipsync-scorecard` now plays the eight lines through all three (`--mode all`; `--mode phoneme`, `--articulation` and `--lead` try one). For the phoneme mouths each line is one chunk with its phonemes (`line-N.ipa.txt` beside each recording, made by `scripts/make-scorecard-phonemes.ts` from Kokoro's own phonemizer) and the hub times them from the audio, as it does live. A new column, **vowel shapes**, is the share of the vowels spoken (over 60 ms, from the middle of each) where the mouth's strongest shape is the one that vowel makes.
+**To see it:** `make demo-mouth` starts the speech demo (real voice, hub with `--phonemes`). Type a line and press Speak; the **Mouth** menu switches between hybrid, phoneme and the old audio mouth (the page reloads), and a chip says how many sounds the hub timed. The landing page (`/`) has a "Compare the mouths" card too. **To measure it:** `make lipsync-scorecard` now plays the eight lines through all three (`--mode all`; `--mode phoneme`, `--articulation` and `--lead` try one). For the phoneme mouths each line is one chunk with its phonemes (`line-N.ipa.txt` beside each recording, made by `scripts/make-scorecard-phonemes.ts` from Kokoro's own phonemizer) and the hub times them from the audio, as it does live. A new column, **vowel shapes**, is the share of the vowels spoken (over 60 ms, from the middle of each) where the mouth's strongest shape is the one that vowel makes.
 
 **The comparison** (defaults, mean of three runs; the machine was busy with other work, so the page drew about 30 frames a second, not 55):
 
