@@ -128,9 +128,45 @@ Run to run the mean moved by under 0.02 in match and 7 ms in lag, and each line 
 - *Frames are what the page drew.* Software WebGL drew 45 to 60 a second (the first scored line is often slower, 20 to 35), and the maths interpolates between frames; with 15 a second it still finds the lag to within a frame in the test. The script prints the rate beside each line.
 - *Eight lines is a small sample.* Enough to see a difference of the size the phoneme work is after, not to rank two close methods.
 
-**A report, not a gate.** It prints a table and, with `--json`, writes the numbers; no test fails on them. The maths is gated by unit tests, including one on a real recording. A threshold on a whole-page run would depend on how many frames a CI machine's software renderer manages and on a headless audio clock, and we have already seen those two make e2e tests flake. When VIK-51 compares the audio-only, phoneme and hybrid mouths on this table, a floor chosen from those numbers can be made a gate then, on the measures that held steady (match at lag, closure, range) and not on lag.
+**A report, not a gate.** It prints a table and, with `--json`, writes the numbers; no test fails on them. The maths is gated by unit tests, including one on a real recording. A threshold on a whole-page run would depend on how many frames a CI machine's software renderer manages and on a headless audio clock, and we have already seen those two make e2e tests flake. VIK-51 has now compared the three mouths on this table (below). It stays a report: under a loaded machine the same mouth scored 0.60 to 0.76 in match at lag between runs, so any floor would flake. The measures that held steady (closure, range, vowel shapes) are the ones a gate could use on a quiet machine.
 
 Regenerate the recordings with `scripts/make-speech-fixture.ts` (needs `make install-voice`); see the fixtures' README.
+
+
+## Phase 3, part 2: the phoneme mouth, compared (VIK-50, VIK-51)
+
+With the hub started with `--phonemes` ([ADR-0047](adr/0047-phonemes-come-from-kokoros-own-phonemizer-and-are-timed-from-the-audio.md)) the page knows which phonemes each piece of speech was and when, and can drive the mouth from them. `?mouth=audio|phoneme|hybrid` picks the mouth on the avatar page and the table page ([ADR-0048](adr/0048-the-default-mouth-is-hybrid-and-falls-back-to-the-audio.md)):
+
+| Mouth | Shape | How far it opens | When the track has nothing near |
+| --- | --- | --- | --- |
+| `audio` | from the audio (wLipSync) | the audio | n/a: this is the old mouth |
+| `phoneme` | from the phoneme being spoken | by the phoneme and its stress | the audio mouth |
+| `hybrid` (default) | from the phoneme being spoken | the phoneme's, scaled by the loudness now | the audio mouth |
+
+Each sound's shape is in `phoneme-visemes.ts`: vowels pick one of the five VRM shapes, p, b and m close the mouth, rounded and spread consonants are quiet versions of theirs, stress widens a sound, and the mouth eases between targets so one sound leans into the next. `?lead=` (ms, default 60) shapes a sound before it is heard and `?articulation=` (0 to 1, default 0.8) sets how pronounced the mouth is. With no phonemes sent (the default hub), every mouth is the audio mouth, so a page is as it was.
+
+![The five vowel mouths on Cookieman: a, ɛ, ɪ, o, ʊ](img/phoneme-vowels.png)
+
+`make lipsync-scorecard` now plays the eight lines through all three (`--mode all`; `--mode phoneme`, `--articulation` and `--lead` try one). For the phoneme mouths each line is one chunk with its phonemes (`line-N.ipa.txt` beside each recording, made by `scripts/make-scorecard-phonemes.ts` from Kokoro's own phonemizer) and the hub times them from the audio, as it does live. A new column, **vowel shapes**, is the share of the vowels spoken (over 60 ms, from the middle of each) where the mouth's strongest shape is the one that vowel makes.
+
+**The comparison** (defaults, mean of three runs; the machine was busy with other work, so the page drew about 30 frames a second, not 55):
+
+| mouth | match at 0 | lag | match at lag | closure | range | jitter | vowel shapes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| audio | 0.65 | -37 ms | 0.76 | 88% | 0.75 | 0.032 | 23% |
+| phoneme | 0.67 | 15 ms | 0.71 | 94% | 0.75 | 0.034 | 89% |
+| hybrid | 0.65 | 22 ms | 0.70 | 95% | 0.78 | 0.035 | 90% |
+
+Run to run (sd of the three): match at lag 0.03 to 0.05, and the lag 34 ms for the audio mouth against 3 and 12 for the phoneme ones.
+
+**What it says.**
+- *The vowels are the point.* The audio mouth makes the spoken vowel's shape in 23% of the vowels (about chance for five shapes); the phoneme mouths in 89 to 90%. That number is high for them partly by construction, since the track is what they follow, and the track is an estimate; it shows how far the audio mouth is from what was said, not how right the phoneme mouth is. The five frames above are the check by eye.
+- *Loudness is a wash.* Match at the best lag is 0.76 for the audio mouth and 0.70 to 0.71 for the others, a difference at the edge of the noise: a mouth that shows the vowel follows the loud syllables a bit less closely, because each sound opens to its own size, not to the volume. Hybrid was meant to close this gap and did not measurably (its loudness gain is 0.35 + 0.9 x the volume).
+- *Timing is steadier.* The audio mouth's lag swung by about 34 ms between runs, the phoneme mouths' by 3 to 12: the track is on the page's clock and does not depend on when a node's smoothing settles. With a 60 ms lead they sit 15 to 22 ms behind the sound, near zero; the audio mouth runs 37 ms ahead here, which is the headless clock's offset (see the caveats above) as much as the mouth.
+- *Closing and range.* The phoneme mouths shut in the quiet more often (94 to 95% against 88%), open as wide (range 0.75 to 0.78), and are as smooth.
+- *Hybrid against phoneme:* no difference the scorecard can see. Hybrid is the default because it is the safer one (the loudness holds the mouth to the real sound when estimated times drift), a reason and not a measurement.
+
+**Caveats.** The scores are inside this machine's noise for anything under about 0.05 in match or 30 ms in lag; run on a quiet machine before trusting a small difference. The phoneme times are estimated from the audio (the model returns none), so a mouth that follows them is no better than the estimate. Eight lines, three voices, English only (the phonemizer is told en-us or en-gb by the voice). A real ear and eye on a real call machine have not judged this.
 
 ## What this cannot tell you
 

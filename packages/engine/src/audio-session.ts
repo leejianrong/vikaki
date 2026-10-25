@@ -9,6 +9,8 @@ import { openMic } from "./mic.ts";
 export interface AudioSessionDeps {
   createContext?: () => AudioContext;
   createMouth?: typeof createMouthDriver;
+  /** Put something around the mouth driver once it exists (the phoneme mouth wraps the audio one, VIK-51). */
+  wrapMouth?: (driver: MouthDriver) => MouthDriver;
 }
 
 export class AudioSession {
@@ -90,8 +92,9 @@ export class AudioSession {
       this.mouthKind = mouth.kind;
       // Publish both together, so `running` never says yes with the mouth driver still loading.
       this.ctx = ctx;
-      this.ls = mouth.driver;
-      return { ctx, ls: mouth.driver };
+      const driver = this.deps.wrapMouth ? this.deps.wrapMouth(mouth.driver) : mouth.driver;
+      this.ls = driver;
+      return { ctx, ls: driver };
     })().catch((err) => {
       this.setup = undefined; // allow a retry
       throw err;

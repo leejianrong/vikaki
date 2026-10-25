@@ -40,6 +40,11 @@ export class PhonemeTrack {
     return this.items.find((i) => i.startMs > perfMs);
   }
 
+  /** Is there a phoneme spoken within `withinMs` before or after `perfMs`? A gap inside a line with phonemes is near one; a line without phonemes is not. */
+  near(perfMs: number, withinMs: number): boolean {
+    return this.items.some((i) => i.endMs > perfMs - withinMs && i.startMs < perfMs + withinMs);
+  }
+
   /** A line was cut off: its phonemes are no longer coming. */
   clear(utteranceId: string): void {
     this.items = this.items.filter((i) => i.utteranceId !== utteranceId);

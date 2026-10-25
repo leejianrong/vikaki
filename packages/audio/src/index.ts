@@ -4,4 +4,4 @@ export { colour, fft, stft, type Stft } from "./stft.ts";
 export { decodeWav, encodeWav } from "./wav.ts";
 export { alignPhonemes, tokenizeIpa, type PhonemeSpan } from "./phonemes.ts";
 export { estimateWordTimings, syllables, type WordTimer, type WordTiming } from "./words.ts";
-export { opennessOf, scoreLine, type LineScore, type MouthTrack } from "./scorecard.ts";
+export { opennessOf, scoreLine, vowelMatch, type LineScore, type MouthTrack, type ShapeTrack } from "./scorecard.ts";
