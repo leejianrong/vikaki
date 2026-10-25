@@ -4,6 +4,7 @@ import type { TimelineRecorder } from "./timeline.ts";
 import type { Message } from "@vikaki/protocol";
 import type { MdOutlinedTextField } from "@material/web/textfield/outlined-text-field.js";
 import { DriverConsole, formatMs, type DriverState } from "./driver-console.ts";
+import type { MouthMode } from "./phoneme-mouth.ts";
 import { el } from "./ui/dom.ts";
 import { loadMaterial } from "./ui/material.ts";
 
@@ -14,6 +15,10 @@ export interface SpeechDemoOptions {
   /** Where the demo notes what it sent and what the hub reported, on the timeline's clock. */
   timeline?: TimelineRecorder;
   soundBlocked(): boolean;
+  /** Which mouth the page has (`?mouth=`, VIK-51), to show in the Mouth menu. */
+  mouthMode: MouthMode;
+  /** How many phonemes the hub has sent so far, to say whether it sends any (`--phonemes`). */
+  phonemesSeen(): number;
 }
 
 export interface SpeechDemo {
@@ -56,6 +61,17 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
   const cancel = el("md-filled-tonal-button", { className: "danger", textContent: "Cancel", disabled: true });
   const emotion = el("md-outlined-select", { label: "Emotion" }) as HTMLElement & { value: string };
   emotion.append(...EMOTIONS.map((e) => el("md-select-option", { value: e, selected: e === "neutral" }, el("div", { slot: "headline", textContent: e[0]!.toUpperCase() + e.slice(1) }))));
+  // Which mouth follows the voice (VIK-51). It is chosen when the page loads, so choosing another reloads the page with `?mouth=`.
+  const mouth = el("md-outlined-select", { label: "Mouth" }) as HTMLElement & { value: string };
+  const MOUTHS: [MouthMode, string][] = [["hybrid", "Hybrid: the phoneme's shape, opened by the voice"], ["phoneme", "Phoneme: shape and timing from the phonemes"], ["audio", "Audio: follows the sound only (the old mouth)"]];
+  mouth.append(...MOUTHS.map(([value, name]) => el("md-select-option", { value, selected: value === o.mouthMode }, el("div", { slot: "headline", textContent: name }))));
+  mouth.addEventListener("change", () => {
+    if (mouth.value === o.mouthMode) return;
+    const url = new URL(location.href);
+    url.searchParams.set("mouth", mouth.value);
+    location.href = url.href;
+  });
+  const chipPhonemes = el("span", { className: "chip", textContent: "phonemes: waiting for a line" });
   const presets = el("md-chip-set", { ariaLabel: "Example lines" });
   for (const [name, content] of PRESETS) presets.append(el("md-assist-chip", { label: name, onclick: () => (text.value = content) }));
 
@@ -108,8 +124,8 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
       { id: "speech", className: "side-sheet", ariaLabel: "Speech demo" },
       el("h1", { className: "headline-small", textContent: "Speech demo" }),
       banner,
-      el("div", { className: "chips" }, chipDriver, chipSound),
-      el("section", {}, text, presets, emotion, el("div", { className: "actions" }, speak, streamBtn, queue, cancel)),
+      el("div", { className: "chips" }, chipDriver, chipSound, chipPhonemes),
+      el("section", {}, text, presets, emotion, mouth, el("div", { className: "actions" }, speak, streamBtn, queue, cancel)),
       ...(o.timeline ? [mountKaraoke(o.timeline)] : []),
       el("section", {}, el("h2", { className: "title-small", textContent: "Measured here" }), el("div", { className: "tiles" }, tile(statFirst, "to first sound"), tile(statSpeech, "speech length"), tile(statStop, "cancel to stop"))),
       el("section", { style: "flex:1;min-height:0" }, el("h2", { className: "title-small", textContent: "What the hub reports" }), log),
@@ -122,6 +138,12 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
   };
   const refreshSound = () => (o.soundBlocked() ? setChip(chipSound, "sound: press Speak to allow", "warn") : setChip(chipSound, "sound: on", "ok"));
   refreshSound();
+  // Whether the hub sends phonemes, which only a hub started with `--phonemes` does: say so, so a mouth that looks the same as before is explained.
+  const refreshPhonemes = () => {
+    const n = o.phonemesSeen();
+    if (n > 0) setChip(chipPhonemes, `phonemes: ${n} sounds timed (mouth: ${o.mouthMode})`, "ok");
+    else if (started.size > 0) setChip(chipPhonemes, "phonemes: none sent, so the mouth follows the audio (start the hub with --phonemes)", "warn");
+  };
   // The browser can allow sound at any moment (a click, or autoplay settings), with no message to announce it.
   setInterval(refreshSound, 400);
 
@@ -147,6 +169,7 @@ export async function mountSpeechDemo(o: SpeechDemoOptions): Promise<SpeechDemo>
     },
     onMessage(m) {
       refreshSound();
+      refreshPhonemes();
       if (m.type === "speech_started") {
         const sent = sentAt.get(m.utterance_id);
         if (sent !== undefined) statFirst.textContent = formatMs(performance.now() - sent);

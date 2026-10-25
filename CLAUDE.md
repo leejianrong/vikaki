@@ -32,6 +32,7 @@ pnpm --silent vikaki say "Hi" | cancel | replay f.jsonl | mcp   # drive a runnin
 pnpm test:e2e:smoke              # the quick tagged subset CI runs on every PR; `pnpm test:e2e` runs everything (needs: pnpm exec playwright install chromium)
 make check                       # typecheck + unit tests: the fast gate, same as the pre-push hook
 make demo / make demo-speech     # judge the avatar by eye / type text and hear it said (installs the voice if needed)
+make demo-mouth                  # the speech demo with the phoneme-driven mouth; a Mouth menu compares it with the old audio mouth (VIK-51)
 make install-voice               # the real voice (Kokoro, ~410 MB) into .vikaki/voice; make doctor checks everything and prints the fix
 make docker-build / docker-test # the two images (docs/docker.md); the tests take minutes
 make install-renderer            # Chromium for `serve --headless` and `vikaki stream` (optional, ~170 MB; docs/headless.md, docs/stream.md)

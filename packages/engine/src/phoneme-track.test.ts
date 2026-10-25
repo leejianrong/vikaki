@@ -39,6 +39,15 @@ describe("PhonemeTrack", () => {
     expect(t.size).toBe(0);
   });
 
+  it("counts what was ever added, even after it is forgotten", () => {
+    const t = new PhonemeTrack();
+    t.add("u1", 1000, spans);
+    t.clear("u1");
+    t.prune(99_999);
+    expect(t.added).toBe(3);
+    expect(t.size).toBe(0);
+  });
+
   it("holds nothing for a slice with no phonemes", () => {
     const t = new PhonemeTrack();
     t.add("u1", 0, []);

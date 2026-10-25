@@ -14,9 +14,11 @@ export interface TimedPhoneme {
 
 export class PhonemeTrack {
   private items: TimedPhoneme[] = [];
+  private count = 0;
 
   /** Add a slice's phonemes: `startPerfMs` is when the slice is heard. */
   add(utteranceId: string, startPerfMs: number, spans: readonly WirePhoneme[]): void {
+    this.count += spans.length;
     for (const s of spans) this.items.push({ utteranceId, p: s.p, startMs: startPerfMs + s.t, endMs: startPerfMs + s.t + s.d, stress: s.s ?? 0 });
     this.items.sort((a, b) => a.startMs - b.startMs);
   }
@@ -53,6 +55,11 @@ export class PhonemeTrack {
   /** Forget what is more than `keepMs` in the past. Call now and then; the track would otherwise grow with every line. */
   prune(nowMs: number, keepMs = 2000): void {
     if (this.items.length > 0 && this.items[0]!.endMs < nowMs - keepMs) this.items = this.items.filter((i) => i.endMs >= nowMs - keepMs);
+  }
+
+  /** How many phonemes have ever been added, so a page can say whether the hub sends any. */
+  get added(): number {
+    return this.count;
   }
 
   get size(): number {

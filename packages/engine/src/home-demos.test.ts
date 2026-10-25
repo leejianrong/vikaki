@@ -9,7 +9,7 @@ describe("the landing page's demos", () => {
   it("lead with the poker table, and link only to pages the avatar page serves", () => {
     const d = demos(3);
     expect(d[0]).toMatchObject({ title: "Poker table", href: "/avatar?seats=3&view=table" });
-    expect(d.map((x) => x.href)).toEqual(["/avatar?seats=3&view=table", "/avatar?seats=3", "/avatar?demo=speech&live=1", "/avatar?demo=1"]);
+    expect(d.map((x) => x.href)).toEqual(["/avatar?seats=3&view=table", "/avatar?seats=3", "/avatar?demo=speech&live=1", "/avatar?demo=speech&live=1&mouth=hybrid", "/avatar?demo=1"]);
     expect(new Set(d.map((x) => x.title)).size).toBe(d.length);
   });
 });
