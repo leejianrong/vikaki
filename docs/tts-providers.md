@@ -1,5 +1,7 @@
 # Choosing a voice provider for the poker table (VIK-140)
 
+> **Update (VIK-144, 2026-10-27):** OpenAI has said `gpt-4o-mini-tts` shuts down on 2027-01-06 and its replacement is not on this endpoint, so `PROVIDERS.openai()` has a short life. Chatterbox was measured (4.0 s to first audio, 0.77x real time on an RTX 4090: [spikes/chatterbox.md](spikes/chatterbox.md)) and the hosted APIs were compared on paper ([spikes/hosted-tts.md](spikes/hosted-tts.md)).
+
 Kokoro is the baseline and stays the default: free, local, deterministic enough, no key. It has no way to be told *how* to say a line (a smug taunt and a nervous thought sound alike), which is what the three candidates add. This page says what was built to compare them, how to run it, and what is still to decide. The decision is Jian's; nothing here spends money unless you set a key or start a pod.
 
 ## What was built
