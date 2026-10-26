@@ -8,4 +8,4 @@ export { chosenDtype, DEFAULT_DTYPE, MODEL_FILES, type KokoroDtype } from "./kok
 export { PROVIDERS, SpeechApiTts, type SpeechApiOptions } from "./speech-api-tts.ts";
 export { styleFor } from "./emotion-style.ts";
 export { CHARS_PER_SECOND, costOf, PRICES, speechStats, type Price, type SpeechStats } from "./cost.ts";
-export { report, runBench, toWav, type BenchLine, type BenchResult } from "./bench.ts";
+export { blindKey, report, resultsJson, runBench, toWav, type BenchLine, type BenchResult, type BlindEntry } from "./bench.ts";

@@ -1,7 +1,10 @@
 // The TTS bench (VIK-140): say the same twelve poker lines (a taunt, a worried thought, a win, a bust-out, with their emotions) through each engine that
 // is set up, write the audio to listen to, and print a table of how fast each one is. Engines whose key or server is missing are skipped with the fix.
 //
-//   pnpm exec tsx scripts/tts-bench.ts [--engines kokoro,openai,chatterbox,qwen,fake] [--out DIR] [--lines FILE] [--log events.jsonl]
+//   pnpm exec tsx scripts/tts-bench.ts [--engines kokoro,openai,chatterbox,qwen,fake] [--out DIR] [--lines FILE] [--log events.jsonl] [--blind [--seed N]]
+//
+// --blind names the clips A01, A02... in a shuffled order and writes the answer to key.json, so a listener scores them with docs/voice-rubric.md without knowing
+// the engine. results.json (numbers only) is always written, to keep a baseline.
 //
 //   kokoro      the baseline, if installed (`make install-voice`)
 //   openai      gpt-4o-mini-tts: needs OPENAI_API_KEY in the environment (this costs a few cents a run)
@@ -14,7 +17,7 @@
 import { findVoice } from "../packages/cli/src/voice.ts";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { costOf, FakeTts, KokoroTts, PRICES, PROVIDERS, report, runBench, speechStats, SpeechApiTts, toWav, type BenchLine, type Tts } from "../packages/tts/src/index.ts";
+import { blindKey, costOf, FakeTts, KokoroTts, PRICES, PROVIDERS, report, resultsJson, runBench, speechStats, SpeechApiTts, toWav, type BenchLine, type Tts } from "../packages/tts/src/index.ts";
 
 const { values } = parseArgs({
   options: {
@@ -22,6 +25,8 @@ const { values } = parseArgs({
     out: { type: "string", default: "tts-bench-out" },
     lines: { type: "string", default: new URL("./tts-bench-lines.json", import.meta.url).pathname },
     log: { type: "string" },
+    blind: { type: "boolean", default: false },
+    seed: { type: "string", default: "1" },
   },
 });
 
@@ -43,17 +48,31 @@ async function engine(name: string): Promise<{ tts: Tts; skip?: undefined } | { 
 const lines = JSON.parse(await readFile(values.lines!, "utf8")) as BenchLine[];
 await mkdir(values.out!, { recursive: true });
 const sections: string[] = [];
+const all: { engine: string; results: Awaited<ReturnType<typeof runBench>> }[] = [];
 for (const name of values.engines!.split(",").map((s) => s.trim()).filter(Boolean)) {
   const e = await engine(name);
   if (e.skip) {
     console.log(`skipped ${name}: ${e.skip}`);
     continue;
   }
-  console.log(`running ${name} on ${lines.length} lines...`);
+  console.log(`running ${name} on ${lines.length} lines (after one untimed warm-up line: the first call loads a model or opens a connection)...`);
+  await runBench(e.tts, [{ label: "warm-up", text: "Ready." }]);
   const results = await runBench(e.tts, lines);
-  await Promise.all(results.filter((r) => r.samples.length).map((r, i) => writeFile(`${values.out}/${name}-${String(i + 1).padStart(2, "0")}-${r.label.replace(/\W+/g, "-")}.wav`, toWav(r.samples, r.sampleRate))));
+  all.push({ engine: name, results });
   sections.push(report(name, results));
   await e.tts.close?.();
+}
+const wavName = (engine: string, label: string, i: number, code?: string) => (code ?? `${engine}-${String(i + 1).padStart(2, "0")}-${label.replace(/\W+/g, "-")}`) + ".wav";
+const key = values.blind ? blindKey(all.flatMap((a) => a.results.filter((r) => r.samples.length).map((r) => ({ engine: a.engine, label: r.label }))), Number(values.seed)) : [];
+await Promise.all(
+  all.flatMap(({ engine, results }) =>
+    results.filter((r) => r.samples.length).map((r, i) => writeFile(`${values.out}/${wavName(engine, r.label, i, key.find((k) => k.engine === engine && k.label === r.label)?.code)}`, toWav(r.samples, r.sampleRate))),
+  ),
+);
+if (all.length) await writeFile(`${values.out}/results.json`, JSON.stringify(all.flatMap((a) => resultsJson(a.engine, a.results)), null, 2) + "\n");
+if (key.length) {
+  await writeFile(`${values.out}/key.json`, JSON.stringify(key, null, 2) + "\n");
+  console.log(`Blind: clips are named A01...; the answer is in ${values.out}/key.json. Do not open it until you have scored them.`);
 }
 if (values.log) {
   const events = (await readFile(values.log, "utf8")).split("\n").filter(Boolean).map((l) => JSON.parse(l) as { at?: number; message: Record<string, unknown> });

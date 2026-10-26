@@ -6,7 +6,7 @@ Kokoro is the baseline and stays the default: free, local, deterministic enough,
 
 - **`SpeechApiTts`** (`packages/tts/src/speech-api-tts.ts`), a `Tts` for any server with an OpenAI-style `POST {baseUrl}/audio/speech` that answers with raw 16-bit mono PCM (a WAV answer is accepted too). `PROVIDERS.openai()`, `.chatterbox()` and `.qwen()` give the options for each. `SynthesisRequest` has a new optional `style` (free text, additive); the adapter sends it as `instructions`.
 - **`styleFor(emotion, { thought })`** turns a line's emotion into that text ("Slow and pleased with yourself, teasing."; a spoken thought is "Muttering to yourself, quietly...").
-- **The bench** (`scripts/tts-bench.ts`, lines in `scripts/tts-bench-lines.json`): twelve poker lines (a taunt, a worried thought, a win, a bust-out, with emotions) through each engine that is set up. It writes a WAV per line and `results.md` with time to first audio, total time and speed against playing time.
+- **The bench** (`scripts/tts-bench.ts`, lines in `scripts/tts-bench-lines.json`): ten poker lines (short, long, numbers, names, and six emotions); [voice-rubric.md](voice-rubric.md) says how to score them blind through each engine that is set up. It writes a WAV per line and `results.md` with time to first audio, total time and speed against playing time.
 - **`speechStats` and `costOf`** read a hub `--event-log` and price the speech of a real game with each provider.
 - Tests use fakes only (`fetch` is injected; `FakeTts`): no test calls a service, and none can see a key.
 - Not wired into `vikaki serve` yet: `--tts openai` and the emotion-to-style plumbing in the speech engine wait for the choice, because the voice ids (`af_heart`...) map differently for each provider.
@@ -47,7 +47,7 @@ A real 20-hand game (three Claude-era models through OpenRouter at 2.8 cents, `-
 
 So at this volume a hosted API and a rented pod cost about the same per game, and the pod only wins if it is kept up for many games in a row. Check the real prices before relying on these. Reproduce with `pnpm exec tsx scripts/tts-bench.ts --engines fake --log game.jsonl` on the log of any game made with `pnpm serve --event-log game.jsonl`.
 
-Measured now, on this machine: **Kokoro**, the twelve bench lines, first audio in 927 ms on average and speech made 2.7x faster than it plays. The others were not run (no key and no pod).
+Measured now, on this machine: **Kokoro**, the ten bench lines (VIK-142, [baseline](spikes/voice-baseline.md)), first audio in 855 ms on average and speech made 3.1x faster than it plays. The others were not run (no key and no pod).
 
 ## What to decide
 
