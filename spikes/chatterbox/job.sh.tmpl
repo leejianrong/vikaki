@@ -1,0 +1,15 @@
+# Runs on the pod, under rp's dead-man's-switch (max lifetime and idle watchdog). Filled in by run.sh: __TOKEN__ and the server's base64.
+set -eu
+t0=$(date +%s); at() { echo "job: +$(( $(date +%s) - t0 ))s $*"; }
+mkdir -p /workspace && cd /workspace
+echo '__SERVER_B64__' | base64 -d > server.py
+at "gpu: $(nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader 2>&1 | head -1)"
+pip install --no-input -q "setuptools<81" chatterbox-tts==0.1.7 fastapi==0.162.0 uvicorn==0.54.0 pydantic==2.14.1 2>&1 | tail -3
+# The image's torchvision is built for its own torch 2.4; Chatterbox pulls torch 2.6.0 and the old torchvision then breaks transformers' import (torchvision::nms). Chatterbox does not use it.
+pip uninstall -y -q torchvision 2>&1 | tail -1 || true
+at "installed: $(pip list 2>/dev/null | grep -iE '^(torch|chatterbox-tts|transformers|numpy) ' | tr -s ' ' '=' | tr '\n' ' ')"
+export HF_HOME=/workspace/hf VIKAKI_TTS_TOKEN='__TOKEN__'
+# A line in the log every minute: proves the server is up, and keeps the idle watchdog from reaping a pod that is waiting for the bench.
+( while sleep 60; do at "alive: $(python -c 'import urllib.request as u;print(u.urlopen("http://localhost:8000/health",timeout=5).read().decode())' 2>&1 | tail -1)"; done ) &
+at "starting server (downloads the model, about 3 GB)"
+python -u server.py --port 8000 2>&1 | sed -u "s/^/server: /"

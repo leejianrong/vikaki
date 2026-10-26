@@ -43,7 +43,7 @@ export async function runBench(tts: Tts, lines: BenchLine[], now: () => number =
     let rate = 24000;
     let error: string | undefined;
     try {
-      for await (const chunk of tts.synthesize({ text: line.text, ...(line.voice ? { voice: line.voice } : {}), style: styleFor(line.emotion, { thought: line.thought }) })) {
+      for await (const chunk of tts.synthesize({ text: line.text, ...(line.voice ? { voice: line.voice } : {}), style: styleFor(line.emotion, { thought: line.thought }), ...(line.emotion ? { emotion: line.emotion } : {}) })) {
         first ??= now() - start;
         parts.push(chunk.samples);
         rate = chunk.sampleRate;

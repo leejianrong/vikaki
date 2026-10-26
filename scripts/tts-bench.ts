@@ -14,10 +14,14 @@
 //
 // With --log (a `vikaki serve --event-log` file from a real game) it also prints what that game's speech would cost with each provider.
 // Keys are read from the environment only and are never printed.
+// Keys may live in a .env at the repo root (see .env.example); a variable already in the environment wins.
+try {
+  process.loadEnvFile(new URL("../.env", import.meta.url));
+} catch {}
 import { findVoice } from "../packages/cli/src/voice.ts";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { blindKey, costOf, FakeTts, KokoroTts, PRICES, PROVIDERS, report, resultsJson, runBench, speechStats, SpeechApiTts, toWav, type BenchLine, type Tts } from "../packages/tts/src/index.ts";
+import { blindKey, ChatterboxTts, costOf, FakeTts, KokoroTts, PRICES, PROVIDERS, report, resultsJson, runBench, speechStats, SpeechApiTts, toWav, type BenchLine, type Tts } from "../packages/tts/src/index.ts";
 
 const { values } = parseArgs({
   options: {
@@ -40,7 +44,7 @@ async function engine(name: string): Promise<{ tts: Tts; skip?: undefined } | { 
     }
   }
   if (name === "openai") return process.env.OPENAI_API_KEY ? { tts: new SpeechApiTts(PROVIDERS.openai()) } : { skip: "set OPENAI_API_KEY in the environment (a few cents a run)" };
-  if (name === "chatterbox") return process.env.CHATTERBOX_URL ? { tts: new SpeechApiTts(PROVIDERS.chatterbox()) } : { skip: "set CHATTERBOX_URL to your server's /v1 (see docs/tts-providers.md)" };
+  if (name === "chatterbox") return process.env.CHATTERBOX_URL ? { tts: new ChatterboxTts() } : { skip: "set CHATTERBOX_URL to your server's /v1 (see docs/tts-providers.md)" };
   if (name === "qwen") return process.env.QWEN_TTS_URL ? { tts: new SpeechApiTts(PROVIDERS.qwen()) } : { skip: "set QWEN_TTS_URL to your server's /v1 (see docs/tts-providers.md)" };
   return { skip: `unknown engine "${name}" (kokoro, openai, chatterbox, qwen, fake)` };
 }
@@ -56,7 +60,7 @@ for (const name of values.engines!.split(",").map((s) => s.trim()).filter(Boolea
     continue;
   }
   console.log(`running ${name} on ${lines.length} lines (after one untimed warm-up line: the first call loads a model or opens a connection)...`);
-  await runBench(e.tts, [{ label: "warm-up", text: "Ready." }]);
+  await runBench(e.tts, [{ label: "warm-up", text: "Ready to play, everyone." }]);
   const results = await runBench(e.tts, lines);
   all.push({ engine: name, results });
   sections.push(report(name, results));

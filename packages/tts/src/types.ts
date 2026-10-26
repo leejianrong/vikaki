@@ -18,6 +18,8 @@ export interface SynthesisRequest {
   voice?: string;
   /** How to say it, in plain words ("a warm, amused whisper"), for engines that take free-text direction (VIK-140). Engines that cannot use it ignore it. */
   style?: string;
+  /** The emotion behind `style` ("smug", "worried"), for engines whose control is a number, not words (Chatterbox's exaggeration, VIK-143). Engines that do not use it ignore it. */
+  emotion?: string;
   /** Aborting stops synthesis promptly. The iterator then ends without an error. */
   signal?: AbortSignal;
 }
