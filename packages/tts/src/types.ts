@@ -3,9 +3,12 @@ export interface AudioChunk {
   samples: Float32Array;
   sampleRate: number;
   /**
-   * What the engine said in this audio, as IPA (words separated by spaces, a comma where a phrase ends), when it can say and was asked to
-   * (VIK-50). Only on a chunk that holds the whole piece of text it is for, so the audio can be aligned to it.
+   * The words this audio says, on a chunk that holds the whole piece of text it is for (VIK-50, ADR-0049). The hub turns it into phonemes with its own
+   * dictionary and times them against this audio, so an engine does not have to know any phonemes. An engine that streams a piece in several chunks
+   * leaves it out.
    */
+  text?: string;
+  /** The phonemes as IPA, for an engine that knows its own (the hub then does not guess from `text`). Same rule: only on a chunk with the whole piece. */
   phonemes?: string;
 }
 

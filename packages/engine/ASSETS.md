@@ -40,9 +40,15 @@ Judge avatars by screenshot, not by name. "Teddy" (#011) was the first default a
 
 The seated pose (ADR-0019) is tuned per avatar: Cookieman and Snowy have numbers, CactusBoy uses the defaults after a look from the side (`?cam=`), and Froggy, LilBro, Mushy and Wambo have not been seated yet: judge each from the side before putting it at the table.
 
+## Pronunciation dictionary (committed)
+
+| File | Where it comes from | Licence | Note |
+| --- | --- | --- | --- |
+| `packages/tts/data/cmudict.txt.gz` | The CMU Pronouncing Dictionary, `cmudict.dict` at commit `74790861` of github.com/cmusphinx/cmudict, reduced by `scripts/make-cmudict.mjs` (first pronunciation of each word) | BSD-style (Carnegie Mellon University, 1993-2015): redistribution with the notice and disclaimer, kept in `packages/tts/data/CMUDICT-LICENSE` | Used by `ipaFor` (ADR-0049) for `--phonemes`. 126,052 words, 0.87 MB. |
+
 ## Voice runtime components (not committed, installed on demand)
 
 | Component | Where it comes from | Licence | Note |
 | --- | --- | --- | --- |
 | `kokoro-js` and the Kokoro-82M model | `make install-voice`, the `vikaki-kokoro` image | Apache-2.0 | ADR-0010 |
-| `phonemizer` (wrapper) with eSpeak NG compiled to WebAssembly | a dependency of `kokoro-js` | wrapper Apache-2.0; **eSpeak NG GPL-3.0-or-later** | used for `--phonemes` (ADR-0047). Part of the optional install, never in the workspace. The `vikaki-kokoro` image therefore redistributes eSpeak NG under the GPL-3.0: see docs/tts.md. |
+| `phonemizer` (wrapper) with eSpeak NG compiled to WebAssembly | a dependency of `kokoro-js`, used by it to make the model's input | wrapper Apache-2.0; **eSpeak NG GPL-3.0-or-later** | Not used by Vikaki's own code (ADR-0049). Part of the optional Kokoro install, never in the workspace. The `vikaki-kokoro` image therefore redistributes eSpeak NG under the GPL-3.0: see docs/tts.md. |

@@ -1,6 +1,6 @@
 import { alignPhonemes } from "@vikaki/audio";
 import { encodePcm16, make, MAX_SENTENCE_TEXT, type Message } from "@vikaki/protocol";
-import { SentenceChunker, type AudioChunk, type ChunkerOptions, type Tts } from "@vikaki/tts";
+import { ipaFor, loadPronunciations, SentenceChunker, type AudioChunk, type ChunkerOptions, type Tts } from "@vikaki/tts";
 import type { Hub } from "./hub.ts";
 import { ThoughtFilter } from "./thought-filter.ts";
 
@@ -31,8 +31,13 @@ export interface SpeechOptions {
   /** Map a persona name to a voice id. By default the persona name itself is passed; engines ignore unknown voices. */
   voiceFor?: (persona: string | undefined) => string | undefined;
   chunker?: ChunkerOptions;
-  /** Send the phonemes an engine says it spoke, with their times, on the audio (VIK-50, ADR-0047). Off by default: pages that do not use them are sent nothing extra. */
+  /**
+   * Send the phonemes of what is said, with their times, on the audio (VIK-50, ADR-0049): from the engine's own `phonemes` if it gives them, else from the `text` of a
+   * chunk, by the dictionary in `@vikaki/tts`. Off by default: pages that do not use them are sent nothing extra.
+   */
   phonemes?: boolean;
+  /** Text to IPA, for tests; defaults to the dictionary's. */
+  pronounce?: (text: string) => string;
   /** The voice used when a persona names none. Only shown to clients; the engine decides what it means. */
   defaultVoice?: string;
   /** Called once per utterance when its first audio is ready. Used to measure time to first audio. */
@@ -109,8 +114,12 @@ export class SpeechEngine {
   /** Thoughts whose audio has all been sent but may still be playing on a page, with when it should end (the engine is quicker than the voice). */
   private readonly playing = new Map<string, { seat: string; until: number }>();
 
+  private readonly pronounce: (text: string) => string;
+
   constructor(private readonly o: SpeechOptions) {
     this.maxSlice = o.maxSliceSeconds ?? 1;
+    // The dictionary is read now, so the first line spoken does not pay for it (about 25 ms).
+    this.pronounce = o.pronounce ?? (o.phonemes ? ((dict) => (text: string) => ipaFor(text, dict))(loadPronunciations()) : () => "");
     this.idleMs = o.idleFlushMs ?? 15_000;
   }
 
@@ -315,7 +324,8 @@ export class SpeechEngine {
     const step = Math.max(1, Math.round(this.maxSlice * chunk.sampleRate));
     const sentence_index = u.sentences - 1;
     // Times worked out from the audio as the engine made it, before any filter; they ride on the chunk's first slice, counted from its start.
-    const phonemes = this.o.phonemes && chunk.phonemes ? alignPhonemes(chunk.phonemes, chunk.samples, chunk.sampleRate) : [];
+    const ipa = this.o.phonemes ? (chunk.phonemes ?? (chunk.text ? this.pronounce(chunk.text) : undefined)) : undefined;
+    const phonemes = ipa ? alignPhonemes(ipa, chunk.samples, chunk.sampleRate) : [];
     for (let at = 0; at < samples.length; at += step) {
       const first = u.announced !== sentence_index;
       u.announced = sentence_index;

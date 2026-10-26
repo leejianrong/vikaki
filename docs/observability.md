@@ -147,26 +147,30 @@ Each sound's shape is in `phoneme-visemes.ts`: vowels pick one of the five VRM s
 
 ![The five vowel mouths on Cookieman: a, ɛ, ɪ, o, ʊ](img/phoneme-vowels.png)
 
-**To see it:** `make demo-mouth` starts the speech demo (real voice, hub with `--phonemes`). Type a line and press Speak; the **Mouth** menu switches between hybrid, phoneme and the old audio mouth (the page reloads), and a chip says how many sounds the hub timed. The landing page (`/`) has a "Compare the mouths" card too. **To measure it:** `make lipsync-scorecard` now plays the eight lines through all three (`--mode all`; `--mode phoneme`, `--articulation` and `--lead` try one). For the phoneme mouths each line is one chunk with its phonemes (`line-N.ipa.txt` beside each recording, made by `scripts/make-scorecard-phonemes.ts` from Kokoro's own phonemizer) and the hub times them from the audio, as it does live. A new column, **vowel shapes**, is the share of the vowels spoken (over 60 ms, from the middle of each) where the mouth's strongest shape is the one that vowel makes.
+**To see it:** `make demo-mouth` starts the speech demo (real voice, hub with `--phonemes`). Type a line and press Speak; the **Mouth** menu switches between hybrid, phoneme and the old audio mouth (the page reloads), and a chip says how many sounds the hub timed. The landing page (`/`) has a "Compare the mouths" card too. **To measure it:** `make lipsync-scorecard` now plays the eight lines through all three (`--mode all`; `--mode phoneme`, `--articulation` and `--lead` try one). For the phoneme mouths each line is one chunk with its text (its words are `line-N.txt` beside each recording; the hub makes the phonemes with its dictionary and times them from the audio, as it does live). A new column, **vowel shapes**, is the share of the vowels spoken (over 60 ms, from the middle of each) where the mouth's strongest shape is the one that vowel makes.
 
-**The comparison** (defaults, mean of three runs; the machine was busy with other work, so the page drew about 30 frames a second, not 55):
+**The comparison** (defaults, mean of three runs, with the phonemes from our own dictionary, [ADR-0049](adr/0049-our-own-grapheme-to-phoneme-from-the-cmu-dictionary.md); the machine was heavily loaded by other work, a load average over 20, so the page drew about 35 frames a second, not 55):
 
 | mouth | match at 0 | lag | match at lag | closure | range | jitter | vowel shapes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| audio | 0.65 | -37 ms | 0.76 | 88% | 0.75 | 0.032 | 23% |
-| phoneme | 0.67 | 15 ms | 0.71 | 94% | 0.75 | 0.034 | 89% |
-| hybrid | 0.65 | 22 ms | 0.70 | 95% | 0.78 | 0.035 | 90% |
+| audio | 0.40 | -181 ms | 0.65 | 72% | 0.90 | 0.034 | 19% |
+| phoneme | 0.64 | 15 ms | 0.70 | 87% | 0.78 | 0.038 | 92% |
+| hybrid | 0.66 | 5 ms | 0.70 | 91% | 0.82 | 0.037 | 92% |
 
-Run to run (sd of the three): match at lag 0.03 to 0.05, and the lag 34 ms for the audio mouth against 3 and 12 for the phoneme ones.
+Run to run (sd of the three): match at lag 0.03 for the phoneme mouths and 0.12 for the audio mouth; lag 44 and 14 ms for the phoneme mouths and 98 ms for the audio mouth.
+
+The first comparison, made with eSpeak NG's phonemes (a quieter machine, a load average around 10), gave the same picture: phoneme 0.67 / 15 ms / 0.71 / 94% / 0.75 / 0.034 / 89%, hybrid 0.65 / 22 ms / 0.70 / 95% / 0.78 / 0.035 / 90%, audio 0.65 / -37 ms / 0.76 / 88% / 0.75 / 0.032 / 23%. The phoneme mouths score the same on the two phoneme sources, inside the noise; the audio mouth is the one the machine's load moves most.
+
+**How close the dictionary is to eSpeak** (`scripts/g2p-compare.ts`, 70 sentences of this repo's own technical prose, 3,749 sounds): 97.7% of the words are in the dictionary (the rest are jargon and names: spectrogram, vikaki, vrm, localhost); the mouth shape agrees with eSpeak's on 92.9% of all sounds and 87.2% of vowels, lining the two sequences up by edit distance. Prose full of jargon is the hard case; the lines a table says are plainer.
 
 **What it says.**
-- *The vowels are the point.* The audio mouth makes the spoken vowel's shape in 23% of the vowels (about chance for five shapes); the phoneme mouths in 89 to 90%. That number is high for them partly by construction, since the track is what they follow, and the track is an estimate; it shows how far the audio mouth is from what was said, not how right the phoneme mouth is. The five frames above are the check by eye.
-- *Loudness is a wash.* Match at the best lag is 0.76 for the audio mouth and 0.70 to 0.71 for the others, a difference at the edge of the noise: a mouth that shows the vowel follows the loud syllables a bit less closely, because each sound opens to its own size, not to the volume. Hybrid was meant to close this gap and did not measurably (its loudness gain is 0.35 + 0.9 x the volume).
-- *Timing is steadier.* The audio mouth's lag swung by about 34 ms between runs, the phoneme mouths' by 3 to 12: the track is on the page's clock and does not depend on when a node's smoothing settles. With a 60 ms lead they sit 15 to 22 ms behind the sound, near zero; the audio mouth runs 37 ms ahead here, which is the headless clock's offset (see the caveats above) as much as the mouth.
-- *Closing and range.* The phoneme mouths shut in the quiet more often (94 to 95% against 88%), open as wide (range 0.75 to 0.78), and are as smooth.
-- *Hybrid against phoneme:* no difference the scorecard can see. Hybrid is the default because it is the safer one (the loudness holds the mouth to the real sound when estimated times drift), a reason and not a measurement.
+- *The vowels are the point.* The audio mouth makes the spoken vowel's shape in about a fifth of the vowels (about chance for five shapes); the phoneme mouths in 92%. That number is high for them partly by construction, since the track is what they follow, and the track is an estimate; it shows how far the audio mouth is from what was said, not how right the phoneme mouth is. The five frames above are the check by eye.
+- *Loudness is a wash.* Match at the best lag is 0.65 for the audio mouth here (0.76 on the quieter machine) and 0.70 for the others: a mouth that shows the vowel follows the loud syllables about as closely, with each sound opening to its own size.
+- *Timing is steadier.* The phoneme mouths' lag moved by 14 to 44 ms between runs, the audio mouth's by 98: the track is on the page's clock and does not depend on when a node's smoothing settles. With the 60 ms lead they sit within 15 ms of the sound; the audio mouth ran ahead of it by 37 to 181 ms in this headless setup, the headless clock's offset as much as the mouth.
+- *Closing and range.* The phoneme mouths shut in the quiet more often (87 to 91% against 72% under this load), open nearly as wide (range 0.78 to 0.82 against 0.90), and are as smooth.
+- *Hybrid against phoneme:* hybrid closes a little more in the quiet (91 against 87%) and keeps a link to the sound that is actually playing, which is why it is the default; the other numbers are inside the noise.
 
-**Caveats.** The scores are inside this machine's noise for anything under about 0.05 in match or 30 ms in lag; run on a quiet machine before trusting a small difference. The phoneme times are estimated from the audio (the model returns none), so a mouth that follows them is no better than the estimate. Eight lines, three voices, English only (the phonemizer is told en-us or en-gb by the voice). A real ear and eye on a real call machine have not judged this.
+**Caveats.** The scores are inside this machine's noise for anything under about 0.05 in match or 30 ms in lag; run on a quiet machine before trusting a small difference. The phoneme times are estimated from the audio (the model returns none), so a mouth that follows them is no better than the estimate. Eight lines, three voices, English only (the dictionary is American English). A real ear and eye on a real call machine have not judged this.
 
 ## What this cannot tell you
 

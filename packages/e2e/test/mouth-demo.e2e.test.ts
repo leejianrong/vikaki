@@ -24,7 +24,7 @@ afterEach(async () => {
 });
 
 async function open(phonemes: boolean, query = ""): Promise<Page> {
-  server = await startServer({ staticDir, speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: 50, phonemes: true }), phonemes } });
+  server = await startServer({ staticDir, speech: { tts: new FakeTts({ sampleRate: 16000, msPerChar: 50, pieces: true }), phonemes } });
   const page = await browser.newPage({ viewport: { width: 1200, height: 720 } });
   pages.push(page);
   await page.goto(`${server.url}?demo=speech&live=1&seed=3${query}`);

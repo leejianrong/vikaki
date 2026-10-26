@@ -86,19 +86,19 @@ function openBrowser(url: string): void {
 }
 
 /** Pick a speech engine, and say plainly what was chosen and why. */
-async function chooseTts(kind: string, voice: string | undefined, phonemes = false): Promise<{ tts: Tts; voice?: string } | undefined> {
+async function chooseTts(kind: string, voice: string | undefined, pieces = false): Promise<{ tts: Tts; voice?: string } | undefined> {
   if (kind === "none") return undefined;
-  if (kind === "fake") return { tts: new FakeTts({ phonemes }) };
+  if (kind === "fake") return { tts: new FakeTts({ pieces }) };
   const found = findVoice();
   if (!found && kind === "auto") {
     console.log("");
     console.log("  !! The real voice is not installed, so this will play a steady \"aah\" test tone, not speech.");
     console.log(`  !! Run \`${INSTALL_COMMAND}\` once (about 410 MB), then start again.`);
     console.log("");
-    return { tts: new FakeTts({ phonemes }) };
+    return { tts: new FakeTts({ pieces }) };
   }
   console.log("loading the voice (the first run downloads a model of about 330 MB)...");
-  const tts = await KokoroTts.create({ voice, importFrom: found?.entry, phonemes });
+  const tts = await KokoroTts.create({ voice, importFrom: found?.entry });
   return { tts, voice: voice ?? "af_heart" };
 }
 

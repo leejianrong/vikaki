@@ -99,6 +99,32 @@ describe.skipIf(!enabled)("the small image (target vikaki)", () => {
     expect(logs).not.toContain("s3cret");
   });
 
+  it("sends the phonemes of a line when started with VIKAKI_PHONEMES=1: the dictionary is in the image (VIK-50)", { timeout: 10 * 60_000 }, async () => {
+    const c = await start("vikaki:test", [], { VIKAKI_TTS: "fake", VIKAKI_PHONEMES: "1" });
+    await healthy(c.id, c.startedAt);
+    const ws = new WebSocket(`ws://127.0.0.1:${c.port}/ws`);
+    const heard: Msg[] = [];
+    ws.on("message", (d) => heard.push(JSON.parse(d.toString())));
+    await new Promise((ok, fail) => (ws.once("open", ok), ws.once("error", fail)));
+    ws.send(JSON.stringify(make("hello", { role: "viewer" })));
+    // A viewer that never reports back is enough: the audio is sent to it as soon as it is made.
+    const driver = new WebSocket(`ws://127.0.0.1:${c.port}/ws`);
+    await new Promise((ok, fail) => (driver.once("open", ok), driver.once("error", fail)));
+    driver.send(JSON.stringify(make("hello", { role: "driver" })));
+    driver.send(JSON.stringify({ protocol_version: PROTOCOL_VERSION, type: "utterance", seat_id: "seat-1", utterance_id: "ph1", text: "Hello there, my friend." }));
+    for (const end = Date.now() + 30_000; !heard.some((m) => m.type === "audio" && m.final === true); ) {
+      if (Date.now() > end) throw new Error(`timed out; saw ${heard.map((m) => m.type).join(",")}`);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    driver.close();
+    ws.close();
+    const withPhonemes = heard.filter((m) => m.type === "audio" && Array.isArray(m.phonemes));
+    expect(withPhonemes.length).toBeGreaterThan(0);
+    const spans = withPhonemes[0]!.phonemes as { p: string; t: number; d: number }[];
+    expect(spans.length).toBeGreaterThan(8);
+    expect(spans.map((s) => s.p).join("")).toContain("l"); // sounds of the words, not an empty guess
+  });
+
   it("answers a listed Host name such as vikaki:8787 and still refuses other names (VIK-127)", { timeout: 10 * 60_000 }, async () => {
     const plain = await start("vikaki:test");
     const listed = await start("vikaki:test", [], { VIKAKI_ALLOWED_HOSTS: "vikaki:8787" });

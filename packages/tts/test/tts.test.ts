@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FakeTts, fakePhonemes, KokoroTts, TtsError, synthVowel, type AudioChunk } from "../src/index.ts";
+import { FakeTts, KokoroTts, TtsError, synthVowel, type AudioChunk } from "../src/index.ts";
 
 async function collect(it: AsyncIterable<AudioChunk>): Promise<AudioChunk[]> {
   const out: AudioChunk[] = [];
@@ -103,20 +103,16 @@ describe("KokoroTts", () => {
   }, 120_000);
 });
 
-describe("FakeTts phonemes (VIK-50)", () => {
-  it("is off by default; on, a request is one chunk that carries the phonemes of its text", async () => {
+describe("FakeTts as an engine that speaks whole pieces (VIK-50)", () => {
+  it("streams in small chunks by default; with `pieces`, a request is one chunk that carries its text", async () => {
     const off: AudioChunk[] = [];
     for await (const c of new FakeTts().synthesize({ text: "Hello there, friend." })) off.push(c);
     expect(off.length).toBeGreaterThan(1);
-    expect(off.every((c) => c.phonemes === undefined)).toBe(true);
+    expect(off.every((c) => c.text === undefined)).toBe(true);
     const on: AudioChunk[] = [];
-    for await (const c of new FakeTts({ phonemes: true }).synthesize({ text: "Hello there, friend." })) on.push(c);
+    for await (const c of new FakeTts({ pieces: true }).synthesize({ text: "Hello there, friend." })) on.push(c);
     expect(on).toHaveLength(1);
-    expect(on[0]!.phonemes).toBe("hˈɛllo thˈɛɹɛ, fɹˈɪɛnd.");
-  });
-
-  it("makes phonemes from letters: words keep their spaces, a pause mark stays on its word", () => {
-    expect(fakePhonemes("Go now, ok!")).toBe("ɡˈo nˈow, ˈok!");
-    expect(fakePhonemes("  ")).toBe("");
+    expect(on[0]!.text).toBe("Hello there, friend.");
+    expect(on[0]!.samples.length).toBe(off.reduce((n, c) => n + c.samples.length, 0));
   });
 });

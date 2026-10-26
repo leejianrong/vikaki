@@ -8,8 +8,8 @@ export interface FakeTtsOptions {
   chunkMs?: number;
   /** Wait before the first chunk, to imitate a slow engine. */
   firstChunkDelayMs?: number;
-  /** Say which phonemes were spoken (VIK-50): each request then comes back as one chunk, carrying `phonemes` made from the letters. */
-  phonemes?: boolean;
+  /** Come back as one chunk that carries the request's `text`, as an engine that speaks whole pieces does (VIK-50): the hub can then time its phonemes. */
+  pieces?: boolean;
   /** Text matching this throws a TtsError, to test failure handling. */
   failOn?: RegExp | string;
 }
@@ -54,32 +54,6 @@ export function synthVowel(seconds: number, sampleRate: number): Float32Array {
   return x;
 }
 
-const LETTER_SOUNDS: Record<string, string> = { a: "a", e: "ɛ", i: "ɪ", o: "o", u: "ʊ", y: "i", b: "b", c: "k", d: "d", f: "f", g: "ɡ", h: "h", j: "dʒ", k: "k", l: "l", m: "m", n: "n", p: "p", q: "k", r: "ɹ", s: "s", t: "t", v: "v", w: "w", x: "ks", z: "z" };
-
-/** Pretend phonemes for `text`, one sound a letter, for tests: words keep their spaces, a pause mark stays on its word, the first vowel of a word is stressed. */
-export function fakePhonemes(text: string): string {
-  return text
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => {
-      let stressed = false;
-      let out = "";
-      for (const ch of word.toLowerCase()) {
-        const sound = LETTER_SOUNDS[ch];
-        if (sound !== undefined) {
-          if (!stressed && "aeiouy".includes(ch)) {
-            out += "ˈ";
-            stressed = true;
-          }
-          out += sound;
-        } else if (/[,.;:!?]/.test(ch)) out += ch;
-      }
-      return out;
-    })
-    .filter(Boolean)
-    .join(" ");
-}
-
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (ms <= 0 || signal?.aborted) return resolve();
@@ -103,7 +77,7 @@ export class FakeTts implements Tts {
   readonly requests: string[] = [];
   /** The voice asked for with each request (undefined if none), in the same order. */
   readonly voices: (string | undefined)[] = [];
-  private readonly o: Required<Omit<FakeTtsOptions, "failOn" | "phonemes">> & { phonemes?: boolean } & { failOn?: RegExp | string };
+  private readonly o: Required<Omit<FakeTtsOptions, "failOn" | "pieces">> & { pieces?: boolean } & { failOn?: RegExp | string };
 
   constructor(options: FakeTtsOptions = {}) {
     this.o = { sampleRate: 16000, msPerChar: 55, chunkMs: 100, firstChunkDelayMs: 0, ...options };
@@ -123,8 +97,8 @@ export class FakeTts implements Tts {
     }
     await sleep(this.o.firstChunkDelayMs, request.signal);
     const total = synthVowel(this.durationOf(request.text), this.o.sampleRate);
-    if (this.o.phonemes) {
-      yield { samples: total, sampleRate: this.o.sampleRate, phonemes: fakePhonemes(request.text) };
+    if (this.o.pieces) {
+      yield { samples: total, sampleRate: this.o.sampleRate, text: request.text };
       return;
     }
     const step = Math.max(1, Math.round((this.o.chunkMs / 1000) * this.o.sampleRate));

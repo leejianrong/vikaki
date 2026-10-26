@@ -21,6 +21,10 @@ VIK-50 (ADR-0047) puts the phonemes a voice spoke, with estimated times, on the 
 - **wLipSync stays for the microphone**, where there is no text to take phonemes from.
 - **The scorecard is still a report, not a gate.** Its new column, vowel shapes, is agreement with the phoneme track, so it is high for the phoneme mouths by construction; its worth is showing how far the audio mouth is from the spoken vowels. The track is itself an estimate.
 
+## Re-measured (2026-10-26)
+
+ADR-0049 replaced eSpeak with our own dictionary phonemes, so the comparison was run again on them (three runs, a much busier machine): vowel shapes 92% against 19% for the audio mouth, lag 5 to 15 ms for the phoneme mouths against a swing of 98 ms for the audio mouth, closure 87 to 91% against 72%, match at the best lag 0.70 against 0.65. The same picture as the figures above; the decision stands. The table is in [observability.md](../observability.md).
+
 ## Rejected
 
 - **`phoneme` as the default:** no better on the numbers, and it has nothing to hold it to the sound when timing is off.

@@ -27,7 +27,7 @@ async function run(m, controller) {
       for await (const chunk of engine.synthesize({ text: m.text, voice: m.voice, signal: controller.signal })) {
         if (controller.signal.aborted) break;
         const samples = chunk.samples.slice(); // a copy that owns its buffer, so it can be handed over without copying again
-        parentPort.postMessage({ type: "chunk", id: m.id, samples, sampleRate: chunk.sampleRate, phonemes: chunk.phonemes }, [samples.buffer]);
+        parentPort.postMessage({ type: "chunk", id: m.id, samples, sampleRate: chunk.sampleRate, text: chunk.text, phonemes: chunk.phonemes }, [samples.buffer]);
       }
     }
     parentPort.postMessage({ type: "done", id: m.id });
