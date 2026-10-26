@@ -1,6 +1,6 @@
 # ADR-0047: Phonemes come from Kokoro's own phonemizer, and are timed from the audio
 
-- Status: Accepted (VIK-50). The eSpeak NG licence stance below is a default Claude chose; Jian is asked to confirm it.
+- Status: Accepted (VIK-50). The "which phonemes" part is replaced by [ADR-0049](0049-our-own-grapheme-to-phoneme-from-the-cmu-dictionary.md) (our own dictionary G2P, no eSpeak); the timing part stands.
 - Date: 2026-10-25
 - Deciders: Claude (default chosen; Jian to confirm the licence stance)
 

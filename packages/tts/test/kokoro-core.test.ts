@@ -1,8 +1,7 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { create } from "../src/kokoro-core.mjs";
 
@@ -138,46 +137,28 @@ describe("the Kokoro engine and long sentences", () => {
   });
 });
 
-describe("phonemes from the Kokoro engine (VIK-50)", () => {
-  /** Put a stand-in `phonemizer` next to the fake kokoro-js, where the engine looks for the one kokoro-js comes with. */
-  async function withPhonemizer(href: string, body: string) {
-    const dir = join(fileURLToPath(href), "..", "node_modules", "phonemizer");
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, "package.json"), JSON.stringify({ name: "phonemizer", main: "index.cjs" }));
-    await writeFile(join(dir, "index.cjs"), body);
-  }
-  const say = async (engine: Awaited<ReturnType<typeof create>>, text: string, voice?: string) => {
+describe("the text of each piece (VIK-50, ADR-0049)", () => {
+  const say = async (engine: Awaited<ReturnType<typeof create>>, text: string) => {
     const out = [];
-    for await (const c of engine.synthesize({ text, voice })) out.push(c);
+    for await (const c of engine.synthesize({ text })) out.push(c);
     return out;
   };
 
-  it("asks the phonemizer for each piece, in the voice's language, and sends the phrases with the audio", async () => {
+  it("goes with the piece's audio, so the hub can time the phonemes of exactly these words", async () => {
     const fake = await fakeKokoro();
-    await withPhonemizer(fake.href, `exports.calls = []; exports.phonemize = async (text, lang) => { exports.calls.push([text, lang]); return ["a" + text.length, "b"]; };`);
-    const engine = await create({ importFrom: fake.href, phonemes: true });
+    const engine = await create({ importFrom: fake.href });
     const chunks = await say(engine, "Hello there.");
     expect(chunks).toHaveLength(1);
-    expect(chunks[0]!.phonemes).toBe("a12, b");
-    const calls = createRequire(fake.href)("phonemizer").calls as [string, string][];
-    expect(calls.filter(([t]) => t !== "Ready.")).toEqual([["Hello there.", "en-us"]]);
+    expect(chunks[0]!.text).toBe("Hello there.");
   });
 
-  it("is off unless asked for: no phonemizer is even loaded, and the chunks carry none", async () => {
+  it("is one piece's words on each chunk of a long line, and the pieces say the whole line between them", async () => {
     const fake = await fakeKokoro();
-    await withPhonemizer(fake.href, `throw new Error("must not be loaded");`);
-    const chunks = await say(await create({ importFrom: fake.href }), "Hello there.");
-    expect(chunks[0]!.phonemes).toBeUndefined();
-  });
-
-  it("speaks on without phonemes when there is no phonemizer, or it fails", async () => {
-    const none = await fakeKokoro();
-    expect((await say(await create({ importFrom: none.href, phonemes: true }), "Hello."))[0]!.phonemes).toBeUndefined();
-    const broken = await fakeKokoro();
-    await withPhonemizer(broken.href, `exports.phonemize = async (t) => { if (t !== "Ready.") throw new Error("espeak died"); return ["x"]; };`);
-    const chunks = await say(await create({ importFrom: broken.href, phonemes: true }), "Hello.");
-    expect(chunks).toHaveLength(1);
-    expect(chunks[0]!.phonemes).toBeUndefined();
-    expect(chunks[0]!.samples.length).toBeGreaterThan(0);
+    const engine = await create({ importFrom: fake.href });
+    const chunks = await say(engine, LONG);
+    expect(chunks.length).toBeGreaterThan(2);
+    expect(chunks.every((c) => typeof c.text === "string" && c.text.length > 0)).toBe(true);
+    expect(chunks.map((c) => c.text).join(" ").replace(/\s+/g, " ")).toBe(LONG.replace(/\s+/g, " "));
+    expect(await fake.calls()).toEqual(chunks.map((c) => c.text)); // exactly what was made
   });
 });

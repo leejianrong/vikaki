@@ -21,4 +21,4 @@ Regenerate one (needs `make install-voice`), for example line 2:
 pnpm exec tsx scripts/make-speech-fixture.ts "Hmm, I will call that bet." packages/audio/test/fixtures/scorecard/line-2.wav am_adam
 ```
 
-A regenerated clip may differ slightly with the model version, and the baseline in `docs/observability.md` was taken on these files, so record the lines again after changing them.
+Each `line-N.txt` is the line's words, which the phoneme mouths turn into phonemes with the dictionary in `@vikaki/tts` (ADR-0049). A regenerated clip may differ slightly with the model version, and the baseline in `docs/observability.md` was taken on these files, so record the lines again after changing them.

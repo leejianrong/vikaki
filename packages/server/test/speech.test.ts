@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { decodePcm16, make, PROTOCOL_VERSION } from "@vikaki/protocol";
+import { ipaFor } from "@vikaki/tts";
+import { tokenizeIpa } from "@vikaki/audio";
 import { FakeTts, type AudioChunk, type FakeTtsOptions, type SynthesisRequest, type Tts } from "@vikaki/tts";
 import { startServer, type RunningServer, type SpeechOptions, type SpeechTiming } from "../src/server.ts";
 import { Client, until, utterance } from "./helpers.ts";
@@ -624,9 +626,12 @@ describe("viewers that show one persona", () => {
 
 describe("phonemes on the audio (VIK-50)", () => {
   const phonemesOf = (msgs: Msg[]) => audioOf(msgs).filter((m) => m.phonemes !== undefined);
+  type Span = { p: string; t: number; d: number; s?: number };
+  /** The sounds a line should have, from the same dictionary the hub uses. */
+  const soundsOf = (text: string) => ipaFor(text).split(" ").flatMap((w) => tokenizeIpa(w).map((t) => t.p));
 
-  it("with --phonemes, the first slice of a piece carries its phonemes, in order and inside the audio, and later slices carry none", async () => {
-    const { driver, viewer } = await setup({ tts: { phonemes: true }, speech: { phonemes: true, maxSliceSeconds: 0.5 } });
+  it("with --phonemes, the first slice of a piece carries its phonemes (from the dictionary), in order and inside the audio, and later slices carry none", async () => {
+    const { driver, viewer } = await setup({ tts: { pieces: true }, speech: { phonemes: true, maxSliceSeconds: 0.5 } });
     driver.send(utterance({ text: "Hello there, my friend." }));
     const msgs = await readUntil(viewer, isFinal);
     const withPhonemes = phonemesOf(msgs);
@@ -634,20 +639,31 @@ describe("phonemes on the audio (VIK-50)", () => {
     const audio = audioOf(msgs);
     expect(audio.length).toBeGreaterThan(1); // the piece was cut into slices; only the first has them
     expect(audio[0]).toBe(withPhonemes[0]);
-    const spans = withPhonemes[0]!.phonemes as { p: string; t: number; d: number; s?: number }[];
-    expect(spans.map((s) => s.p).join("")).toBe("hɛllothɛɹɛmifɹɪɛnd"); // one sound a letter, from FakeTts
+    const spans = withPhonemes[0]!.phonemes as Span[];
+    expect(spans.map((s) => s.p)).toEqual(soundsOf("Hello there, my friend."));
     for (let i = 1; i < spans.length; i++) expect(spans[i]!.t).toBeGreaterThanOrEqual(spans[i - 1]!.t + spans[i - 1]!.d);
-    const total = seconds(audio) * 1000;
-    expect(spans.at(-1)!.t + spans.at(-1)!.d).toBeLessThanOrEqual(total + 1);
+    expect(spans.at(-1)!.t + spans.at(-1)!.d).toBeLessThanOrEqual(seconds(audio) * 1000 + 1);
+    expect(spans.some((s) => s.s === 1)).toBe(true); // stress is marked
+  });
+
+  it("an engine's own phonemes win over the dictionary, and the hub's pronounce option can stand in for it", async () => {
+    const own: Tts = { name: "own", async *synthesize(r: SynthesisRequest): AsyncGenerator<AudioChunk> { yield { samples: new Float32Array(8000).fill(0.2), sampleRate: 16000, text: r.text, phonemes: "ˈaʊ" }; } };
+    const a = await setup({ speech: { tts: own, phonemes: true } });
+    a.driver.send(utterance({ text: "Hello." }));
+    expect((phonemesOf(await readUntil(a.viewer, isFinal))[0]!.phonemes as Span[]).map((s) => s.p)).toEqual(["a", "ʊ"]);
+    await server!.close();
+    const b = await setup({ tts: { pieces: true }, speech: { phonemes: true, pronounce: () => "ˈi" } });
+    b.driver.send(utterance({ text: "Hello." }));
+    expect((phonemesOf(await readUntil(b.viewer, isFinal))[0]!.phonemes as Span[]).map((s) => s.p)).toEqual(["i"]);
   });
 
   it("without the flag, nothing extra is sent even if the engine says what it spoke", async () => {
-    const { driver, viewer } = await setup({ tts: { phonemes: true } });
+    const { driver, viewer } = await setup({ tts: { pieces: true } });
     driver.send(utterance({ text: "Hello there." }));
     expect(phonemesOf(await readUntil(viewer, isFinal))).toHaveLength(0);
   });
 
-  it("with the flag but an engine that cannot say, speech is as it was", async () => {
+  it("with the flag but an engine that streams in small chunks (no whole piece), speech is as it was", async () => {
     const { driver, viewer } = await setup({ speech: { phonemes: true } });
     driver.send(utterance({ text: "Hello there." }));
     const msgs = await readUntil(viewer, isFinal);

@@ -118,11 +118,11 @@ export class WorkerTts implements Tts {
     await this.worker.terminate();
   }
 
-  private onMessage(m: { type: string; id: number; samples?: Float32Array; sampleRate?: number; phonemes?: string; message?: string }): void {
+  private onMessage(m: { type: string; id: number; samples?: Float32Array; sampleRate?: number; text?: string; phonemes?: string; message?: string }): void {
     if (m.type === "done" || m.type === "error") this.busy.delete(m.id);
     const stream = this.streams.get(m.id);
     if (!stream) return; // aborted, and its late result is of no use
-    if (m.type === "chunk") stream.push({ samples: m.samples!, sampleRate: m.sampleRate!, ...(m.phonemes ? { phonemes: m.phonemes } : {}) });
+    if (m.type === "chunk") stream.push({ samples: m.samples!, sampleRate: m.sampleRate!, ...(m.text !== undefined ? { text: m.text } : {}), ...(m.phonemes ? { phonemes: m.phonemes } : {}) });
     else if (m.type === "done") stream.end();
     else if (m.type === "error") stream.end(new TtsError(m.message ?? "speech failed"));
   }

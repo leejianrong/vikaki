@@ -7,6 +7,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { ipaFor } from "../packages/tts/src/index.ts";
 import { alignPhonemes, decodeWav, opennessOf, scoreLine, vowelMatch, type LineScore } from "../packages/audio/src/index.ts";
 import { vowelShape } from "../packages/engine/src/phoneme-visemes.ts";
 import { HubClient } from "../packages/cli/src/hub-client.ts";
@@ -36,8 +37,8 @@ interface Recording {
   name: string;
   samples: Float32Array;
   rate: number;
-  /** What the voice said, as IPA, for the phoneme modes (`line-N.ipa.txt`). */
-  ipa: string;
+  /** What the line says (`line-N.txt`): the phoneme modes get their phonemes from it, as the hub does. */
+  text: string;
 }
 
 const files = readdirSync(dir)
@@ -49,11 +50,11 @@ const lines: Recording[] = files.map((f) => {
   const padded = new Float32Array(Math.round((LEAD_SEC + TAIL_SEC) * sampleRate) + samples.length);
   padded.set(samples, Math.round(LEAD_SEC * sampleRate));
   const name = f.replace(".wav", "");
-  const ipaFile = `${dir}/${name}.ipa.txt`;
-  return { name, samples: padded, rate: sampleRate, ipa: existsSync(ipaFile) ? readFileSync(ipaFile, "utf8").trim() : "" };
+  const textFile = `${dir}/${name}.txt`;
+  return { name, samples: padded, rate: sampleRate, text: existsSync(textFile) ? readFileSync(textFile, "utf8").trim() : "" };
 });
 
-/** Whether the engine says what it spoke: for the phoneme modes, each line is one chunk with its phonemes (the hub times them from the audio). */
+/** Whether the engine says what it spoke: for the phoneme modes, each line is one chunk with its text (the hub makes the phonemes and times them from the audio). */
 let withPhonemes = false;
 /** Says each recorded line when asked for its name: in 100 ms chunks as an engine would, or whole with its phonemes. */
 const replay: Tts = {
@@ -61,7 +62,7 @@ const replay: Tts = {
   async *synthesize(req: SynthesisRequest): AsyncGenerator<AudioChunk> {
     const line = lines.find((l) => l.name === req.text || `warm-${l.name}` === req.text);
     if (!line) throw new Error(`no recording called ${req.text}`);
-    if (withPhonemes && line.ipa) return void (yield { samples: line.samples, sampleRate: line.rate, phonemes: line.ipa });
+    if (withPhonemes && line.text) return void (yield { samples: line.samples, sampleRate: line.rate, text: line.text });
     const size = Math.round(line.rate / 10);
     for (let at = 0; at < line.samples.length; at += size) yield { samples: line.samples.subarray(at, at + size), sampleRate: line.rate };
   },
@@ -107,7 +108,7 @@ async function runMode(mode: "audio" | "phoneme" | "hybrid"): Promise<Result[]> 
     const inLine = json.frames.filter((f) => f[0]! >= start - 50 && f[0]! <= end + 300);
     if (inLine.length < 3) throw new Error(`${line.name}: the page drew only ${inLine.length} frames while it spoke`);
     const mouth = { t: inLine.map((f) => (f[0]! - start) / 1000), open: inLine.map((f) => opennessOf(f.slice(1, 6))) }; // the commanded shapes, not the applied ones
-    const spans = line.ipa ? alignPhonemes(line.ipa, line.samples, line.rate) : [];
+    const spans = line.text ? alignPhonemes(ipaFor(line.text), line.samples, line.rate) : [];
     results.push({
       name: line.name,
       fps: (inLine.length / (inLine.at(-1)![0]! - inLine[0]![0]!)) * 1000,

@@ -16,24 +16,7 @@ const INSTALL_HINT =
 
 const failure = (message, cause) => Object.assign(new Error(message, { cause }), { code: "tts_failed" });
 
-/**
- * The phonemizer that kokoro-js itself uses (it comes with the same install), as a function from text and a language to the phrases
- * spoken. Undefined when it cannot be found: phonemes are then left out and speech is as it was (VIK-50, ADR-0047).
- */
-async function findPhonemizer(importFrom) {
-  try {
-    const { createRequire } = await import("node:module");
-    const { pathToFileURL } = await import("node:url");
-    const entry = importFrom.startsWith("file:") ? importFrom : importFrom.startsWith("/") || importFrom.startsWith(".") ? pathToFileURL(importFrom).href : pathToFileURL(createRequire(import.meta.url).resolve(importFrom)).href;
-    const path = createRequire(entry).resolve("phonemizer");
-    const mod = await import(pathToFileURL(path).href);
-    return mod.phonemize ?? mod.default?.phonemize;
-  } catch {
-    return undefined;
-  }
-}
-
-export async function create({ importFrom = "kokoro-js", model = "onnx-community/Kokoro-82M-v1.0-ONNX", dtype = chosenDtype(), voice = "af_heart", phonemes = false } = {}) {
+export async function create({ importFrom = "kokoro-js", model = "onnx-community/Kokoro-82M-v1.0-ONNX", dtype = chosenDtype(), voice = "af_heart" } = {}) {
   let mod;
   try {
     mod = await import(importFrom);
@@ -52,17 +35,6 @@ export async function create({ importFrom = "kokoro-js", model = "onnx-community
   } catch {
     /* a failed warm-up is not a failed load: the first real line will say what is wrong */
   }
-  const phonemize = phonemes ? await findPhonemizer(importFrom) : undefined;
-  if (phonemize) await phonemize("Ready.", "en-us").catch(() => {}); // its first call loads the eSpeak data (about 0.3 s)
-  /** The IPA of a piece, in the language the voice speaks (a b-voice is British). Undefined if it cannot be made: speech goes on without. */
-  const phonemesOf = async (piece, voiceId) => {
-    if (!phonemize) return undefined;
-    try {
-      return (await phonemize(piece, voiceId?.startsWith("b") ? "en-gb" : "en-us")).join(", ") || undefined;
-    } catch {
-      return undefined;
-    }
-  };
   const voices = Object.keys(engine.voices);
   return {
     name: "kokoro",
@@ -96,8 +68,8 @@ export async function create({ importFrom = "kokoro-js", model = "onnx-community
             audio = joined;
           }
         }
-        const ipa = await phonemesOf(piece, wanted && voices.includes(wanted) ? wanted : voice);
-        yield { samples: audio, sampleRate: result.sampling_rate, ...(ipa ? { phonemes: ipa } : {}) };
+        // The piece's text goes with its audio, so the hub can time the phonemes of exactly these words (ADR-0049).
+        yield { samples: audio, sampleRate: result.sampling_rate, text: piece };
       }
     },
   };
