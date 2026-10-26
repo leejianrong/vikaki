@@ -25,6 +25,8 @@ export interface SpeechApiOptions {
   voiceMap?: Record<string, string>;
   /** Extra JSON fields for the body: `speed`, or whatever a self-hosted server takes. */
   extraBody?: Record<string, unknown>;
+  /** Extra JSON fields worked out from each request (an engine whose emotion control is a number); merged after `extraBody`. */
+  bodyFor?: (req: SynthesisRequest) => Record<string, unknown>;
   /** Cut the style to this many characters (the provider's limit). */
   maxStyleChars?: number;
   fetch?: typeof fetch;
@@ -50,7 +52,7 @@ export class SpeechApiTts implements Tts {
     if (this.o.apiKeyEnv && this.o.keyRequired !== false && !key) throw new TtsError(`${this.name}: the environment variable ${this.o.apiKeyEnv} is not set`);
     const voice = (req.voice && this.o.voiceMap?.[req.voice]) ?? this.o.defaultVoice;
     const style = req.style && this.o.maxStyleChars ? req.style.slice(0, this.o.maxStyleChars) : req.style;
-    const body = { model: this.o.model, input: req.text, voice, response_format: "pcm", ...(style ? { instructions: style } : {}), ...this.o.extraBody };
+    const body = { model: this.o.model, input: req.text, voice, response_format: "pcm", ...(style ? { instructions: style } : {}), ...this.o.extraBody, ...this.o.bodyFor?.(req) };
     let res: Response;
     try {
       res = await (this.o.fetch ?? fetch)(`${this.o.baseUrl.replace(/\/+$/, "")}/audio/speech`, {
