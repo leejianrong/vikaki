@@ -5,7 +5,11 @@ Vikaki speaks through a `Tts` interface (`packages/tts`). Engines yield audio as
 | Engine | Use | Needs |
 | --- | --- | --- |
 | `FakeTts` | Tests and development. Deterministic "aah" audio, timing you can predict | Nothing |
-| `KokoroTts` | Real local speech, on CPU (ADR-0010) | `kokoro-js`, installed separately |
+| `KokoroTts` | Real local speech, on CPU (ADR-0010). **The default** (ADR-0050) | `kokoro-js`, installed separately |
+| `ChatterboxTts` | A Chatterbox server of your own, such as a RunPod GPU pod. Slow for live play: 4 s to first audio, 0.77x real time on an RTX 4090 ([spike](spikes/chatterbox.md)). In the bench only, not `--tts` | A server (`spikes/chatterbox/run.sh`), `CHATTERBOX_URL` |
+| `SpeechApiTts` | Any OpenAI-style `/v1/audio/speech` server. OpenAI's own model shuts down 2027-01-06 ([comparison](spikes/hosted-tts.md)). In the bench only | A key or a server |
+
+Kokoro stays the default and a better voice is opt-in and chosen by ear: [ADR-0050](adr/0050-kokoro-stays-the-default-voice-others-are-opt-in-and-chosen-by-ear.md). How to judge a voice: [voice-rubric.md](voice-rubric.md). Any new adapter must set `AudioChunk.text` on a chunk that holds a whole piece, so `--phonemes` works.
 
 ## Installing Kokoro
 
