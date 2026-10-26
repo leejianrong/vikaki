@@ -1,14 +1,12 @@
 [
-  { "label": "taunt", "text": "Nice try, Ben. I saw that bluff from across the room.", "emotion": "smug", "voice": "af_heart" },
-  { "label": "friendly raise", "text": "Raising to twelve. Come on, it's only chips.", "emotion": "happy", "voice": "am_adam" },
-  { "label": "worried thought", "text": "That's a big bet. Please don't have the ace.", "emotion": "worried", "thought": true, "voice": "bf_emma" },
-  { "label": "all-in rush", "text": "All in! Nobody breathe.", "emotion": "excited", "voice": "af_heart" },
-  { "label": "bad beat", "text": "A river queen. Of course it was a queen.", "emotion": "sad", "voice": "am_adam" },
-  { "label": "win", "text": "Thirty six chips, thank you very much! That felt good.", "emotion": "happy", "voice": "bf_emma" },
-  { "label": "bust-out", "text": "Well, that's all my chips gone. It was a fun game, though.", "emotion": "sad", "voice": "am_adam" },
-  { "label": "calm call", "text": "I call. Let's see what the turn brings.", "emotion": "neutral", "voice": "af_heart" },
-  { "label": "angry fold", "text": "Fold. And I'm not happy about it.", "emotion": "angry", "voice": "am_adam" },
-  { "label": "to a player", "text": "Cy, you always say that when you're bluffing.", "emotion": "confident", "voice": "bf_emma" },
-  { "label": "surprised", "text": "Wait, you had a flush the whole time?", "emotion": "surprised", "voice": "af_heart" },
-  { "label": "nervous thought", "text": "My hands are shaking. Act natural. Act natural.", "emotion": "nervous", "thought": true, "voice": "am_adam" }
+  { "label": "short ack", "text": "Fold.", "emotion": "neutral", "voice": "af_heart", "covers": ["short"] },
+  { "label": "taunt", "text": "Nice try, Ben. I saw that bluff from across the room.", "emotion": "smug", "voice": "af_heart", "covers": ["emotion", "names"] },
+  { "label": "numbers", "text": "Raising to 1,250. That's 3.5 times the big blind, and the pot is $4,800.", "emotion": "confident", "voice": "am_adam", "covers": ["numbers"] },
+  { "label": "names", "text": "Siobhan, Nguyen and Marguerite all folded, so it's down to Xavier and me.", "emotion": "neutral", "voice": "bf_emma", "covers": ["names"] },
+  { "label": "worried thought", "text": "That's a big bet. Please don't have the ace.", "emotion": "worried", "thought": true, "voice": "bf_emma", "covers": ["emotion", "quiet"] },
+  { "label": "excited rush", "text": "All in! Nobody breathe.", "emotion": "excited", "voice": "af_heart", "covers": ["emotion", "short"] },
+  { "label": "sad bust-out", "text": "Well, that's all my chips gone. It was a fun game, though.", "emotion": "sad", "voice": "am_adam", "covers": ["emotion"] },
+  { "label": "angry fold", "text": "Fold. And I'm not happy about it, not even a little.", "emotion": "angry", "voice": "am_adam", "covers": ["emotion"] },
+  { "label": "question", "text": "Wait, you had a flush the whole time? Why on earth did you check?", "emotion": "surprised", "voice": "af_heart", "covers": ["question", "intonation"] },
+  { "label": "long story", "text": "I once folded a full house because I thought the dealer had misdealt, and I'm still not sure whether I was right. Anyway, it taught me to count the cards, then count them again, and never to trust a man who smiles that much.", "emotion": "happy", "voice": "bf_emma", "covers": ["long", "pacing"] }
 ]

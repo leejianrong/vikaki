@@ -11,6 +11,8 @@ export interface BenchLine {
   /** A spoken inner monologue: quiet. */
   thought?: boolean;
   voice?: string;
+  /** What the line tests (short, long, numbers, names, emotion...), so a listener knows what to listen for (VIK-142). */
+  covers?: string[];
 }
 
 export interface BenchResult {
@@ -18,6 +20,8 @@ export interface BenchResult {
   characters: number;
   /** Milliseconds from asking to the first audio. */
   firstAudioMs: number | undefined;
+  /** How many pieces of audio the engine yielded: 1 means it did not stream. */
+  chunks: number;
   /** Milliseconds to make the whole line. */
   totalMs: number;
   /** How long the audio plays. */
@@ -52,7 +56,7 @@ export async function runBench(tts: Tts, lines: BenchLine[], now: () => number =
     let at = 0;
     for (const p of parts) (samples.set(p, at), (at += p.length));
     const seconds = samples.length / rate;
-    out.push({ label: line.label, characters: line.text.length, firstAudioMs: first, totalMs: total, audioSeconds: seconds, realtimeFactor: total > 0 ? seconds / (total / 1000) : 0, samples, sampleRate: rate, ...(error ? { error } : {}) });
+    out.push({ label: line.label, characters: line.text.length, firstAudioMs: first, chunks: parts.length, totalMs: total, audioSeconds: seconds, realtimeFactor: total > 0 ? seconds / (total / 1000) : 0, samples, sampleRate: rate, ...(error ? { error } : {}) });
   }
   return out;
 }
@@ -88,9 +92,47 @@ export function report(engine: string, results: BenchResult[]): string {
   return [
     `### ${engine}`,
     "",
-    "| Line | Chars | First audio | Total | Audio | Speed |",
-    "| --- | --- | --- | --- | --- | --- |",
-    ...results.map((r) => (r.error ? `| ${r.label} | ${r.characters} | failed: ${r.error} | | | |` : `| ${r.label} | ${r.characters} | ${Math.round(r.firstAudioMs ?? 0)} ms | ${Math.round(r.totalMs)} ms | ${r.audioSeconds.toFixed(1)} s | ${r.realtimeFactor.toFixed(1)}x |`)),
-    `| **mean** | | ${Math.round(mean((r) => r.firstAudioMs))} ms | ${Math.round(mean((r) => r.totalMs))} ms | ${mean((r) => r.audioSeconds).toFixed(1)} s | ${mean((r) => r.realtimeFactor).toFixed(1)}x |`,
+    "| Line | Chars | First audio | Total | Audio | Speed | Chunks |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ...results.map((r) => (r.error ? `| ${r.label} | ${r.characters} | failed: ${r.error} | | | | |` : `| ${r.label} | ${r.characters} | ${Math.round(r.firstAudioMs ?? 0)} ms | ${Math.round(r.totalMs)} ms | ${r.audioSeconds.toFixed(1)} s | ${r.realtimeFactor.toFixed(1)}x | ${r.chunks} |`)),
+    `| **mean** | | ${Math.round(mean((r) => r.firstAudioMs))} ms | ${Math.round(mean((r) => r.totalMs))} ms | ${mean((r) => r.audioSeconds).toFixed(1)} s | ${mean((r) => r.realtimeFactor).toFixed(1)}x | |`,
   ].join("\n");
+}
+
+/** A small seeded generator, so a blind listening set shuffles the same way every time it is asked to. */
+function seeded(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export interface BlindEntry {
+  /** The name a listener sees (`A01`...): no engine, no line order. */
+  code: string;
+  engine: string;
+  label: string;
+}
+
+/**
+ * Codes for every (engine, line) clip, in a shuffled order, so a listener scores clips without knowing which engine made them (VIK-142). The same inputs and
+ * seed give the same codes. The caller keeps the returned list apart from the audio: it is the answer key.
+ */
+export function blindKey(clips: { engine: string; label: string }[], seed = 1): BlindEntry[] {
+  const rand = seeded(seed);
+  const order = clips.map((c, i) => ({ c, i }));
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j]!, order[i]!];
+  }
+  return order.map(({ c }, n) => ({ code: `A${String(n + 1).padStart(2, "0")}`, engine: c.engine, label: c.label }));
+}
+
+/** Results as plain data (no audio), to keep as a baseline and compare against later. */
+export function resultsJson(engine: string, results: BenchResult[]) {
+  return results.map(({ samples: _samples, ...r }) => ({ engine, ...r }));
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FakeTts, report, runBench, TtsError, toWav, type SynthesisRequest, type Tts } from "../src/index.ts";
+import { blindKey, FakeTts, report, resultsJson, runBench, TtsError, toWav, type SynthesisRequest, type Tts } from "../src/index.ts";
 
 describe("runBench", () => {
   it("times each line, keeps its audio, passes the tone for its emotion, and reports a failure without stopping", async () => {
@@ -37,5 +37,27 @@ describe("runBench", () => {
     const bad: Tts = { name: "bad", synthesize: async function* () { throw new TtsError("HTTP 401"); } };
     const [r] = await runBench(bad, [{ label: "x", text: "hello" }]);
     expect(r!.error).toBe("HTTP 401");
+  });
+});
+
+describe("blind listening set (VIK-142)", () => {
+  const clips = ["kokoro", "other"].flatMap((engine) => ["a", "b", "c", "d"].map((label) => ({ engine, label })));
+
+  it("gives every clip its own code, the same ones for the same seed, and hides the order", () => {
+    const k = blindKey(clips, 7);
+    expect(new Set(k.map((e) => e.code)).size).toBe(clips.length);
+    expect(k.map((e) => e.code)).toEqual(clips.map((_, i) => `A${String(i + 1).padStart(2, "0")}`));
+    expect(blindKey(clips, 7)).toEqual(k);
+    expect(blindKey(clips, 8)).not.toEqual(k);
+    expect(k.map((e) => `${e.engine}/${e.label}`).sort()).toEqual(clips.map((c) => `${c.engine}/${c.label}`).sort());
+    expect(k.map((e) => `${e.engine}/${e.label}`)).not.toEqual(clips.map((c) => `${c.engine}/${c.label}`));
+  });
+
+  it("counts chunks and keeps audio out of the baseline data", async () => {
+    const [r] = await runBench(new FakeTts({ sampleRate: 16000, msPerChar: 50, chunkMs: 100 }), [{ label: "x", text: "Hello there, friend." }]);
+    expect(r!.chunks).toBeGreaterThan(1);
+    const [row] = resultsJson("fake", [r!]);
+    expect(row).toMatchObject({ engine: "fake", label: "x", chunks: r!.chunks });
+    expect(row).not.toHaveProperty("samples");
   });
 });
