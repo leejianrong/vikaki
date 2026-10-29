@@ -77,12 +77,23 @@ describe("vikaki serve reads its settings from VIKAKI_* variables (VIK-126)", ()
   it("a bad value names the variable and does not start; an empty one counts as unset", async () => {
     const bad = await run([], { VIKAKI_TTS: "loud" }, () => false);
     expect(bad.code).toBe(1);
-    expect(bad.err).toMatch(/VIKAKI_TTS must be auto, kokoro, fake or none, not "loud"/);
+    expect(bad.err).toMatch(/VIKAKI_TTS must be auto, kokoro, chatterbox, fake or none, not "loud"/);
     const badFrame = await run([], { VIKAKI_TTS: "fake", VIKAKI_FRAME_ANCESTORS: "*" }, () => false);
     expect(badFrame.code).toBe(1);
     expect(badFrame.err).toMatch(/wildcards/);
     const empty = await run([], { VIKAKI_TTS: "fake", VIKAKI_TOKEN: "", VIKAKI_FRAME_ANCESTORS: "", VIKAKI_PERSONAS: "" }, framing);
     expect(empty.out).not.toContain("token required");
     expect(empty.out).toContain("(--frame-ancestors to change)");
+  }, 60_000);
+
+  it("--tts chatterbox needs CHATTERBOX_URL, says where it will speak (no key), and starts without calling the server (VIK-146)", async () => {
+    const none = await run([], { VIKAKI_TTS: "chatterbox", CHATTERBOX_URL: "" }, () => false);
+    expect(none.code).toBe(1);
+    expect(none.err).toMatch(/CHATTERBOX_URL/);
+    const secret = "cb-secret-should-never-print";
+    const up = await run([], { VIKAKI_TTS: "chatterbox", CHATTERBOX_URL: "http://127.0.0.1:9/v1", CHATTERBOX_API_KEY: secret }, framing);
+    expect(up.out).toContain("speech: chatterbox");
+    expect(up.out).toContain("chatterbox server at http://127.0.0.1:9");
+    expect(up.out + up.err).not.toContain(secret);
   }, 60_000);
 });

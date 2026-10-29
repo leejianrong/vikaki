@@ -29,8 +29,17 @@ export interface SpeechApiOptions {
   bodyFor?: (req: SynthesisRequest) => Record<string, unknown>;
   /** Cut the style to this many characters (the provider's limit). */
   maxStyleChars?: number;
+  /** Give up on one request after this many milliseconds (an error, not a hang). Default: none. */
+  timeoutMs?: number;
+  /** How many more times to ask for the same text after a dropped connection, a time-out or an HTTP 429/5xx, before any audio of it has played. Default 0. */
+  retries?: number;
+  /** Wait before a retry, times the attempt number. Default 300. */
+  retryDelayMs?: number;
   fetch?: typeof fetch;
 }
+
+/** A refusal that asking again will not change: any 4xx but "too many requests" and "request timeout". */
+const permanent = (status: number) => status >= 400 && status < 500 && status !== 429 && status !== 408;
 
 const scrub = (text: string, secret: string | undefined) => (secret ? text.split(secret).join("[key]") : text).slice(0, 300);
 
@@ -53,22 +62,39 @@ export class SpeechApiTts implements Tts {
     const voice = (req.voice && this.o.voiceMap?.[req.voice]) ?? this.o.defaultVoice;
     const style = req.style && this.o.maxStyleChars ? req.style.slice(0, this.o.maxStyleChars) : req.style;
     const body = { model: this.o.model, input: req.text, voice, response_format: "pcm", ...(style ? { instructions: style } : {}), ...this.o.extraBody, ...this.o.bodyFor?.(req) };
-    let res: Response;
-    try {
-      res = await (this.o.fetch ?? fetch)(`${this.o.baseUrl.replace(/\/+$/, "")}/audio/speech`, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...(key ? { authorization: `Bearer ${key}` } : {}) },
-        body: JSON.stringify(body),
-        ...(req.signal ? { signal: req.signal } : {}),
-      });
-    } catch (err) {
-      if (req.signal?.aborted) return;
-      throw new TtsError(`${this.name}: could not reach the server (${scrub(String((err as Error)?.message ?? err), key)})`);
+    const url = `${this.o.baseUrl.replace(/\/+$/, "")}/audio/speech`;
+    const attempts = 1 + Math.max(0, this.o.retries ?? 0);
+    let res: Response | undefined;
+    let failure = "";
+    for (let attempt = 1; attempt <= attempts && !res; attempt++) {
+      if (attempt > 1) {
+        await new Promise((r) => setTimeout(r, (this.o.retryDelayMs ?? 300) * (attempt - 1)));
+        if (req.signal?.aborted) return;
+      }
+      const timeout = this.o.timeoutMs ? AbortSignal.timeout(this.o.timeoutMs) : undefined;
+      const signal = req.signal && timeout ? AbortSignal.any([req.signal, timeout]) : (req.signal ?? timeout);
+      let got: Response;
+      try {
+        got = await (this.o.fetch ?? fetch)(url, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(key ? { authorization: `Bearer ${key}` } : {}) },
+          body: JSON.stringify(body),
+          ...(signal ? { signal } : {}),
+        });
+      } catch (err) {
+        if (req.signal?.aborted) return;
+        failure = timeout?.aborted ? `timed out after ${this.o.timeoutMs} ms` : `could not reach the server (${scrub(String((err as Error)?.message ?? err), key)})`;
+        continue;
+      }
+      if (got.ok) {
+        res = got;
+        break;
+      }
+      const detail = await got.text().catch(() => "");
+      failure = `HTTP ${got.status}${detail ? ` ${scrub(detail, key)}` : ""}`;
+      if (permanent(got.status)) break;
     }
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      throw new TtsError(`${this.name}: HTTP ${res.status}${detail ? ` ${scrub(detail, key)}` : ""}`);
-    }
+    if (!res) throw new TtsError(`${this.name}: ${failure}`);
     if (!res.body) throw new TtsError(`${this.name}: the answer had no audio`);
     const reader = res.body.getReader();
     let carry: Uint8Array = new Uint8Array(0);

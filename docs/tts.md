@@ -6,7 +6,7 @@ Vikaki speaks through a `Tts` interface (`packages/tts`). Engines yield audio as
 | --- | --- | --- |
 | `FakeTts` | Tests and development. Deterministic "aah" audio, timing you can predict | Nothing |
 | `KokoroTts` | Real local speech, on CPU (ADR-0010). **The default** (ADR-0050) | `kokoro-js`, installed separately |
-| `ChatterboxTts` | A Chatterbox server of your own, such as a RunPod GPU pod. Slow for live play: 4 s to first audio, 0.77x real time on an RTX 4090 ([spike](spikes/chatterbox.md)). In the bench only, not `--tts` | A server (`spikes/chatterbox/run.sh`), `CHATTERBOX_URL` |
+| `ChatterboxTts` | A Chatterbox server of your own, such as a RunPod GPU pod: more expressive than Kokoro by ear, at its chosen slower pace. Slow for live play: about 4 s to first audio on an RTX 4090 ([spike](spikes/chatterbox.md)). `--tts chatterbox` (below) | A server (`spikes/chatterbox/run.sh`), `CHATTERBOX_URL` |
 | `SpeechApiTts` | Any OpenAI-style `/v1/audio/speech` server. OpenAI's own model shuts down 2027-01-06 ([comparison](spikes/hosted-tts.md)). In the bench only | A key or a server |
 
 Kokoro stays the default and a better voice is opt-in and chosen by ear: [ADR-0050](adr/0050-kokoro-stays-the-default-voice-others-are-opt-in-and-chosen-by-ear.md). How to judge a voice: [voice-rubric.md](voice-rubric.md). Any new adapter must set `AudioChunk.text` on a chunk that holds a whole piece, so `--phonemes` works.
@@ -30,6 +30,17 @@ cd .vikaki/voice && npm install kokoro-js --onnxruntime-node-install-cuda=skip
 - About 410 MB installed. The first run downloads a model of about 330 MB (full-precision weights: three times faster to first audio than the 90 MB 8-bit ones on the machine measured, VIK-116; `VIKAKI_KOKORO_DTYPE=q8` or `fp16` picks another).
 - Measured on a laptop CPU: roughly 0.75x real time, so a short first sentence takes about 1.6 s.
 - To run the real-engine test: `VIKAKI_KOKORO_PATH=$PWD/.vikaki/voice/node_modules/kokoro-js/dist/kokoro.js pnpm --filter @vikaki/tts test`.
+
+## Chatterbox (opt-in, VIK-146)
+
+`vikaki serve --tts chatterbox` (or `VIKAKI_TTS=chatterbox`) speaks through a Chatterbox server you run yourself; Vikaki starts without calling it and says where it will speak. Settings, all from the environment:
+
+| Variable | Meaning |
+| --- | --- |
+| `CHATTERBOX_URL` | The server's address up to `/v1`, such as `http://host:8000/v1` (required) |
+| `CHATTERBOX_API_KEY` | The server's bearer key, if it wants one. Goes only into the `Authorization` header; never printed or put in an error |
+
+What the adapter does: each sentence is cut into pieces of at most 200 characters and each piece is one request (Chatterbox does not stream inside a sentence), the next piece asked for while the last plays; one more try after a dropped connection, a time-out (a minute a piece) or an HTTP 429/5xx, never after a 4xx such as a wrong key; cancel stops the requests; each piece carries its words, so `--phonemes` and the mouth work. The pace is the one Jian chose by ear from three blind variants (VIK-150): every emotion's `exaggeration` 0.3 lower and `cfg_weight` at most 0.2, about 17% slower than Chatterbox's own and still expressive; `ChatterboxTts({ pace: null })` is Chatterbox's own, `pace: {...}` your own. Chatterbox puts an inaudible watermark in everything it makes (Resemble AI's Perth, always on). Running a server on a rented GPU, what it costs and the teardown: [spikes/chatterbox.md](spikes/chatterbox.md). The speech is slow to start (seconds, not Kokoro's under one), so it suits lines a game can prepare or wait for, not a quick back-and-forth. Kokoro stays the default ([ADR-0050](adr/0050-kokoro-stays-the-default-voice-others-are-opt-in-and-chosen-by-ear.md)).
 
 ## Where engines run
 
