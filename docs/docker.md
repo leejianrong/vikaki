@@ -26,7 +26,7 @@ A container is configured through its environment, so a compose file does not ha
 
 | Variable | Flag | Value |
 | --- | --- | --- |
-| `VIKAKI_TTS` | `--tts` | `auto` (default), `kokoro`, `fake` or `none` |
+| `VIKAKI_TTS` | `--tts` | `auto` (default), `kokoro`, `chatterbox` (needs `CHATTERBOX_URL`, and `CHATTERBOX_API_KEY` if the server wants one; [tts.md](tts.md#chatterbox-opt-in-vik-146)), `fake` or `none` |
 | `VIKAKI_TOKEN` | `--token` | a secret the driver must send in `hello` |
 | `VIKAKI_FRAME_ANCESTORS` | `--frame-ancestors` | comma-separated origins that may embed the avatar page, or `none` |
 | `VIKAKI_PERSONAS` | `--personas` | path of a personas file, such as `/data/personas.yaml` |

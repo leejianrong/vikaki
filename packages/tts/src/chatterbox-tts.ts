@@ -11,9 +11,12 @@ import type { AudioChunk, SynthesisRequest, Tts } from "./types.ts";
 export interface ChatterboxOptions extends Partial<SpeechApiOptions> {
   /** The longest piece asked for in one request, in characters. Default 200. */
   maxPieceChars?: number;
-  /** Slows the speech (VIK-150). Chatterbox has no speed setting; high exaggeration and a high cfg_weight both make it faster. */
-  pace?: ChatterboxPace;
+  /** Slows the speech (VIK-150). Chatterbox has no speed setting; high exaggeration and a high cfg_weight both make it faster. Default `CHATTERBOX_PACE`; `null` is Chatterbox's own numbers. */
+  pace?: ChatterboxPace | null;
 }
+
+/** The pace Jian chose by ear from three blind variants (VIK-150, docs/spikes/chatterbox.md): about 17% slower than Chatterbox's own, and still expressive. */
+export const CHATTERBOX_PACE: ChatterboxPace = { exaggerationDelta: -0.3, cfgWeightCap: 0.2 };
 
 export interface ChatterboxPace {
   /** Added to every emotion's exaggeration (negative is slower and flatter). The result never goes below 0.25. */
@@ -51,12 +54,14 @@ export class ChatterboxTts implements Tts {
   private readonly maxPiece: number;
 
   constructor(options: ChatterboxOptions = {}) {
-    const { maxPieceChars, pace, ...rest } = options;
+    const { maxPieceChars, pace = CHATTERBOX_PACE, ...rest } = options;
     this.maxPiece = maxPieceChars ?? 200;
     this.api = new SpeechApiTts({
       ...PROVIDERS.chatterbox(),
+      timeoutMs: 60_000, // one piece is at most 200 characters: seconds on a GPU, so a minute means the server is stuck
+      retries: 1,
       // `style` is words, which Chatterbox does not read (the server ignores `instructions`); the emotion goes as numbers.
-      bodyFor: (req) => chatterboxParams(req.emotion, req.style?.startsWith("Muttering"), pace),
+      bodyFor: (req) => chatterboxParams(req.emotion, req.style?.startsWith("Muttering"), pace ?? undefined),
       ...rest,
     });
   }

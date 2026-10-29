@@ -1,8 +1,8 @@
 # ADR-0050: Kokoro stays the default voice; a better voice is opt-in and chosen by ear
 
-- Status: Proposed (VIK-145): the facts below are measured or researched, but **nobody has scored the voices by ear yet**, and the choice of a second voice is Jian's. Accept it, or send it back with the listening scores.
+- Status: Accepted. Proposed in VIK-145; Jian then listened to the Chatterbox clips (more expressive than Kokoro) and, after the pace experiment (VIK-150), chose the slowest variant tested (`exaggeration` -0.3, `cfg_weight` at most 0.2) as the opt-in voice. Built as `--tts chatterbox` in VIK-146. Kokoro is still the default.
 - Date: 2026-10-27
-- Deciders: Claude (recommendation); Jian to decide
+- Deciders: Claude (recommendation); Jian (accepted 2026-10-30)
 
 ## Context
 

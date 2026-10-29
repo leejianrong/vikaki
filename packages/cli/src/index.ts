@@ -14,11 +14,11 @@ import { hubUrl } from "./hub-client.ts";
 import { resolve } from "node:path";
 import { formatChecks, realDoctorEnv, runDoctor } from "./doctor.ts";
 import { findVoice, INSTALL_COMMAND } from "./voice.ts";
-import { FakeTts, KokoroTts, type Tts } from "@vikaki/tts";
+import { ChatterboxTts, FakeTts, KokoroTts, type Tts } from "@vikaki/tts";
 
 const USAGE = `usage: vikaki doctor            check that everything the demos need is in place
        vikaki serve [--port N] [--host 127.0.0.1] [--static <dir>] [--demo | --speech-demo] [--open]
-                    [--tts auto|kokoro|fake|none] [--voice <id>] [--token <secret>] [--frame-ancestors <origins|none>] [--debug-dir <dir|off>]
+                    [--tts auto|kokoro|chatterbox|fake|none] [--voice <id>] [--token <secret>] [--frame-ancestors <origins|none>] [--debug-dir <dir|off>]
                     [--event-log <file.jsonl>] [--personas <personas.yaml>]
                     [--headless [--audio-only] [--gpu] [--chrome <path>]]
        vikaki stream [serve options] [--size 1280x720] [--fps 15] [--quality 80] [--background fff1e8|green] [--stream-persona <name>]
@@ -89,6 +89,19 @@ function openBrowser(url: string): void {
 async function chooseTts(kind: string, voice: string | undefined, pieces = false): Promise<{ tts: Tts; voice?: string } | undefined> {
   if (kind === "none") return undefined;
   if (kind === "fake") return { tts: new FakeTts({ pieces }) };
+  if (kind === "chatterbox") {
+    // A Chatterbox server of your own (docs/tts.md, spikes/chatterbox/); the key, if it wants one, is CHATTERBOX_API_KEY and is never printed.
+    const url = process.env.CHATTERBOX_URL;
+    if (!url) throw new Error("--tts chatterbox needs CHATTERBOX_URL, the server's address up to /v1 (see docs/tts.md)");
+    let origin: string;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      throw new Error("CHATTERBOX_URL is not a web address, such as http://host:8000/v1");
+    }
+    console.log(`speech: using the chatterbox server at ${origin} (nothing is sent until a line is said)`);
+    return { tts: new ChatterboxTts({ baseUrl: url }) };
+  }
   const found = findVoice();
   if (!found && kind === "auto") {
     console.log("");
@@ -188,8 +201,8 @@ async function serve(argv: string[]): Promise<void> {
   // A container is configured through its environment (VIK-126): each setting has a VIKAKI_* variable, and the flag wins.
   const env = process.env;
   const ttsMode = values.tts ?? env.VIKAKI_TTS ?? "auto";
-  if (!["auto", "kokoro", "fake", "none"].includes(ttsMode)) {
-    console.error(`${values.tts !== undefined ? "--tts" : "VIKAKI_TTS"} must be auto, kokoro, fake or none, not "${ttsMode}"`);
+  if (!["auto", "kokoro", "chatterbox", "fake", "none"].includes(ttsMode)) {
+    console.error(`${values.tts !== undefined ? "--tts" : "VIKAKI_TTS"} must be auto, kokoro, chatterbox, fake or none, not "${ttsMode}"`);
     process.exit(1);
   }
   const streaming = values.stream;

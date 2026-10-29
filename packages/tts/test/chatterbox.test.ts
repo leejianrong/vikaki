@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ChatterboxTts, chatterboxParams, styleFor, TtsError, type AudioChunk } from "../src/index.ts";
+import { ChatterboxTts, CHATTERBOX_PACE, chatterboxParams, styleFor, TtsError, type AudioChunk } from "../src/index.ts";
 
 const pcm = (n: number, value = 1000) => {
   const b = new Uint8Array(n * 2);
@@ -39,7 +39,7 @@ describe("ChatterboxTts", () => {
     expect(chunks[0]!.text).toBe("Nice try, Ben.");
     expect(chunks[0]!.samples.length).toBe(14 * 10 * 2);
     expect(calls[0]!.url).toBe("http://pod.test/v1/audio/speech");
-    expect(calls[0]!.body).toMatchObject({ input: "Nice try, Ben.", response_format: "pcm", ...chatterboxParams("smug") });
+    expect(calls[0]!.body).toMatchObject({ input: "Nice try, Ben.", response_format: "pcm", ...chatterboxParams("smug", false, CHATTERBOX_PACE) });
     expect(calls[0]!.headers.authorization).toBe(`Bearer ${SECRET}`);
     expect(JSON.stringify(calls[0]!.body)).not.toContain(SECRET);
   });
@@ -101,11 +101,60 @@ describe("Chatterbox pace (VIK-150)", () => {
     expect(chatterboxParams("sad", false, { exaggerationDelta: -5, cfgWeightCap: 0.3 }).exaggeration).toBe(0.25);
   });
 
-  it("sends the slowed numbers to the server, and the plain ones when no pace is set", async () => {
+  it("sends the slowed numbers to the server, the plain ones for `pace: null`, and the chosen pace by default", async () => {
     const { f, calls } = fakeServer();
     await collect(make(f, { pace: { exaggerationDelta: -0.25, cfgWeightCap: 0.2 } }).synthesize({ text: "Fold.", emotion: "excited" }));
+    await collect(make(f, { pace: null }).synthesize({ text: "Fold.", emotion: "excited" }));
     await collect(make(f).synthesize({ text: "Fold.", emotion: "excited" }));
     expect(calls[0]!.body).toMatchObject({ exaggeration: 0.65, cfg_weight: 0.2 });
-    expect(calls[1]!.body).toMatchObject({ exaggeration: 0.9, cfg_weight: 0.35 });
+    expect(calls[1]!.body).toMatchObject({ exaggeration: 0.9, cfg_weight: 0.35 }); // pace: null is Chatterbox's own numbers
+    expect(calls[2]!.body.exaggeration).toBeCloseTo(0.6);
+    expect(calls[2]!.body.cfg_weight).toBe(0.2); // the default is the pace Jian chose by ear (VIK-150, variant -0.3,0.2)
+  });
+});
+
+describe("ChatterboxTts hardening (VIK-146)", () => {
+  const ok = () => new Response(new ReadableStream({ start(c) { c.enqueue(pcm(100)); c.close(); } }));
+  const flaky = (answers: (() => Response | Promise<Response>)[]) => {
+    let n = 0;
+    const f = (async () => answers[Math.min(n++, answers.length - 1)]!()) as unknown as typeof fetch;
+    return { f, count: () => n };
+  };
+
+  it("tries a piece again after a server error or a dropped connection, and yields its audio once", async () => {
+    const { f, count } = flaky([() => new Response("busy", { status: 503 }), () => { throw new Error("socket hang up"); }, ok]);
+    const chunks = await collect(make(f, { retries: 2, retryDelayMs: 0 }).synthesize({ text: "Call." }));
+    expect(chunks).toHaveLength(1);
+    expect(count()).toBe(3);
+  });
+
+  it("does not retry a refusal that will not change (a wrong key, a bad request)", async () => {
+    const { f, count } = flaky([() => new Response("nope", { status: 401 }), ok]);
+    await expect(collect(make(f, { retries: 3, retryDelayMs: 0 }).synthesize({ text: "Call." }))).rejects.toBeInstanceOf(TtsError);
+    expect(count()).toBe(1);
+  });
+
+  it("gives up after its retries with an error that does not contain the key", async () => {
+    const { f, count } = flaky([() => new Response(`down, key ${SECRET}`, { status: 502 })]);
+    const err = await collect(make(f, { retries: 1, retryDelayMs: 0 }).synthesize({ text: "Call." })).catch((e) => e as Error);
+    expect(err).toBeInstanceOf(TtsError);
+    expect((err as Error).message).toContain("502");
+    expect((err as Error).message).not.toContain(SECRET);
+    expect(count()).toBe(2);
+  });
+
+  it("treats a server that never answers as an error after the time limit, not a hang", async () => {
+    const hang = ((_u: string, req: { signal?: AbortSignal }) => new Promise((_, reject) => req.signal?.addEventListener("abort", () => reject(new Error("aborted"))))) as unknown as typeof fetch;
+    const err = await collect(make(hang, { timeoutMs: 5, retries: 0 }).synthesize({ text: "Call." })).catch((e) => e as Error);
+    expect(err).toBeInstanceOf(TtsError);
+    expect((err as Error).message).toMatch(/timed out/);
+  });
+
+  it("stops quietly, with no more requests, when the caller cancels during a retry", async () => {
+    const ctl = new AbortController();
+    const { f, count } = flaky([() => { ctl.abort(); return new Response("busy", { status: 503 }); }, ok]);
+    const chunks = await collect(make(f, { retries: 3, retryDelayMs: 0 }).synthesize({ text: "Call.", signal: ctl.signal }));
+    expect(chunks).toHaveLength(0);
+    expect(count()).toBe(1);
   });
 });

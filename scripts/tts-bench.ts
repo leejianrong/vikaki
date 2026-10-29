@@ -34,10 +34,11 @@ const { values } = parseArgs({
   },
 });
 
-/** CHATTERBOX_PACE="-0.15,0.3" is the exaggeration delta and the cfg_weight cap (VIK-150); unset is Chatterbox as the adapter has it. */
+/** CHATTERBOX_PACE="-0.15,0.3" is the exaggeration delta and the cfg_weight cap (VIK-150); unset is the adapter's default pace; "none" is Chatterbox's own numbers. */
 function chatterboxPaceFromEnv() {
   const v = process.env.CHATTERBOX_PACE;
   if (!v) return undefined;
+  if (v === "none") return null;
   const [d, c] = v.split(",").map(Number);
   if (!Number.isFinite(d) || !Number.isFinite(c)) throw new Error('CHATTERBOX_PACE is "exaggerationDelta,cfgWeightCap", such as "-0.15,0.3"');
   return { exaggerationDelta: d!, cfgWeightCap: c! };
