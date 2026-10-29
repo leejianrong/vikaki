@@ -63,13 +63,13 @@ docker run --rm -p 127.0.0.1:8787:8787 vikaki                        # then open
 docker run --rm -p 127.0.0.1:8787:8787 vikaki-render stream --host 0.0.0.0 --port 8787
 ```
 
-`make docker-build` also builds `vikaki-kokoro`, the small image with the real voice baked in (about 1.3 GB). Configuration is by environment variables (`VIKAKI_TOKEN`, `VIKAKI_TTS`, ...), and a compose file with a game beside the hub is in [examples/compose](examples/compose/README.md). See [docs/docker.md](docs/docker.md).
+`make docker-build` also builds `vikaki-kokoro`, the small image with the real voice baked in (about 1.3 GB; built locally, never published, because Kokoro's runtime carries GPL-3.0 eSpeak NG). Configuration is by environment variables (`VIKAKI_TOKEN`, `VIKAKI_TTS`, ...), and a compose file with a game beside the hub is in [examples/compose](examples/compose/README.md). See [docs/docker.md](docs/docker.md).
 
 **Be your camera in a meeting.** `make extension` builds a browser extension that replaces your camera in Google Meet (and Teams or Zoom web) with the avatar, lip-synced to your microphone. In Chrome or Edge open `chrome://extensions`, turn on Developer mode, **Load unpacked**, choose `packages/extension/dist` (from Windows, browse to the folder in WSL through `\\wsl.localhost\<distro>\...`). Its [README](packages/extension/README.md) has the details. **Not yet tried on a real call**, and not yet tried inside OBS: the extension is tested against a stand-in page, and the video feed against ffplay and `ffprobe`.
 
 ## Versions and what stays stable
 
-A release is a git tag, `vMAJOR.MINOR.PATCH`, and it publishes the image (`ghcr.io/leejianrong/vikaki:<version>`, `:<major.minor>`, `:latest`; the voice image with `-kokoro`) and the Python client (`vikaki-client`) at the same version ([docs/release.md](docs/release.md), which also says how to verify the signature and read the SBOM). Notes for each release are in [docs/releases](docs/releases).
+A release is a git tag, `vMAJOR.MINOR.PATCH`, and it publishes the image (`ghcr.io/leejianrong/vikaki:<version>`, `:<major.minor>`, `:latest`) and the Python client (`vikaki-client`) at the same version ([docs/release.md](docs/release.md), which also says how to verify the signature and read the SBOM). Notes for each release are in [docs/releases](docs/releases).
 
 **The promise:** `protocol_version` is `1`, and it only grows by adding: a new message, a new optional field, a new URL parameter or a new setting may appear in any release; nothing is renamed, removed or changed in meaning within a major version. That covers the [WebSocket protocol](docs/protocol.md), the [embed messages and URL parameters](docs/embed.md#stability-what-a-game-can-rely-on-vik-132), the [personas file format and paths](docs/personas.md#what-a-game-can-rely-on-vik-131) and the environment variables in [docs/docker.md](docs/docker.md). A breaking change waits for the next major version and is announced in the release notes first. Before 1.0 the *engine's* internals (the poker example, the page's look, anything not named above) can change in any minor release.
 

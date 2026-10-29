@@ -68,7 +68,7 @@ A complete, runnable wiring of a game beside the hub (a stand-in game, loopback 
 
 ## The real voice
 
-`vikaki-kokoro` speaks with Kokoro ([ADR-0010](adr/0010-kokoro-for-local-tts.md): Apache-2.0, run locally on the CPU). It is the small image plus what `make install-voice` installs: `kokoro-js` with its native ONNX runtime, and the model (full precision, about 330 MB). The build loads the model and makes it speak once, so an image whose native runtime does not work in the container is never produced. The model is **in the image**, so the first start needs no network and no download: the hub is healthy in about 5 seconds and the first line comes a second or so after its text (about 0.9 s to first audio on the development machine, CPU only).
+`vikaki-kokoro` is **built by you, not published** (its Kokoro runtime carries eSpeak NG, GPL-3.0; [ADR-0051](adr/0051-no-published-voice-image-and-kokoro-without-espeak-is-the-goal.md)), and speaks with Kokoro ([ADR-0010](adr/0010-kokoro-for-local-tts.md): Apache-2.0, run locally on the CPU). It is the small image plus what `make install-voice` installs: `kokoro-js` with its native ONNX runtime, and the model (full precision, about 330 MB). The build loads the model and makes it speak once, so an image whose native runtime does not work in the container is never produced. The model is **in the image**, so the first start needs no network and no download: the hub is healthy in about 5 seconds and the first line comes a second or so after its text (about 0.9 s to first audio on the development machine, CPU only).
 
 ```bash
 docker build --target vikaki-kokoro -t vikaki-kokoro .

@@ -50,5 +50,5 @@ The seated pose (ADR-0019) is tuned per avatar: Cookieman and Snowy have numbers
 
 | Component | Where it comes from | Licence | Note |
 | --- | --- | --- | --- |
-| `kokoro-js` and the Kokoro-82M model | `make install-voice`, the `vikaki-kokoro` image | Apache-2.0 | ADR-0010 |
+| `kokoro-js` and the Kokoro-82M model | `make install-voice`, the `vikaki-kokoro` image | Apache-2.0 | ADR-0010; the image is built locally, not published (ADR-0051) |
 | `phonemizer` (wrapper) with eSpeak NG compiled to WebAssembly | a dependency of `kokoro-js`, used by it to make the model's input | wrapper Apache-2.0; **eSpeak NG GPL-3.0-or-later** | Not used by Vikaki's own code (ADR-0049). Part of the optional Kokoro install, never in the workspace. The `vikaki-kokoro` image therefore redistributes eSpeak NG under the GPL-3.0: see docs/tts.md. |
