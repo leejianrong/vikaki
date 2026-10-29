@@ -8,6 +8,8 @@ export interface KokoroOptions {
   /** Weight precision: fp32 (about 330 MB) by default, which was three times faster than q8 (about 90 MB) on the machine it was measured on (VIK-116). `VIKAKI_KOKORO_DTYPE` sets it too. */
   dtype?: "q8" | "q4" | "fp16" | "fp32";
   voice?: string;
+  /** Where the model's input comes from: `espeak` (kokoro-js's own path, GPL-3.0 eSpeak NG) or `own` (our dictionary phonemes, no eSpeak). `VIKAKI_KOKORO_G2P` sets the default (ADR-0051). */
+  g2p?: "espeak" | "own";
   /** Where to import kokoro-js from. Defaults to the package name; tests can pass a file path. */
   importFrom?: string;
   /** Run in this thread instead of a worker. Only for measuring and debugging: it holds the process during synthesis. */

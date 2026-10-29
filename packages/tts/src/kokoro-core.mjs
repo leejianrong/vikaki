@@ -1,7 +1,8 @@
 // Loading Kokoro and making speech with it, as plain JavaScript so a worker thread can run it (see WorkerTts and
 // KokoroTts). `create` returns an engine: { name, voices, synthesize(request) }.
 
-import { chosenDtype } from "./kokoro-defaults.mjs";
+import { chosenDtype, chosenG2p } from "./kokoro-defaults.mjs";
+import { kokoroPhonemes } from "./kokoro-phonemes.mjs";
 import { gapAfter, splitLong, trimSilence } from "./split-text.mjs";
 
 /** The longest stretch of text made in one call. A call cannot be interrupted, so this is the most a cancel can wait for (about 2 seconds). */
@@ -16,7 +17,7 @@ const INSTALL_HINT =
 
 const failure = (message, cause) => Object.assign(new Error(message, { cause }), { code: "tts_failed" });
 
-export async function create({ importFrom = "kokoro-js", model = "onnx-community/Kokoro-82M-v1.0-ONNX", dtype = chosenDtype(), voice = "af_heart" } = {}) {
+export async function create({ importFrom = "kokoro-js", model = "onnx-community/Kokoro-82M-v1.0-ONNX", dtype = chosenDtype(), voice = "af_heart", g2p = chosenG2p() } = {}) {
   let mod;
   try {
     mod = await import(importFrom);
@@ -29,9 +30,17 @@ export async function create({ importFrom = "kokoro-js", model = "onnx-community
   } catch (err) {
     throw failure(`could not load the Kokoro model: ${err.message}`, err);
   }
+  // The text, or with our own G2P the phonemes of the text: kokoro-js's `generate` phonemizes with eSpeak NG, which `own` never asks it to do (ADR-0051).
+  // Returns undefined for a piece with nothing to say.
+  const generate = async (piece, voiceId) => {
+    if (g2p !== "own") return engine.generate(piece, { voice: voiceId });
+    const phonemes = kokoroPhonemes(piece);
+    if (!phonemes) return undefined;
+    return engine.generate_from_ids(engine.tokenizer(phonemes, { truncation: true }).input_ids, { voice: voiceId });
+  };
   // The first call after loading pays for the runtime's own set-up (about a second); make it now, not on the first line a player speaks.
   try {
-    await engine.generate("Ready.", { voice });
+    await generate("Ready.", voice);
   } catch {
     /* a failed warm-up is not a failed load: the first real line will say what is wrong */
   }
@@ -50,10 +59,11 @@ export async function create({ importFrom = "kokoro-js", model = "onnx-community
         if (signal?.aborted) return;
         let result;
         try {
-          result = await engine.generate(piece, { voice: wanted && voices.includes(wanted) ? wanted : voice });
+          result = await generate(piece, wanted && voices.includes(wanted) ? wanted : voice);
         } catch (err) {
           throw failure(`Kokoro failed: ${err.message}`, err);
         }
+        if (!result) continue;
         if (signal?.aborted) return; // cancelled while generating; the audio is no longer wanted
         let audio = result.audio;
         if (pieces.length > 1) {

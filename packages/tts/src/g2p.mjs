@@ -10,12 +10,11 @@ import { gunzipSync } from "node:zlib";
 
 /** The dictionary, kept as one string and searched in place: a few megabytes, not a map of 126,000 strings. */
 export class Pronunciations {
-  private readonly starts: Uint32Array;
-
   /** `text` is lines of `word PHONES`, sorted by code point, as `scripts/make-cmudict.mjs` makes. */
-  constructor(private readonly text: string) {
-    const starts: number[] = [];
-    for (let at = 0; at < text.length; ) {
+  constructor(text) {
+    this.text = text;
+    const starts = [];
+    for (let at = 0; at < text.length;) {
       starts.push(at);
       const nl = text.indexOf("\n", at);
       at = nl < 0 ? text.length : nl + 1;
@@ -23,17 +22,17 @@ export class Pronunciations {
     this.starts = Uint32Array.from(starts);
   }
 
-  get size(): number {
+  get size() {
     return this.starts.length;
   }
 
   /** The phones of `word` (lower case) with their stress digits, such as `["HH","AH0","L","OW1"]`, or undefined if the dictionary lacks it. */
-  lookup(word: string): string[] | undefined {
+  lookup(word) {
     let lo = 0;
     let hi = this.starts.length - 1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
-      const start = this.starts[mid]!;
+      const start = this.starts[mid];
       const sp = this.text.indexOf(" ", start);
       const key = this.text.slice(start, sp);
       if (key === word) {
@@ -47,20 +46,20 @@ export class Pronunciations {
   }
 }
 
-let shared: Pronunciations | undefined;
+let shared;
 
 /** The dictionary that ships with the package, read once. Takes about 20 ms and 4 MB. */
-export function loadPronunciations(): Pronunciations {
+export function loadPronunciations() {
   shared ??= new Pronunciations(gunzipSync(readFileSync(new URL("../data/cmudict.txt.gz", import.meta.url))).toString("latin1"));
   return shared;
 }
 
 // ---- phones to IPA ----
 
-const CONSONANTS: Record<string, string> = { B: "b", CH: "tʃ", D: "d", DH: "ð", F: "f", G: "ɡ", HH: "h", JH: "dʒ", K: "k", L: "l", M: "m", N: "n", NG: "ŋ", P: "p", R: "ɹ", S: "s", SH: "ʃ", T: "t", TH: "θ", V: "v", W: "w", Y: "j", Z: "z", ZH: "ʒ" };
+const CONSONANTS = { B: "b", CH: "tʃ", D: "d", DH: "ð", F: "f", G: "ɡ", HH: "h", JH: "dʒ", K: "k", L: "l", M: "m", N: "n", NG: "ŋ", P: "p", R: "ɹ", S: "s", SH: "ʃ", T: "t", TH: "θ", V: "v", W: "w", Y: "j", Z: "z", ZH: "ʒ" };
 
 /** The IPA of the vowel `phone` (no digit) at `stress` 0, 1 or 2. */
-function vowelIpa(phone: string, stress: number): string {
+function vowelIpa(phone, stress) {
   switch (phone) {
     case "AA": return "ɑː";
     case "AE": return "æ";
@@ -82,12 +81,12 @@ function vowelIpa(phone: string, stress: number): string {
 }
 
 /** Phones with stress digits to IPA, a stress mark before the stressed vowel. */
-export function phonesToIpa(phones: readonly string[]): string {
+export function phonesToIpa(phones) {
   let out = "";
   for (const p of phones) {
     const m = /^([A-Z]+)([012])?$/.exec(p);
     if (!m) continue;
-    const base = m[1]!;
+    const base = m[1];
     if (m[2] === undefined) out += CONSONANTS[base] ?? "";
     else {
       const stress = Number(m[2]);
@@ -99,13 +98,13 @@ export function phonesToIpa(phones: readonly string[]): string {
 
 // ---- words the dictionary lacks ----
 
-const isVowelPhone = (p: string) => /\d$/.test(p);
+const isVowelPhone = (p) => /\d$/.test(p);
 const VOICELESS = new Set(["P", "T", "K", "F", "TH", "S", "SH", "CH", "HH"]);
 const SIBILANT = new Set(["S", "Z", "SH", "ZH", "CH", "JH"]);
-const last = (phones: string[]) => phones[phones.length - 1]!;
+const last = (phones) => phones[phones.length - 1];
 
 /** The phones an ending adds to a word, by how the word ends: "cats" /s/, "dogs" /z/, "boxes" /iz/; "walked" /t/, "played" /d/, "wanted" /id/. */
-function ending(kind: "s" | "ed" | "ing" | "ly" | "er", base: string[]): string[] {
+function ending(kind, base) {
   const end = last(base);
   if (kind === "ing") return ["IH0", "NG"];
   if (kind === "ly") return ["L", "IY0"];
@@ -118,7 +117,7 @@ function ending(kind: "s" | "ed" | "ing" | "ly" | "er", base: string[]): string[
  * Letter-to-sound rules: the commonest English spellings, tried in order at each place in the word. Not right for every word, close enough to
  * show the mouth the right vowels. A final silent "e" and doubled consonants are handled in `letterToSound`.
  */
-const RULES: [RegExp, string[]][] = [
+const RULES = [
   // clusters and silent letters
   [/^kn/y, ["N"]], [/^wr/y, ["R"]], [/^gn/y, ["N"]], [/^ps/y, ["S"]], [/^wh/y, ["W"]], [/^x/y, ["Z"]],
   [/tch/y, ["CH"]], [/ch/y, ["CH"]], [/sh/y, ["SH"]], [/th/y, ["TH"]], [/ph/y, ["F"]], [/ck/y, ["K"]], [/dge/y, ["JH"]],
@@ -133,14 +132,14 @@ const RULES: [RegExp, string[]][] = [
   [/ew|ue|ui|eu/y, ["UW1"]], [/ey$/y, ["IY0"]], [/ar/y, ["AA1", "R"]], [/or/y, ["AO1", "R"]], [/er|ir|ur|yr/y, ["ER1"]], [/y$/y, ["IY0"]],
 ];
 /** The plain letters, when no rule applies. */
-const LETTERS: Record<string, string[]> = { a: ["AE1"], b: ["B"], c: ["K"], d: ["D"], e: ["EH1"], f: ["F"], g: ["G"], h: ["HH"], i: ["IH1"], j: ["JH"], k: ["K"], l: ["L"], m: ["M"], n: ["N"], o: ["AA1"], p: ["P"], q: ["K"], r: ["R"], s: ["S"], t: ["T"], u: ["AH1"], v: ["V"], w: ["W"], x: ["K", "S"], y: ["IH1"], z: ["Z"] };
+const LETTERS = { a: ["AE1"], b: ["B"], c: ["K"], d: ["D"], e: ["EH1"], f: ["F"], g: ["G"], h: ["HH"], i: ["IH1"], j: ["JH"], k: ["K"], l: ["L"], m: ["M"], n: ["N"], o: ["AA1"], p: ["P"], q: ["K"], r: ["R"], s: ["S"], t: ["T"], u: ["AH1"], v: ["V"], w: ["W"], x: ["K", "S"], y: ["IH1"], z: ["Z"] };
 
 /** Phones for a lower-case word of letters that no dictionary knows, by its spelling. Never throws; a word of no letters gives none. */
-export function letterToSound(word: string): string[] {
-  const out: string[] = [];
+export function letterToSound(word) {
+  const out = [];
   let i = 0;
   while (i < word.length) {
-    const c = word[i]!;
+    const c = word[i];
     const prev = word[i - 1];
     // a final e after a consonant is silent, once the word has another vowel ("table")
     if (c === "e" && i === word.length - 1 && i >= 2 && prev !== undefined && !"aeiouy".includes(prev)) {
@@ -179,7 +178,7 @@ export function letterToSound(word: string): string[] {
   });
 }
 
-const dropEnds: Record<string, { kind: "s" | "ed" | "ing" | "ly" | "er"; bases: (w: string) => string[] }> = {
+const dropEnds = {
   ing: { kind: "ing", bases: (w) => [w, w + "e", w.length > 1 && w.at(-1) === w.at(-2) ? w.slice(0, -1) : w] },
   ed: { kind: "ed", bases: (w) => [w, w + "e", w.length > 1 && w.at(-1) === w.at(-2) ? w.slice(0, -1) : w] },
   ies: { kind: "s", bases: (w) => [w + "y"] },
@@ -190,12 +189,12 @@ const dropEnds: Record<string, { kind: "s" | "ed" | "ing" | "ly" | "er"; bases: 
 };
 
 /** The phones of a word (lower case, letters and apostrophes): the dictionary's, or built from known parts, or from the spelling. */
-export function pronounce(word: string, dict: Pronunciations): string[] {
+export function pronounce(word, dict) {
   const known = dict.lookup(word);
   if (known) return known;
   const possessive = /^(.+)'s$/.exec(word);
   if (possessive) {
-    const base = pronounce(possessive[1]!, dict);
+    const base = pronounce(possessive[1], dict);
     return [...base, ...ending("s", base)];
   }
   const bare = word.replace(/'/g, "");
@@ -209,7 +208,7 @@ export function pronounce(word: string, dict: Pronunciations): string[] {
     }
   }
   // two known words: "cardroom", "wavelength"
-  let best: string[] | undefined;
+  let best;
   let bestShort = 0;
   for (let i = 3; i <= word.length - 3; i++) {
     const a = dict.lookup(word.slice(0, i));
@@ -226,20 +225,20 @@ export function pronounce(word: string, dict: Pronunciations): string[] {
 
 const ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
 /** Digits read one at a time: "507" is "five zero seven". */
-function digitsToWords(digits: string): string[] {
-  return [...digits].filter((d) => d >= "0" && d <= "9").map((d) => ONES[Number(d)]!);
+function digitsToWords(digits) {
+  return [...digits].filter((d) => d >= "0" && d <= "9").map((d) => ONES[Number(d)]);
 }
 
 const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
 
 /** A whole number as words: 105 is "one hundred five". Numbers past a trillion are read digit by digit. */
-export function numberToWords(n: number): string[] {
+export function numberToWords(n) {
   if (!Number.isFinite(n)) return [];
   if (!Number.isInteger(n) || n < 0 || n >= 1e12) return digitsToWords(String(BigInt(Math.trunc(Math.abs(n)))));
-  if (n < 20) return [ONES[n]!];
-  if (n < 100) return [TENS[Math.floor(n / 10)]!, ...(n % 10 ? [ONES[n % 10]!] : [])];
-  if (n < 1000) return [ONES[Math.floor(n / 100)]!, "hundred", ...(n % 100 ? numberToWords(n % 100) : [])];
-  for (const [size, name] of [[1e9, "billion"], [1e6, "million"], [1e3, "thousand"]] as const) {
+  if (n < 20) return [ONES[n]];
+  if (n < 100) return [TENS[Math.floor(n / 10)], ...(n % 10 ? [ONES[n % 10]] : [])];
+  if (n < 1000) return [ONES[Math.floor(n / 100)], "hundred", ...(n % 100 ? numberToWords(n % 100) : [])];
+  for (const [size, name] of [[1e9, "billion"], [1e6, "million"], [1e3, "thousand"]]) {
     if (n >= size) return [...numberToWords(Math.floor(n / size)), name, ...(n % size ? numberToWords(n % size) : [])];
   }
   return [];
@@ -251,19 +250,19 @@ export function numberToWords(n: number): string[] {
  * The phonemes of `text` as IPA, words separated by spaces and a pause mark (`,` `.` `?` and the like) left on the word that ends a phrase.
  * Numbers are said as words; anything that is not a letter, digit or pause mark is skipped. Never throws.
  */
-export function ipaFor(text: string, dict: Pronunciations = loadPronunciations()): string {
-  const words: string[] = [];
+export function ipaFor(text, dict = loadPronunciations()) {
+  const words = [];
   const tokens = text.replace(/[‘’]/g, "'").match(/[A-Za-z]+(?:'[A-Za-z]+)*|\d[\d,]*(?:\.\d+)?|[,.;:!?…—–]/g) ?? [];
   for (const token of tokens) {
     if (/^[,.;:!?…—–]$/.test(token)) {
-      if (words.length > 0 && !/[,.;:!?…—–]$/.test(words[words.length - 1]!)) words[words.length - 1] += token;
+      if (words.length > 0 && !/[,.;:!?…—–]$/.test(words[words.length - 1])) words[words.length - 1] += token;
     } else if (/^\d/.test(token)) {
       const [whole, fraction] = token.replace(/,/g, "").split(".");
-      const said = whole!.length > 12 ? digitsToWords(whole!) : numberToWords(Number(whole));
+      const said = whole .length > 12 ? digitsToWords(whole) : numberToWords(Number(whole));
       for (const w of said) words.push(phonesToIpa(pronounce(w, dict)));
       if (fraction !== undefined) {
         words.push(phonesToIpa(pronounce("point", dict)));
-        for (const d of fraction) words.push(phonesToIpa(pronounce(ONES[Number(d)]!, dict)));
+        for (const d of fraction) words.push(phonesToIpa(pronounce(ONES[Number(d)], dict)));
       }
     } else words.push(phonesToIpa(pronounce(token.toLowerCase(), dict)));
   }

@@ -12,11 +12,17 @@ async function fakeKokoro() {
   await writeFile(
     file,
     `export const calls = [];
+     export const fromIds = [];
      export class KokoroTTS {
        static async from_pretrained() { return new KokoroTTS(); }
        voices = { af_heart: {} };
+       tokenizer = (phonemes) => ({ input_ids: phonemes });
+       async generate_from_ids(ids) { fromIds.push(ids); return this.make(ids); }
        async generate(text) {
          calls.push(text);
+         return this.make(text);
+       }
+       async make(text) {
          if (globalThis.__blocking) { const end = Date.now() + 15; while (Date.now() < end); } // native work that holds the thread, as Kokoro's does
          else await new Promise((r) => setTimeout(r, 15));
          // the words (a tone as long as the text), padded with 0.4 s of quiet at each end, as Kokoro's calls are
@@ -30,7 +36,8 @@ async function fakeKokoro() {
   const href = pathToFileURL(file).href;
   const raw = async () => (await import(href)).calls as string[];
   // `calls` is what was made for the lines spoken; the warm-up at load ("Ready.") is counted apart
-  return { href, calls: async () => (await raw()).filter((t) => t !== "Ready."), raw };
+  const ids = async () => (await import(href)).fromIds as string[];
+  return { href, calls: async () => (await raw()).filter((t) => t !== "Ready."), raw, ids };
 }
 
 const LONG = "When the committee finally met on Tuesday morning to discuss the budget, nobody had read the report that everybody had been sent, so the meeting ran long, and several people left before it ended, which surprised no one at all.";
@@ -160,5 +167,30 @@ describe("the text of each piece (VIK-50, ADR-0049)", () => {
     expect(chunks.every((c) => typeof c.text === "string" && c.text.length > 0)).toBe(true);
     expect(chunks.map((c) => c.text).join(" ").replace(/\s+/g, " ")).toBe(LONG.replace(/\s+/g, " "));
     expect(await fake.calls()).toEqual(chunks.map((c) => c.text)); // exactly what was made
+  });
+});
+
+describe("the Kokoro engine with our own phonemes (VIK-149, ADR-0051)", () => {
+  it("gives the model the dictionary's phonemes instead of asking kokoro-js (and its eSpeak) for them, and still says which words each piece holds", async () => {
+    const fake = await fakeKokoro();
+    const engine = await create({ importFrom: fake.href, g2p: "own" });
+    const chunks: { text?: string }[] = [];
+    for await (const c of engine.synthesize({ text: "Nice try, Ben." })) chunks.push(c);
+    expect(await fake.calls()).toEqual([]); // the text path, which phonemizes with eSpeak, is never taken
+    expect((await fake.ids()).at(-1)).toBe("nˈIs tɹˈI, bˈɛn.");
+    expect(chunks.map((c) => c.text)).toEqual(["Nice try, Ben."]);
+  });
+
+  it("makes no sound for a piece with nothing to say, and uses kokoro-js's own text path when asked to", async () => {
+    const fake = await fakeKokoro();
+    const own = await create({ importFrom: fake.href, g2p: "own" });
+    const before = (await fake.ids()).length;
+    const quiet: unknown[] = [];
+    for await (const c of own.synthesize({ text: "?!" })) quiet.push(c);
+    expect(quiet).toEqual([]);
+    expect((await fake.ids()).length).toBe(before);
+    const espeak = await create({ importFrom: fake.href, g2p: "espeak" });
+    for await (const _ of espeak.synthesize({ text: "Fold." })) void _;
+    expect(await fake.calls()).toEqual(["Fold."]);
   });
 });

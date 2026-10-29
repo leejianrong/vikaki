@@ -1,12 +1,14 @@
 // The TTS bench (VIK-140): say the same twelve poker lines (a taunt, a worried thought, a win, a bust-out, with their emotions) through each engine that
 // is set up, write the audio to listen to, and print a table of how fast each one is. Engines whose key or server is missing are skipped with the fix.
 //
-//   pnpm exec tsx scripts/tts-bench.ts [--engines kokoro,openai,chatterbox,qwen,fake] [--out DIR] [--lines FILE] [--log events.jsonl] [--blind [--seed N]]
+//   pnpm exec tsx scripts/tts-bench.ts [--engines kokoro,kokoro-own,openai,chatterbox,qwen,fake] [--out DIR] [--lines FILE] [--log events.jsonl] [--blind [--seed N]]
 //
 // --blind names the clips A01, A02... in a shuffled order and writes the answer to key.json, so a listener scores them with docs/voice-rubric.md without knowing
 // the engine. results.json (numbers only) is always written, to keep a baseline.
 //
 //   kokoro      the baseline, if installed (`make install-voice`)
+//   kokoro-own  the same voice on our own dictionary phonemes, no eSpeak NG (VIK-149). Two Kokoro engines in one run need --in-process: a second
+//               Kokoro worker in one process fails to load (a native-runtime limit); in-process holds the thread, so timings are a little worse.
 //   openai      gpt-4o-mini-tts: needs OPENAI_API_KEY in the environment (this costs a few cents a run)
 //   chatterbox  a Chatterbox server with an OpenAI-style speech route: CHATTERBOX_URL=http://host:port/v1 (and CHATTERBOX_API_KEY if it wants one)
 //   qwen        a Qwen3-TTS server likewise: QWEN_TTS_URL, QWEN_TTS_API_KEY
@@ -31,6 +33,7 @@ const { values } = parseArgs({
     log: { type: "string" },
     blind: { type: "boolean", default: false },
     seed: { type: "string", default: "1" },
+    "in-process": { type: "boolean", default: false },
   },
 });
 
@@ -46,9 +49,10 @@ function chatterboxPaceFromEnv() {
 
 async function engine(name: string): Promise<{ tts: Tts; skip?: undefined } | { tts?: undefined; skip: string }> {
   if (name === "fake") return { tts: new FakeTts({ sampleRate: 24000, msPerChar: 60, chunkMs: 120 }) };
-  if (name === "kokoro") {
+  if (name === "kokoro" || name === "kokoro-own") {
     try {
-      return { tts: await KokoroTts.create({ importFrom: findVoice()?.entry }) };
+      // kokoro-own is Kokoro on our own dictionary phonemes, no eSpeak NG (VIK-149, ADR-0051); kokoro is kokoro-js's own path through eSpeak.
+      return { tts: await KokoroTts.create({ importFrom: findVoice()?.entry, g2p: name === "kokoro-own" ? "own" : "espeak", inProcess: values["in-process"] }) };
     } catch (err) {
       return { skip: `Kokoro is not installed (${(err as Error).message.slice(0, 60)}). Run \`make install-voice\`.` };
     }
@@ -56,7 +60,7 @@ async function engine(name: string): Promise<{ tts: Tts; skip?: undefined } | { 
   if (name === "openai") return process.env.OPENAI_API_KEY ? { tts: new SpeechApiTts(PROVIDERS.openai()) } : { skip: "set OPENAI_API_KEY in the environment (a few cents a run)" };
   if (name === "chatterbox") return process.env.CHATTERBOX_URL ? { tts: new ChatterboxTts({ pace: chatterboxPaceFromEnv() }) } : { skip: "set CHATTERBOX_URL to your server's /v1 (see docs/tts-providers.md)" };
   if (name === "qwen") return process.env.QWEN_TTS_URL ? { tts: new SpeechApiTts(PROVIDERS.qwen()) } : { skip: "set QWEN_TTS_URL to your server's /v1 (see docs/tts-providers.md)" };
-  return { skip: `unknown engine "${name}" (kokoro, openai, chatterbox, qwen, fake)` };
+  return { skip: `unknown engine "${name}" (kokoro, kokoro-own, openai, chatterbox, qwen, fake)` };
 }
 
 const lines = JSON.parse(await readFile(values.lines!, "utf8")) as BenchLine[];

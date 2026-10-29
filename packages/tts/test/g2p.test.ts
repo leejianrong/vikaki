@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ipaFor, letterToSound, loadPronunciations, numberToWords, phonesToIpa, pronounce, Pronunciations } from "../src/g2p.ts";
+import { ipaFor, letterToSound, loadPronunciations, numberToWords, phonesToIpa, pronounce, Pronunciations } from "../src/g2p.mjs";
 
 /** A small sorted dictionary, so the rules for endings and compounds are tested on words whose phones are known. */
 const small = new Pronunciations(

@@ -17,3 +17,14 @@ export function chosenDtype(env = process.env) {
   const wanted = env.VIKAKI_KOKORO_DTYPE;
   return wanted && Object.hasOwn(MODEL_FILES, wanted) ? wanted : DEFAULT_DTYPE;
 }
+
+/**
+ * Where the model's input (phonemes) comes from: `espeak`, kokoro-js's own path through the `phonemizer` package and eSpeak NG (GPL-3.0), or `own`,
+ * our dictionary-based phonemes with no eSpeak (kokoro-phonemes.mjs, ADR-0051). `VIKAKI_KOKORO_G2P` sets it.
+ */
+export const DEFAULT_G2P = "espeak";
+
+export function chosenG2p(env = process.env) {
+  const wanted = env.VIKAKI_KOKORO_G2P;
+  return wanted === "own" || wanted === "espeak" ? wanted : DEFAULT_G2P;
+}
