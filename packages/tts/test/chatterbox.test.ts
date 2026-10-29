@@ -89,3 +89,23 @@ describe("ChatterboxTts", () => {
     expect(calls[0]!.headers.authorization).toBeUndefined();
   });
 });
+
+describe("Chatterbox pace (VIK-150)", () => {
+  it("lowers exaggeration by a delta and caps cfg_weight, for every emotion, and never goes below the floor", () => {
+    for (const emotion of [undefined, "neutral", "excited", "smug", "sad"]) {
+      const base = chatterboxParams(emotion);
+      const slow = chatterboxParams(emotion, false, { exaggerationDelta: -0.15, cfgWeightCap: 0.3 });
+      expect(slow.exaggeration).toBeCloseTo(Math.max(0.25, base.exaggeration - 0.15));
+      expect(slow.cfg_weight).toBe(Math.min(base.cfg_weight, 0.3));
+    }
+    expect(chatterboxParams("sad", false, { exaggerationDelta: -5, cfgWeightCap: 0.3 }).exaggeration).toBe(0.25);
+  });
+
+  it("sends the slowed numbers to the server, and the plain ones when no pace is set", async () => {
+    const { f, calls } = fakeServer();
+    await collect(make(f, { pace: { exaggerationDelta: -0.25, cfgWeightCap: 0.2 } }).synthesize({ text: "Fold.", emotion: "excited" }));
+    await collect(make(f).synthesize({ text: "Fold.", emotion: "excited" }));
+    expect(calls[0]!.body).toMatchObject({ exaggeration: 0.65, cfg_weight: 0.2 });
+    expect(calls[1]!.body).toMatchObject({ exaggeration: 0.9, cfg_weight: 0.35 });
+  });
+});

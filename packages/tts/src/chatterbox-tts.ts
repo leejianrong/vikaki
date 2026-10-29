@@ -11,13 +11,22 @@ import type { AudioChunk, SynthesisRequest, Tts } from "./types.ts";
 export interface ChatterboxOptions extends Partial<SpeechApiOptions> {
   /** The longest piece asked for in one request, in characters. Default 200. */
   maxPieceChars?: number;
+  /** Slows the speech (VIK-150). Chatterbox has no speed setting; high exaggeration and a high cfg_weight both make it faster. */
+  pace?: ChatterboxPace;
+}
+
+export interface ChatterboxPace {
+  /** Added to every emotion's exaggeration (negative is slower and flatter). The result never goes below 0.25. */
+  exaggerationDelta: number;
+  /** Every emotion's cfg_weight is at most this (lower is slower, more deliberate). */
+  cfgWeightCap: number;
 }
 
 /**
  * What an emotion becomes for Chatterbox: `exaggeration` (0.25 flat to 2 dramatic, default 0.5) and `cfg_weight` (lower is slower and more deliberate, default 0.5).
  * Starting values from Chatterbox's own advice, to be tuned by listening (docs/spikes/chatterbox.md).
  */
-export function chatterboxParams(emotion: string | undefined, thought?: boolean): { exaggeration: number; cfg_weight: number } {
+export function chatterboxParams(emotion: string | undefined, thought?: boolean, pace?: ChatterboxPace): { exaggeration: number; cfg_weight: number } {
   const by: Record<string, [number, number]> = {
     neutral: [0.5, 0.5],
     happy: [0.7, 0.5],
@@ -31,7 +40,9 @@ export function chatterboxParams(emotion: string | undefined, thought?: boolean)
     confident: [0.6, 0.45],
   };
   const [exaggeration, cfg_weight] = by[emotion ?? "neutral"] ?? by.neutral!;
-  return thought ? { exaggeration: Math.max(0.3, exaggeration - 0.15), cfg_weight: Math.max(0.2, cfg_weight - 0.1) } : { exaggeration, cfg_weight };
+  const plain = thought ? { exaggeration: Math.max(0.3, exaggeration - 0.15), cfg_weight: Math.max(0.2, cfg_weight - 0.1) } : { exaggeration, cfg_weight };
+  if (!pace) return plain;
+  return { exaggeration: Math.max(0.25, plain.exaggeration + pace.exaggerationDelta), cfg_weight: Math.min(plain.cfg_weight, pace.cfgWeightCap) };
 }
 
 export class ChatterboxTts implements Tts {
@@ -40,12 +51,12 @@ export class ChatterboxTts implements Tts {
   private readonly maxPiece: number;
 
   constructor(options: ChatterboxOptions = {}) {
-    const { maxPieceChars, ...rest } = options;
+    const { maxPieceChars, pace, ...rest } = options;
     this.maxPiece = maxPieceChars ?? 200;
     this.api = new SpeechApiTts({
       ...PROVIDERS.chatterbox(),
       // `style` is words, which Chatterbox does not read (the server ignores `instructions`); the emotion goes as numbers.
-      bodyFor: (req) => chatterboxParams(req.emotion, req.style?.startsWith("Muttering")),
+      bodyFor: (req) => chatterboxParams(req.emotion, req.style?.startsWith("Muttering"), pace),
       ...rest,
     });
   }

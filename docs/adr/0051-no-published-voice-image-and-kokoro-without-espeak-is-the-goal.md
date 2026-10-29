@@ -22,5 +22,5 @@
 ## Consequences
 
 - People who want Kokoro in a container build it (`docker build --target vikaki-kokoro .`); the docs say so.
-- The already published `0.1.0-kokoro` tags still exist and still contain eSpeak NG. Removing them from GHCR is Jian's call (it is outward-facing and cannot be undone).
+- The already published `0.1.0-kokoro` tags still exist and still contain eSpeak NG. Jian decided (2026-10-30) to leave them as they are: they stay published, and every future release excludes eSpeak NG.
 - If a released voice image is wanted before VIK-149, the first option above is the fallback.

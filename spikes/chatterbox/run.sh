@@ -71,8 +71,15 @@ curl -fsS -m10 "$URL/health" >> "$OUT/cold-start.json"; echo >> "$OUT/cold-start
 podlog 40 > "$OUT/pod-log-at-ready.log"
 
 export CHATTERBOX_URL="$URL/v1" CHATTERBOX_API_KEY="$TOKEN"
-pnpm exec tsx scripts/tts-bench.ts --engines chatterbox --blind --out "$OUT/blind" 2>&1 | scrub
-cp "$OUT/blind/results.json" "$OUT/results-run1.json"
-pnpm exec tsx scripts/tts-bench.ts --engines chatterbox --out "$OUT/repeat" 2>&1 | scrub | tail -16
-cp "$OUT/repeat/results.json" "$OUT/results-run2.json"
+# VIK-150: the pace. Three variants of the same ten lines, each blind inside (A01..) and the variants themselves under neutral names V1..V3, in a random
+# order; which is which is in variants-key.json, to be opened after listening. "" is the adapter as it was (the baseline).
+PACES="${PACES:-|-0.15,0.3|-0.3,0.2}"
+ORDER="$(node -e 'const v=process.argv[1].split("|");for(let i=v.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[v[i],v[j]]=[v[j],v[i]]}console.log(JSON.stringify(v))' "$PACES")"
+echo "$ORDER" | jq -c 'to_entries | map({(("V" + ((.key+1)|tostring))): .value}) | add' > "$OUT/variants-key.json"
+n=0
+for pace in $(echo "$ORDER" | jq -r '.[] | if . == "" then "base" else . end'); do
+  n=$((n+1)); [ "$pace" = base ] && pace=""
+  CHATTERBOX_PACE="$pace" pnpm exec tsx scripts/tts-bench.ts --engines chatterbox --blind --out "$OUT/V$n" 2>&1 | scrub | tail -14
+  cp "$OUT/V$n/results.json" "$OUT/results-V$n.json"
+done
 echo "run: done, $(( $(date +%s) - started ))s of pod time; results in $OUT" >&2

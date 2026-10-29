@@ -77,3 +77,13 @@ It reads the key from `.env` by name (never printed), makes a one-off token for 
 The clips are in `.vikaki/voice-eval/` (not committed; it is local): `kokoro/` (named by line, from the baseline run) and `chatterbox/blind/` (`A01.wav`..., shuffled; `key.json` says which line each is, so do not open it until you have scored them). Score each by [the rubric](../voice-rubric.md) and compare line by line.
 
 This pass is **not blind across engines**: the Kokoro clips are named. A blind comparison needs both engines in one run (`--engines kokoro,chatterbox --blind`), which needs a pod up for the Chatterbox half; do that run if the ADR (VIK-145) is close.
+
+## Pace (VIK-150)
+
+Jian's first listen: Chatterbox is more expressive than Kokoro but sounds as if it is spoken at 1.5x to 2x. Chatterbox has no speed setting. Its two numbers pull on pace: a high `exaggeration` speeds speech up and a lower `cfg_weight` slows it. `ChatterboxOptions.pace` (`exaggerationDelta`, `cfgWeightCap`) and `CHATTERBOX_PACE="-0.15,0.3"` in the bench now turn both down for every emotion; unset is as before.
+
+One pod (RTX 4090, secure cloud, $0.89/h, 325 s of pod time, about $0.08; `pod list` empty after) ran the ten lines three times, each blind inside (`A01`..) and under neutral names `V1`..`V3` (`spikes/chatterbox/run.sh`, `PACES`), clips in `.vikaki/voice-eval/chatterbox-pace/`.
+
+**Spoiler, open after listening:** `variants-key.json` there says V1 = as before, V2 = `-0.15,0.3`, V3 = `-0.3,0.2`. Total audio for the ten lines: V1 35.4 s, V2 36.2 s (+2%), V3 41.4 s (+17%). Mean first audio about 4.1 to 4.8 s in each (settings do not change speed of generation). Raw results: `chatterbox-pace-V*.json`.
+
+What this says before anyone has scored it: these two knobs slow the speech by at most about 17%, not the 25% to 50% that "1.5x to 2x" would need to be undone. If V3 still sounds too fast, the settings cannot fix it. The remaining levers are a slower reference voice (Chatterbox copies the pace of its reference clip; a clip needs its licence recorded first) and a pitch-preserving time stretch of about 0.8x on each piece, which Jian chose not to test yet.

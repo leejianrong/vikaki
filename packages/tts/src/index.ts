@@ -6,7 +6,7 @@ export { WorkerTts, type WorkerTtsOptions } from "./worker-tts.ts";
 export { ipaFor, letterToSound, loadPronunciations, numberToWords, phonesToIpa, pronounce, Pronunciations } from "./g2p.ts";
 export { chosenDtype, DEFAULT_DTYPE, MODEL_FILES, type KokoroDtype } from "./kokoro-defaults.mjs";
 export { PROVIDERS, SpeechApiTts, type SpeechApiOptions } from "./speech-api-tts.ts";
-export { ChatterboxTts, chatterboxParams, type ChatterboxOptions } from "./chatterbox-tts.ts";
+export { ChatterboxTts, chatterboxParams, type ChatterboxOptions, type ChatterboxPace } from "./chatterbox-tts.ts";
 export { styleFor } from "./emotion-style.ts";
 export { CHARS_PER_SECOND, costOf, PRICES, speechStats, type Price, type SpeechStats } from "./cost.ts";
 export { blindKey, report, resultsJson, runBench, toWav, type BenchLine, type BenchResult, type BlindEntry } from "./bench.ts";
