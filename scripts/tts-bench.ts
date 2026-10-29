@@ -34,6 +34,15 @@ const { values } = parseArgs({
   },
 });
 
+/** CHATTERBOX_PACE="-0.15,0.3" is the exaggeration delta and the cfg_weight cap (VIK-150); unset is Chatterbox as the adapter has it. */
+function chatterboxPaceFromEnv() {
+  const v = process.env.CHATTERBOX_PACE;
+  if (!v) return undefined;
+  const [d, c] = v.split(",").map(Number);
+  if (!Number.isFinite(d) || !Number.isFinite(c)) throw new Error('CHATTERBOX_PACE is "exaggerationDelta,cfgWeightCap", such as "-0.15,0.3"');
+  return { exaggerationDelta: d!, cfgWeightCap: c! };
+}
+
 async function engine(name: string): Promise<{ tts: Tts; skip?: undefined } | { tts?: undefined; skip: string }> {
   if (name === "fake") return { tts: new FakeTts({ sampleRate: 24000, msPerChar: 60, chunkMs: 120 }) };
   if (name === "kokoro") {
@@ -44,7 +53,7 @@ async function engine(name: string): Promise<{ tts: Tts; skip?: undefined } | { 
     }
   }
   if (name === "openai") return process.env.OPENAI_API_KEY ? { tts: new SpeechApiTts(PROVIDERS.openai()) } : { skip: "set OPENAI_API_KEY in the environment (a few cents a run)" };
-  if (name === "chatterbox") return process.env.CHATTERBOX_URL ? { tts: new ChatterboxTts() } : { skip: "set CHATTERBOX_URL to your server's /v1 (see docs/tts-providers.md)" };
+  if (name === "chatterbox") return process.env.CHATTERBOX_URL ? { tts: new ChatterboxTts({ pace: chatterboxPaceFromEnv() }) } : { skip: "set CHATTERBOX_URL to your server's /v1 (see docs/tts-providers.md)" };
   if (name === "qwen") return process.env.QWEN_TTS_URL ? { tts: new SpeechApiTts(PROVIDERS.qwen()) } : { skip: "set QWEN_TTS_URL to your server's /v1 (see docs/tts-providers.md)" };
   return { skip: `unknown engine "${name}" (kokoro, openai, chatterbox, qwen, fake)` };
 }

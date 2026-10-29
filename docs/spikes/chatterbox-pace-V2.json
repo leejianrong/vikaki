@@ -1,0 +1,112 @@
+[
+  {
+    "engine": "chatterbox",
+    "label": "short ack",
+    "characters": 5,
+    "firstAudioMs": 2183.22313,
+    "chunks": 1,
+    "totalMs": 2183.2332069999998,
+    "audioSeconds": 0.56,
+    "realtimeFactor": 0.2565003125660135,
+    "sampleRate": 24000
+  },
+  {
+    "engine": "chatterbox",
+    "label": "taunt",
+    "characters": 53,
+    "firstAudioMs": 3053.5829599999997,
+    "chunks": 1,
+    "totalMs": 3053.5920270000006,
+    "audioSeconds": 2.64,
+    "realtimeFactor": 0.8645555714899041,
+    "sampleRate": 24000
+  },
+  {
+    "engine": "chatterbox",
+    "label": "numbers",
+    "characters": 72,
+    "firstAudioMs": 5662.399105,
+    "chunks": 1,
+    "totalMs": 5662.405746,
+    "audioSeconds": 5.52,
+    "realtimeFactor": 0.9748506637659095,
+    "sampleRate": 24000
+  },
+  {
+    "engine": "chatterbox",
+    "label": "names",
+    "characters": 73,
+    "firstAudioMs": 5145.602723,
+    "chunks": 1,
+    "totalMs": 5145.644483,
+    "audioSeconds": 4.4,
+    "realtimeFactor": 0.8550921103345881,
+    "sampleRate": 24000
+  },
+  {
+    "engine": "chatterbox",
+    "label": "worried thought",
+    "characters": 44,
+    "firstAudioMs": 4594.367105000001,
+    "chunks": 1,
+    "totalMs": 4594.374866000002,
+    "audioSeconds": 2.36,
+    "realtimeFactor": 0.5136716242866541,
+    "sampleRate": 24000
+  },
+  {
+    "engine": "chatterbox",
+    "label": "excited rush",
+    "characters": 23,
+    "firstAudioMs": 2550.107810999998,
+    "chunks": 1,
+    "totalMs": 2550.1205039999986,
+    "audioSeconds": 1.56,
+    "realtimeFactor": 0.6117357974076353,
+    "sampleRate": 24000
+  },
+  {
+    "engine": "chatterbox",
+    "label": "sad bust-out",
+    "characters": 58,
+    "firstAudioMs": 4538.69744,
+    "chunks": 1,
+    "totalMs": 4538.712002,
+    "audioSeconds": 3.24,
+    "realtimeFactor": 0.7138589094378057,
+    "sampleRate": 24000
+  },
+  {
+    "engine": "chatterbox",
+    "label": "angry fold",
+    "characters": 52,
+    "firstAudioMs": 3924.6904519999953,
+    "chunks": 1,
+    "totalMs": 3924.700947999998,
+    "audioSeconds": 2.6,
+    "realtimeFactor": 0.6624708568750807,
+    "sampleRate": 24000
+  },
+  {
+    "engine": "chatterbox",
+    "label": "question",
+    "characters": 65,
+    "firstAudioMs": 4375.096666999998,
+    "chunks": 1,
+    "totalMs": 4375.106666,
+    "audioSeconds": 3.08,
+    "realtimeFactor": 0.7039828363352639,
+    "sampleRate": 24000
+  },
+  {
+    "engine": "chatterbox",
+    "label": "long story",
+    "characters": 224,
+    "firstAudioMs": 8841.365081000004,
+    "chunks": 2,
+    "totalMs": 9965.739027000003,
+    "audioSeconds": 10.2,
+    "realtimeFactor": 1.023506633312925,
+    "sampleRate": 24000
+  }
+]
