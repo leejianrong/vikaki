@@ -21,7 +21,6 @@ export function planRelease(tag, owner = "leejianrong") {
   const image = `ghcr.io/${owner.toLowerCase()}/vikaki`;
   // A release candidate gets its own tag and moves nothing else: `latest` and `X.Y` only ever point at a final release.
   const names = prerelease ? [version] : [version, `${major}.${minor}`, "latest"];
-  const suffixed = (name) => (name === "latest" ? "latest-kokoro" : `${name}-kokoro`);
   return {
     tag,
     version,
@@ -29,7 +28,6 @@ export function planRelease(tag, owner = "leejianrong") {
     pythonVersion: prerelease ? `${core}${PEP440[label]}${n}` : core,
     image,
     imageTags: names.map((t) => `${image}:${t}`),
-    kokoroTags: names.map((t) => `${image}:${suffixed(t)}`),
   };
 }
 
@@ -55,7 +53,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.log(JSON.stringify(plan, null, 2));
     if (flag("--github-output") && process.env.GITHUB_OUTPUT) {
       const lines = Object.entries({ image: plan.image, version: plan.version, prerelease: plan.prerelease, python_version: plan.pythonVersion });
-      appendFileSync(process.env.GITHUB_OUTPUT, lines.map(([k, v]) => `${k}=${v}\n`).join("") + `image_tags<<EOF\n${plan.imageTags.join("\n")}\nEOF\nkokoro_tags<<EOF\n${plan.kokoroTags.join("\n")}\nEOF\n`);
+      appendFileSync(process.env.GITHUB_OUTPUT, lines.map(([k, v]) => `${k}=${v}\n`).join("") + `image_tags<<EOF\n${plan.imageTags.join("\n")}\nEOF\n`);
     }
   } catch (err) {
     console.error(err instanceof Error ? err.message : err);

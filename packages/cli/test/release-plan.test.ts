@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 // @ts-expect-error a plain .mjs script with no types
 const { planRelease, pyprojectVersion } = (await import(join(root, "scripts/release-plan.mjs"))) as {
-  planRelease: (tag: string, owner?: string) => { version: string; prerelease: boolean; pythonVersion: string; imageTags: string[]; kokoroTags: string[] };
+  planRelease: (tag: string, owner?: string) => { version: string; prerelease: boolean; pythonVersion: string; imageTags: string[] };
   pyprojectVersion: (text: string) => string | undefined;
 };
 
@@ -15,7 +15,7 @@ describe("what a version tag publishes (VIK-124)", () => {
   it("a final release gets its version, major.minor and latest, on the owner's lower-cased ghcr path, plus the same for the voice variant", () => {
     const p = planRelease("v0.1.0", "LeeJianRong");
     expect(p.imageTags).toEqual(["ghcr.io/leejianrong/vikaki:0.1.0", "ghcr.io/leejianrong/vikaki:0.1", "ghcr.io/leejianrong/vikaki:latest"]);
-    expect(p.kokoroTags).toEqual(["ghcr.io/leejianrong/vikaki:0.1.0-kokoro", "ghcr.io/leejianrong/vikaki:0.1-kokoro", "ghcr.io/leejianrong/vikaki:latest-kokoro"]);
+    expect(p).not.toHaveProperty("kokoroTags"); // no voice image is published (ADR-0051)
     expect(p.pythonVersion).toBe("0.1.0");
     expect(p.prerelease).toBe(false);
   });
@@ -23,7 +23,6 @@ describe("what a version tag publishes (VIK-124)", () => {
   it("a release candidate gets only its own tag, so latest and X.Y never point at it, and its Python version is the PEP 440 spelling", () => {
     const p = planRelease("v1.2.3-rc.2");
     expect(p.imageTags).toEqual(["ghcr.io/leejianrong/vikaki:1.2.3-rc.2"]);
-    expect(p.kokoroTags).toEqual(["ghcr.io/leejianrong/vikaki:1.2.3-rc.2-kokoro"]);
     expect(p.pythonVersion).toBe("1.2.3rc2");
     expect(p.prerelease).toBe(true);
     expect(planRelease("v1.0.0-beta.1").pythonVersion).toBe("1.0.0b1");

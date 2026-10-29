@@ -73,12 +73,11 @@ describe(".github/workflows/release.yml", () => {
     expect(text).not.toMatch(/PYPI_API_TOKEN|password: \$\{\{ secrets\.PYPI/); // trusted publishing: no stored token
   });
 
-  it("signs both images by digest, never by a movable tag, and attaches an SBOM to each", () => {
+  it("signs the image by digest, never by a movable tag, attaches an SBOM, and publishes no voice image (ADR-0051: it would carry eSpeak NG, GPL-3.0)", () => {
     expect(text).toMatch(/cosign sign --yes "\$IMAGE@\$DIGEST"/);
-    expect(text).toMatch(/cosign sign --yes "\$IMAGE@\$KOKORO_DIGEST"/);
     expect(text).toMatch(/cosign attest --yes --type spdxjson --predicate "vikaki-\$VERSION\.spdx\.json"/);
-    expect(text).toMatch(/cosign attest --yes --type spdxjson --predicate "vikaki-\$VERSION-kokoro\.spdx\.json"/);
     expect(text).not.toMatch(/cosign sign[^\n]*:latest/);
+    expect(text).not.toMatch(/kokoro/i);
   });
 
   it("needs the release notes to exist before it pushes anything", () => {

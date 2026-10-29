@@ -9,15 +9,14 @@ A release is a git tag. Pushing `vX.Y.Z` makes `.github/workflows/release.yml` b
 | `ghcr.io/leejianrong/vikaki:0.1.0` | exactly that release |
 | `ghcr.io/leejianrong/vikaki:0.1` | the newest 0.1.x |
 | `ghcr.io/leejianrong/vikaki:latest` | the newest final release |
-| `ghcr.io/leejianrong/vikaki:0.1.0-kokoro` (and `0.1-kokoro`, `latest-kokoro`) | the same with the real voice, amd64 only |
 
-All three non-voice tags are for `linux/amd64` and `linux/arm64`. A release candidate (`v0.2.0-rc.1`) has only its own tag. Pin `0.1` to take fixes and nothing that breaks, or the full version to take nothing.
+All three tags are for `linux/amd64` and `linux/arm64`. A release candidate (`v0.2.0-rc.1`) has only its own tag. Pin `0.1` to take fixes and nothing that breaks, or the full version to take nothing.
 
 ```bash
 docker run --rm -p 127.0.0.1:8787:8787 ghcr.io/leejianrong/vikaki:0.1
 ```
 
-What each image does and how to configure it: [docker.md](docker.md).
+What each image does and how to configure it: [docker.md](docker.md). There is no published voice image: it would carry eSpeak NG (GPL-3.0), so a game that wants Kokoro builds it itself ([ADR-0051](adr/0051-no-published-voice-image-and-kokoro-without-espeak-is-the-goal.md)).
 
 ## The Python client
 
@@ -60,7 +59,7 @@ The identity names this repository's `release.yml` on a `v*` tag, so an image pu
 
 5. First release only: GitHub makes a new package private. Open the package (github.com/leejianrong?tab=packages, `vikaki`), Package settings, Change visibility, Public, and link it to the repository.
 
-A tag that is not on `main`, is not shaped like a version, has no notes file, or disagrees with the client is refused before anything is pushed. After the push the workflow signs both images, attaches the SBOMs, and creates the GitHub release from the notes file.
+A tag that is not on `main`, is not shaped like a version, has no notes file, or disagrees with the client is refused before anything is pushed. After the push the workflow signs the image, attaches the SBOMs, and creates the GitHub release from the notes file.
 
 ## What a dry run cannot show
 
