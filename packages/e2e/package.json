@@ -18,7 +18,7 @@
     "test:e2e:smoke": "vitest run --tags-filter smoke"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
+    "@axe-core/playwright": "^4.14.0",
     "@types/ws": "^8.18.2"
   }
 }
